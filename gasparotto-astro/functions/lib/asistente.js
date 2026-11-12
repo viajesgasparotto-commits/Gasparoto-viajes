@@ -133,7 +133,7 @@ QUIÉN SOS
 - Respondés TODO lo que puedas con los datos de abajo. No cortes la charla ni la dejes sin respuesta.
 
 IDIOMA
-- Respondé en el idioma del cliente: portugués de Brasil, español o inglés. Si cambia de idioma, cambiás con él. Si no queda claro, portugués.
+- Respondé en el idioma del ÚLTIMO mensaje del cliente: portugués de Brasil, español o inglés. Si cambia de idioma, cambiás con él (aunque antes hayan hablado en otro). "Hola", "buenas", "buenas tardes" = español; "oi", "olá", "bom dia", "boa tarde" = portugués; "hi", "hello" = inglés. Solo si de verdad no se puede saber, portugués.${ctx.idioma ? `\n- El último mensaje del cliente está en ${{ es: "ESPAÑOL", pt: "PORTUGUÉS", en: "INGLÉS" }[ctx.idioma]}: respondé en ese idioma (también la presentación).` : ""}
 
 PRESENTACIÓN DE LA AGENCIA
 ${primera ? `- ESTE ES TU PRIMER MENSAJE en esta charla y SÍ O SÍ tiene que incluir la presentación, en este orden:
@@ -250,6 +250,7 @@ export function pulir(t) {
 }
 
 export async function pensar(env, history, ctx = {}) {
+  if (!ctx.idioma) ctx = { ...ctx, idioma: idiomaTextos(history.filter((h) => h.role === "user" && !String(h.text).startsWith("[")).map((h) => h.text).reverse().slice(0, 6)) };
   const raw = await askAI(env, { system: await systemPrompt(env, ctx), messages: history.slice(-HISTORY), maxTokens: 800 });
   const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO);
   const reply = pulir(raw.split(HANDOFF).join("").split(PAGO).join(""));
@@ -382,17 +383,20 @@ const TXT = {
     paid: (r) => `Your payment is confirmed! ✅ *${r.title || "Booking"}* on ${r.day}${r.time ? " at " + r.time : ""}, for ${r.pax} ${r.pax === 1 ? "person" : "people"}.` },
 };
 // Idioma del cliente según lo que viene escribiendo (sin IA). Si no hay señales claras, el del sitio.
-export async function idiomaDe(db, chatId, env) {
-  const rows = ((await db.prepare("SELECT text FROM ia_messages WHERE chat_id=? AND role='user' AND text NOT LIKE '[%' ORDER BY id DESC LIMIT 6").bind(chatId).all()).results || []).map((r) => r.text);
-  const t = [rows[0] || "", rows[0] || "", ...rows].join(" ").toLowerCase(); // el último mensaje pesa más
-
+// Idioma de una lista de mensajes del cliente (el último pesa más). Devuelve "es" | "pt" | "en" | "" si no está claro.
+export function idiomaTextos(rows) {
+  const t = [rows[0] || "", rows[0] || "", ...rows].join(" ").toLowerCase();
   const n = {
-    es: (t.match(/[¿¡ñ]|\b(hola|gracias|quiero|somos|cuánto|cuanto|necesito|tenés|tienen|puedo|personas|día|mañana|pagué|que|promociones|qué)\b/g) || []).length,
-    pt: (t.match(/[ãõç]|\b(oi|olá|obrigad[oa]|quero|vocês|voces|pessoas|amanhã|paguei|você|não|têm|tem)\b/g) || []).length,
-    en: (t.match(/\b(hi|hello|thanks|thank you|please|we are|how much|people|tomorrow|i paid|booking|would like|want)\b/g) || []).length,
+    es: (t.match(/[¿¡ñ]|\b(hola|buenas|buenos|buen día|gracias|quiero|somos|cuánto|cuanto|necesito|tenés|tienen|puedo|personas|día|mañana|pagué|que|promociones|qué|cómo|como estás)\b/g) || []).length,
+    pt: (t.match(/[ãõç]|\b(oi|olá|ola|obrigad[oa]|quero|vocês|voces|pessoas|amanhã|paguei|você|não|têm|tem|bom dia|boa tarde|boa noite|tudo bem)\b/g) || []).length,
+    en: (t.match(/\b(hi|hello|thanks|thank you|please|we are|how much|people|tomorrow|i paid|booking|would like|want|good morning|good afternoon)\b/g) || []).length,
   };
   const best = Object.entries(n).sort((a, b) => b[1] - a[1]);
-  return best[0][1] > best[1][1] ? best[0][0] : lang2(env);
+  return best[0][1] > best[1][1] ? best[0][0] : "";
+}
+export async function idiomaDe(db, chatId, env) {
+  const rows = ((await db.prepare("SELECT text FROM ia_messages WHERE chat_id=? AND role='user' AND text NOT LIKE '[%' ORDER BY id DESC LIMIT 6").bind(chatId).all()).results || []).map((r) => r.text);
+  return idiomaTextos(rows) || lang2(env);
 }
 
 // Llega una foto o un archivo: devuelve { buttons: { body, options } } para que el canal pregunte, o { skip }.

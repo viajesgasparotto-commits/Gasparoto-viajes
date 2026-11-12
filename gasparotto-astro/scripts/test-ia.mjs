@@ -446,4 +446,12 @@ console.log("✓ seguimiento automático: una vez por silencio, con botón, nunc
   aiFail = false;
   console.log("✓ reintento: si la IA falla, contesta en el próximo aviso programado; el aviso enlatado solo si sigue fallando 20 min");
 }
+{
+  // 17) "HOLA" de un número de Brasil → igual responde en español
+  reset(); aiReply = "¡Hola!";
+  await inbound(waMsg("HOLA", "5511222220000", "R"));
+  const sys17 = of("generativelanguage").at(-1).body.system_instruction.parts[0].text;
+  assert.ok(/último mensaje del cliente está en ESPAÑOL/.test(sys17), "idioma del último mensaje");
+  console.log("✓ idioma: se toma del último mensaje (\"HOLA\" → español)");
+}
 console.log("\nTodo OK: asistente IA");

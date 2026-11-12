@@ -134,7 +134,12 @@ IDIOMA
 - Respondé en el idioma del cliente: portugués de Brasil, español o inglés. Si cambia de idioma, cambiás con él. Si no queda claro, portugués.
 
 PRESENTACIÓN DE LA AGENCIA
-${primera ? `- ESTE ES TU PRIMER MENSAJE en esta charla: saludá${nombre ? ` a ${nombre} por su nombre` : ""}, presentá la agencia en una o dos frases (desde 2006 en Buenos Aires, ${estrellas}) e invitalo a comprobarlo en nuestro perfil de Google${G.link ? ` (${G.link})` : ""} y a conocer la web (${base}). Después respondé lo que preguntó o hacé tu primera pregunta.` : "- Ya te presentaste: no repitas la presentación. Podés mencionar las reseñas de Google si ayuda a dar confianza (por ejemplo, ante una duda o una objeción)."}
+${primera ? `- ESTE ES TU PRIMER MENSAJE en esta charla y SÍ O SÍ tiene que incluir la presentación, en este orden:
+  1) Saludo${nombre ? ` a ${nombre} por su nombre` : ""} en el idioma del cliente.
+  2) Quiénes somos en una o dos frases: ${BRAND}, agencia de turismo en Buenos Aires desde 2006, ${estrellas}.
+  3) Invitación a comprobarlo en nuestro perfil de Google${G.link ? ` (${G.link})` : ""} y a conocer la web (${base}).
+  4) Respuesta a lo que preguntó (con datos reales del catálogo) o UNA sola pregunta para conocerlo.
+  Escribilo en prosa (sin viñetas). Ej. en portugués: "Olá, Ana! Que bom que você nos escreveu 😊 Somos a Gasparotto Viajes, agência em Buenos Aires desde 2006, com 4,9 estrelas no Google — pode conferir as avaliações aqui: <link> e conhecer nossos passeios em <web>. É a sua primeira vez na Argentina?"` : "- Ya te presentaste en esta charla: no repitas la presentación. Podés mencionar las reseñas de Google si ayuda a dar confianza (por ejemplo, ante una duda o una objeción)."}
 
 CÓMO LLEVÁS LA CHARLA
 - Una sola pregunta por mensaje. Antes de preguntar algo, revisá la charla y los DATOS DEL CLIENTE: NUNCA vuelvas a preguntar lo que ya sabés (nombre, fechas, personas, destinos, si ya vino, etc.). Usalo.
@@ -160,7 +165,10 @@ DE QUÉ HABLÁS (Y DE QUÉ NO)
 
 CÓMO ESCRIBÍS
 - Mensajes cortos, cálidos y naturales, como por WhatsApp: 1 a 4 frases (el primer mensaje puede ser un poco más largo). Como mucho 1 emoji.
+- PROHIBIDO usar listas, viñetas, guiones o números para enumerar. Escribí en prosa, como una persona. Nunca hagas más de UNA pregunta por mensaje.
 - Para resaltar usá *asterisco* (negrita de WhatsApp). Nada de títulos, tablas ni markdown.
+- Cuando nombres paseos, usá los nombres REALES del CATÁLOGO (no categorías genéricas inventadas).
+- Si preguntan por promociones: contá las que figuran en las INDICACIONES DE LA AGENCIA; si no hay ninguna cargada, decí que en este momento no tenemos una promoción especial y recomendá un paquete del catálogo con su precio.
 
 PAGOS
 - El pago se hace solo en la web. Si pregunta cómo pagar, mandale el enlace del paquete.
@@ -230,9 +238,9 @@ async function entrada(env, { channel, contact, name = "", text, extId = "", ref
   if (extId && (await one(db, "SELECT 1 x FROM ia_messages WHERE ext_id=?", extId))) return { skip: "repetido" }; // Meta reintenta envíos
   let chat = await chatDe(db, channel, contact, name);
   await guardarMensaje(db, chat.id, "user", text, extId);
-  if (chat.msgs === 0 || referral) {
+  if (chat.msgs === 0 || referral || !chat.origin) {
     const origin = await origenDe(env, text, referral);
-    if (chat.msgs === 0 || referral) await run(db, "UPDATE ia_chats SET origin=? WHERE id=?", origin, chat.id);
+    await run(db, "UPDATE ia_chats SET origin=? WHERE id=?", origin, chat.id);
     chat = { ...chat, origin };
   }
   if (chat.msgs === 0) {
@@ -256,7 +264,8 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   const dia = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE role='assistant' AND at > datetime('now','-1 day')"))?.n || 0;
   if (dia >= (parseInt(env.IA_MAX_DIARIO, 10) || DEFAULT_DAILY)) return aviso(env, chat, "Se alcanzó el tope diario de la IA");
 
-  const previas = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role<>'user'", chat.id))?.n || 0;
+  // Charla nueva = nadie de la agencia (IA o equipo) le escribió en las últimas 12 horas: vuelve a presentarse.
+  const previas = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role<>'user' AND at > datetime('now','-12 hours')", chat.id))?.n || 0;
   let r;
   try {
     r = await pensar(env, await historial(db, chat.id), { reservas: await reservasDe(db, contact), nombre: chat.name || name, origen: chat.origin, primera: previas === 0 });
@@ -295,10 +304,12 @@ const TXT = {
 };
 // Idioma del cliente según lo que viene escribiendo (sin IA). Si no hay señales claras, el del sitio.
 export async function idiomaDe(db, chatId, env) {
-  const t = ((await db.prepare("SELECT text FROM ia_messages WHERE chat_id=? AND role='user' ORDER BY id DESC LIMIT 6").bind(chatId).all()).results || []).map((r) => r.text).join(" ").toLowerCase();
+  const rows = ((await db.prepare("SELECT text FROM ia_messages WHERE chat_id=? AND role='user' AND text NOT LIKE '[%' ORDER BY id DESC LIMIT 6").bind(chatId).all()).results || []).map((r) => r.text);
+  const t = [rows[0] || "", rows[0] || "", ...rows].join(" ").toLowerCase(); // el último mensaje pesa más
+
   const n = {
-    es: (t.match(/[¿¡ñ]|\b(hola|gracias|quiero|somos|cuánto|cuanto|necesito|tenés|tienen|puedo|personas|día|mañana|pagué)\b/g) || []).length,
-    pt: (t.match(/[ãõç]|\b(oi|olá|obrigad[oa]|quero|vocês|voces|pessoas|amanhã|paguei|você|não)\b/g) || []).length,
+    es: (t.match(/[¿¡ñ]|\b(hola|gracias|quiero|somos|cuánto|cuanto|necesito|tenés|tienen|puedo|personas|día|mañana|pagué|que|promociones|qué)\b/g) || []).length,
+    pt: (t.match(/[ãõç]|\b(oi|olá|obrigad[oa]|quero|vocês|voces|pessoas|amanhã|paguei|você|não|têm|tem)\b/g) || []).length,
     en: (t.match(/\b(hi|hello|thanks|thank you|please|we are|how much|people|tomorrow|i paid|booking|would like|want)\b/g) || []).length,
   };
   const best = Object.entries(n).sort((a, b) => b[1] - a[1]);

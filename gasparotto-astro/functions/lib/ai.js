@@ -5,7 +5,7 @@
 // El resto del sitio solo llama a askAI(): cambiar de proveedor no toca ningún otro archivo.
 
 export const DEFAULT_MODELS = { gemini: "gemini-2.5-flash", claude: "claude-sonnet-5-5" };
-const TIMEOUT_MS = 25000;
+const TIMEOUT_MS = 15000; // por intento: Cloudflare da ~30 s para terminar después de responderle a Meta
 
 export function aiConfig(env = {}) {
   const has = { gemini: !!String(env.GEMINI_API_KEY || "").trim(), claude: !!String(env.ANTHROPIC_API_KEY || "").trim() };
@@ -49,15 +49,40 @@ async function post(url, headers, body) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     const msg = data?.error?.message || data?.error?.type || `HTTP ${r.status}`;
-    throw new Error(r.status === 429 ? "Se alcanzó el límite de uso de la IA (429). Esperá un rato o subí de plan." : `Error de la IA: ${String(msg).slice(0, 200)}`);
+    const err = new Error(r.status === 429 ? "Se alcanzó el límite de uso de la IA (429). Esperá un rato o subí de plan." : `Error de la IA: ${String(msg).slice(0, 200)}`);
+    err.status = r.status;
+    throw err;
   }
   return data;
 }
 
+// Gemini a veces responde "alta demanda" (503) o límite (429): se reintenta y, si sigue, se usa un modelo de respaldo.
+// GEMINI_MODELO_RESPALDO (por defecto gemini-2.5-flash-lite). GEMINI_PENSAR = presupuesto de "pensamiento" (por defecto 1024; 0 lo apaga):
+// pensar un poco antes de responder hace que siga mejor las reglas (presentarse, una pregunta por mensaje, usar el catálogo).
 async function askGemini(env, model, system, turns, maxTokens, temperature) {
+  const respaldo = String(env.GEMINI_MODELO_RESPALDO || "gemini-2.5-flash-lite").trim();
+  const intentos = [model, model, ...(respaldo && respaldo !== model ? [respaldo] : [])];
+  let last;
+  for (let i = 0; i < intentos.length; i++) {
+    try { return await geminiOnce(env, intentos[i], system, turns, maxTokens, temperature); }
+    catch (e) {
+      last = e;
+      if (![429, 500, 502, 503, 504].includes(e.status)) throw e;
+      if (i < intentos.length - 1) await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 500));
+    }
+  }
+  throw last;
+}
+
+async function geminiOnce(env, model, system, turns, maxTokens, temperature) {
   const generationConfig = { maxOutputTokens: maxTokens, temperature };
-  // Los modelos Flash "piensan" antes de contestar y ese pensamiento gasta el cupo de salida: para chat corto se apaga.
-  if (/flash/i.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  const pensar = Math.max(0, parseInt(env.GEMINI_PENSAR ?? "1024", 10) || 0);
+  // El pensamiento gasta del mismo cupo de salida: se suma para que la respuesta no salga cortada.
+  if (/flash/i.test(model)) {
+    const budget = /lite/i.test(model) ? 0 : pensar;
+    generationConfig.thinkingConfig = { thinkingBudget: budget };
+    generationConfig.maxOutputTokens = maxTokens + budget;
+  }
   const data = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     { "x-goog-api-key": String(env.GEMINI_API_KEY).trim() },
     {

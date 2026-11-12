@@ -25,12 +25,13 @@ const env = {
 // ---------- fetch simulado: Gemini, Claude y la Graph API de WhatsApp ----------
 const calls = [];
 let aiReply = "Olá! Para 4 pessoas recomendo o *City Tour Zona Sul*: https://gasparottoviajes.com/paquetes/city-tour-zona-sur/";
-let aiFail = false;
+let aiFail = false, busy = 0;
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), body = init.body ? JSON.parse(init.body) : null;
   calls.push({ url: u, headers: init.headers || {}, body });
   if (u.includes("generativelanguage.googleapis.com")) {
     if (aiFail) return new Response(JSON.stringify({ error: { message: "quota" } }), { status: 429 });
+    if (busy > 0 && u.includes("gemini-2.5-flash:")) { busy--; return new Response(JSON.stringify({ error: { message: "This model is currently experiencing high demand" } }), { status: 503 }); }
     return Response.json({ candidates: [{ content: { parts: [{ text: aiReply }] }, finishReason: "STOP" }] });
   }
   if (u.includes("api.anthropic.com")) return Response.json({ content: [{ type: "text", text: aiReply }] });
@@ -357,5 +358,16 @@ reset(); await inbound(waMsg("Hello! We are 3 people, how much is the tour?", "4
 reset(); await inbound(waMsg("", "4477000000000", "John", "image"));
 assert.equal(of("graph.facebook.com").find((c) => c.body.type === "interactive").body.interactive.body.text, "We got your file. Is it the payment receipt for a booking?");
 console.log("✓ coexistencia (opcional), origen del contacto (anuncio, web, promoción) e inglés");
+
+// 13) Gemini con "alta demanda": reintenta y, si sigue, usa el modelo de respaldo
+reset(); busy = 2; aiReply = "Olá!";
+await inbound(waMsg("Oi, tudo bem?", "5511111110000", "Teo"));
+const gm = of("generativelanguage");
+assert.equal(gm.length, 3, "dos intentos y el respaldo");
+assert.ok(gm[2].url.includes("gemini-2.5-flash-lite:"), "usa el modelo de respaldo");
+assert.equal(of("graph.facebook.com").find((c) => c.body.type === "text").body.text.body, "Olá!", "el cliente recibe la respuesta, no el aviso");
+assert.equal(gm[0].body.generationConfig.thinkingConfig.thinkingBudget, 1024, "piensa antes de responder");
+assert.ok(/SÍ O SÍ tiene que incluir la presentación/.test(gm[0].body.system_instruction.parts[0].text) && /PROHIBIDO usar listas/.test(gm[0].body.system_instruction.parts[0].text));
+console.log("✓ alta demanda de Gemini: reintenta y usa el modelo de respaldo; presentación obligatoria y sin listas");
 
 console.log("\nTodo OK: asistente IA");

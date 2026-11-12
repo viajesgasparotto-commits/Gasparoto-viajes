@@ -1355,52 +1355,66 @@ async function claude(){const v=$('#v');v.innerHTML=SK;let d;try{d=await api('cl
   if(!window.__ckcp)window.__ckcp=1,document.addEventListener('click',function cp(e){const b=e.target.closest('#ck-cp');if(!b)return;const i=$('#ck-u');i.select();(navigator.clipboard?navigator.clipboard.writeText(i.value):Promise.reject()).then(()=>toast('Dirección copiada'),()=>{try{document.execCommand('copy');toast('Dirección copiada')}catch{}})});
   $$('[data-rv]').forEach(b=>b.onclick=async()=>{const k=d.keys.find(x=>x.id==b.dataset.rv);if(await confirmBox('Revocar “'+esc(k.name)+'”','Claude deja de tener acceso al blog con esta dirección. Las notas que ya creó no se tocan.','Revocar',true)){try{await api('claude-keys/'+k.id,'DELETE');toast('Conexión revocada');claude()}catch{}}})}
 /* ---------- asistente IA (WhatsApp) ---------- */
-// IA_T = charla de prueba (no se guarda). IA_OPEN = conversación abierta en el detalle.
-let IA_T=[],IA_OPEN=0;
+// La IA contesta todo; el equipo solo la detiene (en todo el sitio o en una charla). IA_T = charla de prueba (no se guarda).
+let IA_T=[],IA_OPEN=0,IA_F='todas',IA_Q='',IA_D=null;
 const iaWho={user:'Cliente',assistant:'IA',agent:'Equipo'};
 const iaTxt=t=>esc(t).replace(/\*([^*\n]+)\*/g,'<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g,'<br>');
 const iaBub=m=>`<div class="ia-b ${m.role==='user'?'u':m.role==='agent'?'g':'a'}"><small>${iaWho[m.role]||''}${m.at?' · '+esc(ago(m.at)):''}</small><div>${iaTxt(m.text)}</div></div>`;
-async function ia(){const v=$('#v');v.innerHTML=SK;let d;try{d=await api('ia')}catch{return}
-  const I=d.ia,W=d.whatsapp,prov=I.provider==='claude'?'Claude':'Gemini';
-  const st=(ok,t)=>`<span class="chip ${ok?'ok':'warn'}">${t}</span>`;
-  v.innerHTML=`<div class="pagehead"><div><h2>Asistente IA</h2><p class="muted">Responde por WhatsApp con los paquetes publicados, recomienda y manda el enlace para reservar y pagar. Cuando hace falta una persona, deja la charla marcada acá.</p></div></div>
+const iaOrigin=o=>!o?'':`<span class="chip ${/^Anuncio|^Publicaci/.test(o)?'warn':/^Promo/.test(o)?'warn':/^Web/.test(o)?'ok':'neutral'}" title="${esc(o)}">${esc(/^Anuncio/.test(o)?'Anuncio':/^Publicaci/.test(o)?'Publicación':/^Promo/.test(o)?'Promoción':/^Web/.test(o)?'Desde la web':'Directo')}</span>`;
+const iaFlags=c=>`${c.pay_check?'<span class="chip warn">Verificar pago</span>':''}${c.handoff?'<span class="chip bad">Mirar charla</span>':''}${c.paused?'<span class="chip neutral">IA detenida</span>':''}`;
+async function ia(){const v=$('#v');if(!IA_D)v.innerHTML=SK;let d;try{d=await api('ia')}catch{return}IA_D=d;
+  const I=d.ia,W=d.whatsapp,S=d.stats,prov=I.provider==='claude'?'Claude':'Gemini',on=I.envActiva&&!I.detenida;
+  const kpi=(n,l,tone,f)=>`<button type="button" class="kpi ${tone||''}" ${f?`data-iaf="${f}"`:''}><span class="kpi-n">${n}</span><span class="kpi-l">${l}</span></button>`;
+  v.innerHTML=`<div class="pagehead"><div><h2>Asistente IA</h2><p class="muted">Atiende el WhatsApp con los paquetes, el blog y las reseñas de la web. Responde todo; vos solo lo detenés cuando querés.</p></div></div>
+  <section class="card ia-hero ${on?'is-on':'is-off'}"><span class="ia-dot" aria-hidden="true"></span><div class="grow"><b>${on?'La IA está respondiendo':'Respuestas detenidas'}</b><small class="muted">${on?`${prov} · ${S.respuestas} respuestas en las últimas 24 h (tope ${I.tope})`:!I.envActiva?'Está apagada desde Cloudflare (IA_ACTIVA=0).':'Los mensajes se siguen guardando acá, pero nadie les contesta automáticamente.'}</small></div>
+   ${I.envActiva&&d.puedeEditar?`<button type="button" class="${on?'d':'p'}" id="ia-tg">${on?'Detener respuestas':'Reanudar respuestas'}</button>`:''}</section>
+  <section class="kpis ia-kpis" aria-label="Indicadores">${kpi(S.charlasHoy,'charlas hoy')}${kpi(S.nuevas7,'clientes nuevos (7 días)')}${kpi(S.persona,'para mirar',S.persona?'warn':'ok','revisar')}${kpi(S.pago,'pagos a verificar',S.pago?'warn':'ok','revisar')}</section>
+  <section class="card ia-inbox"><div class="ia-list-col"><div class="ia-tools"><div class="seg" role="group" aria-label="Filtro">${[['todas','Todas'],['revisar','Para revisar',d.pending],['detenidas','Detenidas']].map(([k,l,n])=>`<button type="button" class="seg-b" data-iaf="${k}" aria-pressed="${IA_F===k}">${l}${n?`<span class="seg-n">${n}</span>`:''}</button>`).join('')}</div><input id="ia-s" type="search" placeholder="Buscar nombre o número" value="${esc(IA_Q)}" aria-label="Buscar conversación"></div><div class="ia-list" id="ia-l"></div></div>
+   <div class="ia-det-col" id="ia-det"><div class="ia-empty-det">${ic('chat')}<p class="muted">Elegí una conversación para verla, responder o detener la IA en esa charla.</p></div></div></section>
   <div class="grid ia-top">
-   <section class="card"><h3>Estado</h3>
-    <div class="ia-st"><span>IA</span><div>${st(I.ready,I.ready?prov+' conectado':'Falta la clave de '+prov)} <small class="muted">modelo ${esc(I.model)}</small></div></div>
-    <div class="ia-st"><span>Respuestas</span><div>${st(I.activa,I.activa?'Automáticas encendidas':'Apagadas (IA_ACTIVA=0)')} <small class="muted">${I.hoy} de ${I.tope} en las últimas 24 h</small></div></div>
-    <div class="ia-st"><span>WhatsApp</span><div>${W.missing.length?st(false,'Falta configurar')+` <small class="muted">Faltan: ${W.missing.map(esc).join(', ')}</small>`:st(true,'Conectado')}</div></div>
-    <label style="margin-top:12px;display:block">Dirección del webhook (para Meta)</label><div class="ck-url"><input id="ia-wh" readonly value="${esc(W.webhook)}" aria-label="Dirección del webhook"><button type="button" class="s" id="ia-whc">${ic('copy')}Copiar</button></div>
-    <p class="muted ck-note">Para pasar de Gemini a Claude: cargá <b>ANTHROPIC_API_KEY</b> y cambiá <b>IA_PROVEEDOR</b> a <b>claude</b> en Cloudflare. No hay que tocar nada más.</p></section>
-   <section class="card"><h3>Probar el asistente</h3><p class="muted" style="margin-top:0">Escribí como si fueras un cliente. Usa los mismos datos y reglas que en WhatsApp, pero no se guarda ni se le envía a nadie.</p>
-    <div class="ia-chat" id="ia-t">${IA_T.map(iaBub).join('')||'<p class="muted ia-empty">Ej.: “Oi! Vamos em 4 pessoas em março, o que vocês recomendam?”</p>'}</div>
+   <section class="card"><h3>Probar el asistente</h3><p class="muted" style="margin-top:0">Escribí como un cliente. Usa los mismos datos y reglas que en WhatsApp, pero no se guarda ni se envía.</p>
+    <div class="ia-tools"><label class="muted" for="ia-or" style="margin:0">Llega por</label><select id="ia-or"><option value="">Contacto directo</option><option value="anuncio">Un anuncio</option><option value="promo">Una promoción</option><option value="web">La web</option></select></div>
+    <div class="ia-chat" id="ia-t">${IA_T.map(iaBub).join('')||'<p class="muted ia-empty">Ej.: “Oi! Vi a promoção no Instagram, somos 4 pessoas”</p>'}</div>
     <form id="ia-f" class="ia-send"><input id="ia-q" placeholder="Mensaje del cliente…" autocomplete="off" aria-label="Mensaje de prueba"><button class="p" id="ia-go">Enviar</button><button type="button" class="s" id="ia-rs" title="Empezar de nuevo" aria-label="Empezar de nuevo">${ic('refresh')}</button></form></section>
+   <section class="card"><h3>Indicaciones para el asistente</h3><p class="muted" style="margin-top:0">Lo que tiene que saber o priorizar además de la web: qué recomendar primero, extras, promociones vigentes, horarios del equipo, tono. ${d.puedeEditar?'':'Solo un administrador puede cambiarlas.'}</p>
+    <textarea id="ia-ins" rows="8" aria-label="Indicaciones para el asistente" ${d.puedeEditar?'':'disabled'} placeholder="Ej.: El servicio principal es el City Tour de Zona Sur (4 h). Ofrecé como extra el City Fotográfico Privado. Promoción vigente: … El equipo atiende de 9 a 20 h.">${esc(d.instrucciones)}</textarea>
+    <label class="ia-chk"><input type="checkbox" id="ia-pc" ${d.pausaCelular?'checked':''} ${d.puedeEditar?'':'disabled'}> Detener la IA en una charla cuando alguien responde desde el celular</label>
+    ${d.puedeEditar?'<div style="margin-top:10px"><button class="p" id="ia-sv">Guardar</button></div>':''}</section>
   </div>
-  <section class="card" style="margin-top:16px"><h3>Indicaciones para el asistente</h3><p class="muted" style="margin-top:0">Lo que el asistente tiene que saber o priorizar además de los paquetes: qué recomendar primero, qué ofrecer como extra, políticas, horarios de atención, tono. ${d.puedeEditar?'':'Solo un administrador puede cambiarlas.'}</p>
-   <textarea id="ia-ins" rows="7" aria-label="Indicaciones para el asistente" ${d.puedeEditar?'':'disabled'} placeholder="Ej.: El servicio principal es el City Tour de Zona Sur (4 h). Ofrecé como extra el City Fotográfico Privado. Para Palermo y Zona Norte, recomendá las notas del blog. Una persona del equipo atiende de 9 a 20 h.">${esc(d.instrucciones)}</textarea>
-   ${d.puedeEditar?'<div style="margin-top:10px"><button class="p" id="ia-sv">Guardar indicaciones</button></div>':''}</section>
-  <section class="card" style="margin-top:16px"><h3>Conversaciones de WhatsApp ${d.pending?`<span class="chip bad">${d.pending} para revisar</span>`:''}</h3>
-   ${d.chats.length?`<div class="ia-list">${d.chats.map(c=>`<button type="button" class="ia-row${c.handoff||c.pay_check?' is-hot':''}${IA_OPEN===c.id?' on':''}" data-chat="${c.id}"><div class="grow"><b>${esc(c.name||'+'+c.contact)}</b> ${c.pay_check?'<span class="chip warn">Verificar pago</span> ':''}${c.handoff?'<span class="chip bad">Pide una persona</span>':c.paused?'<span class="chip neutral">IA en pausa</span>':'<span class="chip ok">Atiende la IA</span>'}<small class="muted">${esc((c.last_text||'').replace(/\*/g,'').slice(0,120))}</small></div><small class="muted">${esc(ago(c.updated_at))}</small></button>`).join('')}</div>`:emptyBox('Todavía no hay conversaciones.','Aparecen acá cuando un cliente escribe al WhatsApp conectado.')}
-   <div id="ia-det"></div></section>`;
+  <details class="card ia-cx"><summary><b>Conexión</b> <span class="muted">${I.ready?prov+' conectado':'Falta la clave de '+prov} · WhatsApp ${W.missing.length?'sin configurar':'conectado'}</span></summary>
+   <div class="ia-st"><span>IA</span><div>${I.ready?'<span class="chip ok">'+prov+' conectado</span>':'<span class="chip warn">Falta la clave de '+prov+'</span>'} <small class="muted">modelo ${esc(I.model)}</small></div></div>
+   <div class="ia-st"><span>WhatsApp</span><div>${W.missing.length?`<span class="chip warn">Falta configurar</span> <small class="muted">Faltan: ${W.missing.map(esc).join(', ')}</small>`:'<span class="chip ok">Conectado</span>'}</div></div>
+   <label style="margin-top:12px;display:block">Dirección del webhook (para Meta)</label><div class="ck-url"><input id="ia-wh" readonly value="${esc(W.webhook)}" aria-label="Dirección del webhook"><button type="button" class="s" id="ia-whc">${ic('copy')}Copiar</button></div>
+   <p class="muted ck-note">Para pasar de Gemini a Claude: cargá <b>ANTHROPIC_API_KEY</b> y poné <b>IA_PROVEEDOR</b> en <b>claude</b> en Cloudflare.</p></details>`;
+  const paintL=()=>{const q=IA_Q.toLowerCase(),list=d.chats.filter(c=>(IA_F==='todas'||(IA_F==='revisar'&&(c.handoff||c.pay_check))||(IA_F==='detenidas'&&c.paused))&&(!q||(c.name||'').toLowerCase().includes(q)||c.contact.includes(q.replace(/\D/g,'')||'§')));
+    $('#ia-l').innerHTML=list.length?list.map(c=>`<button type="button" class="ia-row${c.handoff||c.pay_check?' is-hot':''}${IA_OPEN===c.id?' on':''}" data-chat="${c.id}"><div class="grow"><b>${esc(c.name||'+'+c.contact)}</b> ${iaOrigin(c.origin)}${iaFlags(c)}<small class="muted">${esc((c.last_text||'').replace(/\*/g,'').slice(0,110))}</small></div><small class="muted">${esc(ago(c.updated_at))}</small></button>`).join(''):emptyBox(d.chats.length?'No hay conversaciones con ese filtro.':'Todavía no hay conversaciones.',d.chats.length?'':'Aparecen acá cuando un cliente escribe al WhatsApp.');
+    $$('[data-chat]').forEach(b=>b.onclick=()=>{IA_OPEN=+b.dataset.chat;$$('[data-chat]').forEach(x=>x.classList.toggle('on',x===b));iaChat(IA_OPEN)})};
+  paintL();
+  $$('[data-iaf]').forEach(b=>b.onclick=()=>{IA_F=b.dataset.iaf;$$('.ia-tools [data-iaf]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.iaf===IA_F));paintL();$('#ia-l').scrollIntoView({block:'nearest'})});
+  $('#ia-s').oninput=e=>{IA_Q=e.target.value;paintL()};
+  if($('#ia-tg'))$('#ia-tg').onclick=async()=>{try{await api('ia/config','PUT',{detenida:on});toast(on?'Respuestas detenidas':'La IA vuelve a responder');ia()}catch{}};
   $('#ia-whc').onclick=()=>{const i=$('#ia-wh');i.select();(navigator.clipboard?navigator.clipboard.writeText(i.value):Promise.reject()).then(()=>toast('Dirección copiada'),()=>{try{document.execCommand('copy');toast('Dirección copiada')}catch{}})};
   const paintT=()=>{const t=$('#ia-t');t.innerHTML=IA_T.map(iaBub).join('');t.scrollTop=t.scrollHeight};
-  $('#ia-rs').onclick=()=>{IA_T=[];ia()};
+  $('#ia-rs').onclick=()=>{IA_T=[];paintT();$('#ia-t').innerHTML='<p class="muted ia-empty">Charla nueva.</p>'};
   $('#ia-f').onsubmit=async e=>{e.preventDefault();const q=$('#ia-q').value.trim();if(!q)return;IA_T.push({role:'user',text:q});$('#ia-q').value='';paintT();$('#ia-go').disabled=true;
-    try{const r=await api('ia/probar','POST',{messages:IA_T});IA_T.push({role:'assistant',text:r.reply+(r.handoff?'\n\n[En WhatsApp, acá la IA le pasaría la charla a una persona]':'')+(r.pago?'\n\n[En WhatsApp, esta charla quedaría marcada para verificar el pago]':'')})}catch{IA_T.pop()}
+    try{const r=await api('ia/probar','POST',{messages:IA_T,origen:$('#ia-or').value});IA_T.push({role:'assistant',text:r.reply+(r.handoff?'\n\n[En WhatsApp, esta charla quedaría marcada para que la mire una persona]':'')+(r.pago?'\n\n[En WhatsApp, quedaría marcada para verificar el pago]':'')})}catch{IA_T.pop()}
     $('#ia-go').disabled=false;paintT();$('#ia-q').focus()};
-  if($('#ia-sv'))$('#ia-sv').onclick=async()=>{try{await api('ia/config','PUT',{instrucciones:$('#ia-ins').value});toast('Indicaciones guardadas')}catch{}};
-  $$('[data-chat]').forEach(b=>b.onclick=()=>{IA_OPEN=+b.dataset.chat;$$('[data-chat]').forEach(x=>x.classList.toggle('on',x===b));iaChat(IA_OPEN)});
+  if($('#ia-sv'))$('#ia-sv').onclick=async()=>{try{await api('ia/config','PUT',{instrucciones:$('#ia-ins').value,pausaCelular:$('#ia-pc').checked});toast('Guardado')}catch{}};
   if(IA_OPEN)iaChat(IA_OPEN)}
-async function iaChat(id){const box=$('#ia-det');if(!box)return;let d;try{d=await api('ia/'+id)}catch{box.innerHTML='';return}
+async function iaChat(id){const box=$('#ia-det');if(!box)return;let d;try{d=await api('ia/'+id)}catch{return}
   const c=d.chat;
-  box.innerHTML=`<div class="ia-det"><div class="ia-dh"><div><b>${esc(c.name||'+'+c.contact)}</b> <a href="https://wa.me/${esc(c.contact)}" target="_blank" rel="noopener">+${esc(c.contact)}</a>${c.handoff_reason?`<small class="muted">Motivo: ${esc(c.handoff_reason)}</small>`:''}</div>
-    <div class="ia-acts">${c.pay_check?`<button type="button" class="p" id="ia-pv">${ic('check')}Pago verificado</button>`:''}<button type="button" class="s" id="ia-pz">${c.paused?'Devolver a la IA':'Pausar la IA y atender yo'}</button></div></div>
-    ${c.pay_check?`<div class="notice">${ic('alert')}<span>El cliente dice que pagó${c.pay_since?' ('+esc(ago(c.pay_since))+')':''}. Verificá que el dinero haya entrado en la cuenta, marcá la reserva como pagada en <b>Reservas</b> y tocá <b>Pago verificado</b>. Si el pago entró por Pix automático, la reserva ya figura pagada.</span></div>`:''}
+  box.innerHTML=`<div class="ia-dh"><div><b>${esc(c.name||'+'+c.contact)}</b> <a href="https://wa.me/${esc(c.contact)}" target="_blank" rel="noopener">+${esc(c.contact)}</a> ${iaFlags(c)}
+      ${c.origin?`<small class="muted">Origen: ${esc(c.origin)}</small>`:''}${c.handoff_reason?`<small class="muted">Aviso: ${esc(c.handoff_reason)}</small>`:''}</div>
+    <div class="ia-acts">${c.pay_check?`<button type="button" class="p" id="ia-pv">${ic('check')}Pago verificado</button>`:''}${c.handoff?`<button type="button" class="s" id="ia-at">${ic('check')}Ya la miré</button>`:''}<button type="button" class="${c.paused?'p':'d'}" id="ia-pz">${c.paused?'Reanudar IA':'Detener IA en esta charla'}</button></div></div>
+    ${c.pay_check?`<div class="notice">${ic('alert')}<span>El cliente dice que pagó${c.pay_since?' ('+esc(ago(c.pay_since))+')':''}. Verificá el ingreso, marcá la reserva como pagada en <b>Reservas</b> y tocá <b>Pago verificado</b>.</span></div>`:''}
     <div class="ia-chat tall" id="ia-m">${d.messages.map(iaBub).join('')}</div>
-    <form id="ia-r" class="ia-send"><input id="ia-rt" placeholder="Responder como ${esc(BR.brand||'la agencia')}…" autocomplete="off" aria-label="Respuesta"><button class="p">Enviar por WhatsApp</button></form>
-    <p class="muted ck-note">Al responder vos, la IA queda en pausa en esta charla. WhatsApp solo deja escribir texto libre dentro de las 24 h del último mensaje del cliente.</p></div>`;
+    <form id="ia-r" class="ia-send"><input id="ia-rt" placeholder="Responder como ${esc(BR.brand||'la agencia')}…" autocomplete="off" aria-label="Respuesta"><button class="p">Enviar</button></form>
+    <p class="muted ck-note">${c.paused?'La IA está detenida en esta charla: solo responde el equipo.':'La IA sigue respondiendo en esta charla. Para atenderla solo vos, tocá “Detener IA en esta charla”.'} WhatsApp deja escribir texto libre hasta 24 h después del último mensaje del cliente.</p>`;
   const m=$('#ia-m');m.scrollTop=m.scrollHeight;
-  if($('#ia-pv'))$('#ia-pv').onclick=async()=>{try{await api('ia/'+id,'PUT',{pay_check:false});toast('Pago verificado');ia()}catch{}};
-  $('#ia-pz').onclick=async()=>{try{await api('ia/'+id,'PUT',{paused:!c.paused});toast(c.paused?'La IA vuelve a atender':'IA en pausa en esta charla');ia()}catch{}};
+  const put=async(body,msg)=>{try{await api('ia/'+id,'PUT',body);toast(msg);ia()}catch{}};
+  if($('#ia-pv'))$('#ia-pv').onclick=()=>put({pay_check:false},'Pago verificado');
+  if($('#ia-at'))$('#ia-at').onclick=()=>put({atendida:true},'Listo');
+  $('#ia-pz').onclick=()=>put({paused:!c.paused},c.paused?'La IA vuelve a responder en esta charla':'IA detenida en esta charla');
   $('#ia-r').onsubmit=async e=>{e.preventDefault();const t=$('#ia-rt').value.trim();if(!t)return;try{await api('ia/'+id,'POST',{text:t});toast('Enviado');ia()}catch{}}}
 async function favs(){const v=$('#v');v.innerHTML=SK;let d;try{d=await api('favorites')}catch{return}
   FV={all:d.packages,posts:d.posts,slots:d.home_slots,pk:d.packages.filter(p=>p.featured).map(p=>p.id),po:d.posts.filter(p=>p.featured).map(p=>p.id),q:''};dirty=false;paintFavs()}

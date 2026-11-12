@@ -70,6 +70,10 @@ await env.DB.prepare("INSERT INTO packages (slug,title,category,price,excerpt,pu
   .bind(JSON.stringify({ times: [["09:00"], ["14:00"]], facts: [["Duração", "4 h"]] })).run();
 await env.DB.prepare("INSERT INTO packages (slug,title,category,price,published) VALUES ('secreto','Paquete borrador','paseos','R$ 1',0)").run();
 
+await env.DB.prepare("INSERT INTO posts (slug,title,excerpt,published) VALUES ('guia-palermo','Guia de Palermo','Como conhecer Palermo por conta própria',1)").run();
+await env.DB.prepare("INSERT INTO settings (key,value) VALUES ('google_places',?)").bind(JSON.stringify({ rating: 4.9, count: 312, reviews: [{ name: "Carla", stars: 5, text: "Passeio incrível, recomendo!" }] })).run();
+env.GOOGLE_PLACE_ID = "ChIJtest";
+
 // 1) Proveedor
 assert.deepEqual(aiConfig({ GEMINI_API_KEY: "x" }), { provider: "gemini", model: "gemini-2.5-flash", ready: true });
 assert.equal(aiConfig({ GEMINI_API_KEY: "x", ANTHROPIC_API_KEY: "y" }).provider, "claude", "sin IA_PROVEEDOR, Claude tiene prioridad si tiene clave");
@@ -104,7 +108,13 @@ assert.ok(gem.url.includes("/models/gemini-2.5-flash:generateContent"));
 const sys = gem.body.system_instruction.parts[0].text;
 assert.ok(sys.includes("City Tour Zona Sul") && sys.includes("https://gasparottoviajes.com/paquetes/city-tour-zona-sur/") && sys.includes("R$ 180") && sys.includes("09:00, 14:00"), "el catálogo va en el contexto");
 assert.ok(!sys.includes("Paquete borrador"), "lo no publicado no se ofrece");
-assert.ok(/empleado/.test(sys) && /No sos guía turístico/.test(sys) && /TU TRABAJO ES VENDER/.test(sys), "actúa como empleado, solo habla de la agencia y empuja la venta");
+assert.ok(/empleado/.test(sys) && /No sos guía/.test(sys) && /TU TRABAJO ES VENDER/.test(sys), "actúa como empleado, solo habla de la agencia y empuja la venta");
+assert.ok(/ESTE ES TU PRIMER MENSAJE/.test(sys) && /a Ana por su nombre/.test(sys) && /desde 2006/.test(sys), "primer mensaje: presentación institucional con el nombre");
+assert.ok(/portugués de Brasil, español o inglés/.test(sys), "tres idiomas");
+assert.ok(/primera vez que visita Argentina/.test(sys) && /qué destinos/.test(sys) && /NUNCA vuelvas a preguntar/.test(sys), "preguntas de descubrimiento sin repetir");
+assert.ok(/ORIGEN del contacto: Contacto directo/.test(sys), "origen del contacto");
+assert.ok(sys.includes("BLOG (notas para recomendar") && sys.includes("https://gasparottoviajes.com/blog/guia-palermo/"), "el blog va en el contexto");
+assert.ok(sys.includes("4.9 estrellas en Google (312 reseñas)") && sys.includes("place_id:ChIJtest") && sys.includes("Passeio incrível"), "reputación de Google");
 assert.deepEqual(gem.body.contents, [{ role: "user", parts: [{ text: "Oi! Somos 4 pessoas, o que vocês recomendam?" }] }]);
 const sends = of("graph.facebook.com").filter((c) => c.body.type === "text");
 assert.equal(sends.length, 1);
@@ -122,7 +132,9 @@ console.log("✓ mensaje: Gemini responde con el catálogo, sale por WhatsApp y 
 reset();
 const p2 = waMsg("Dia 10 de março");
 await inbound(p2);
-assert.equal(of("generativelanguage")[0].body.contents.length, 3, "historial: cliente, IA, cliente");
+const g5 = of("generativelanguage")[0];
+assert.equal(g5.body.contents.length, 3, "historial: cliente, IA, cliente");
+assert.ok(/Ya te presentaste/.test(g5.body.system_instruction.parts[0].text), "no repite la presentación");
 reset();
 await inbound(p2);
 assert.equal(of("generativelanguage").length, 0, "aviso repetido: no se contesta de nuevo");
@@ -135,13 +147,11 @@ aiReply = "Claro! Uma pessoa da nossa equipe já vai te escrever. [[HUMANO]]";
 await inbound(waMsg("Quero falar com uma pessoa"));
 assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text")[0].body.text.body, "Claro! Uma pessoa da nossa equipe já vai te escrever.", "la marca no le llega al cliente");
 let c2 = await one("SELECT * FROM ia_chats WHERE contact='5511999990000'");
-assert.equal(c2.paused, 1); assert.equal(c2.handoff, 1);
-reset();
+assert.equal(c2.paused, 0, "la IA no se detiene sola"); assert.equal(c2.handoff, 1, "queda marcada para mirar");
+reset(); aiReply = "Claro, estou aqui!";
 await inbound(waMsg("Alô?"));
-assert.equal(of("generativelanguage").length, 0, "en pausa la IA no contesta");
-assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text").length, 0);
-assert.equal((await one("SELECT COUNT(*) n FROM ia_messages WHERE text='Alô?'")).n, 1, "pero el mensaje queda guardado para el panel");
-console.log("✓ derivación: la IA pasa la charla, queda en pausa y el mensaje igual se guarda");
+assert.equal(of("generativelanguage").length, 1, "la IA sigue respondiendo todo");
+console.log("✓ marcar para una persona: la IA marca la charla y sigue respondiendo");
 
 // 7) Claude (mismo código, otra variable)
 reset();
@@ -164,8 +174,14 @@ await inbound(waMsg("Olá", "5511888880000", "Bia"));
 const fb = of("graph.facebook.com").filter((c) => c.body.type === "text")[0];
 assert.ok(fb && /atendente/.test(fb.body.text.body), "aviso de que responde una persona");
 const c3 = await one("SELECT * FROM ia_chats WHERE contact='5511888880000'");
-assert.equal(c3.handoff, 1); assert.ok(/límite/.test(c3.handoff_reason));
+assert.equal(c3.handoff, 1); assert.ok(/límite/.test(c3.handoff_reason)); assert.equal(c3.paused, 0);
+reset();
+await inbound(waMsg("Alô??", "5511888880000", "Bia"));
+assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text").length, 0, "el aviso no se repite en cada mensaje");
 aiFail = false;
+reset(); aiReply = "Oi Bia!";
+await inbound(waMsg("Oi de novo", "5511888880000", "Bia"));
+assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text")[0].body.text.body, "Oi Bia!", "cuando la IA vuelve, responde sola");
 // Audio: se pide texto, sin llamar a la IA
 reset();
 await inbound(waMsg("", "5511777770000", "Caio", "audio"));
@@ -189,6 +205,7 @@ assert.deepEqual(r.data.whatsapp.missing, []);
 assert.equal(r.data.whatsapp.webhook, "https://gasparottoviajes.com/api/whatsapp");
 assert.equal(r.data.pending, 2);
 assert.equal(r.data.chats[0].handoff, 1, "primero las que piden una persona");
+assert.equal(r.data.ia.detenida, false); assert.ok(r.data.stats.charlasHoy >= 1);
 assert.ok(!JSON.stringify(r.data).includes("g-key") && !JSON.stringify(r.data).includes("wa-token"), "el panel nunca muestra claves");
 assert.equal((await call("GET", "ia?count=1", null, { cookie: admin })).data.pending, 2);
 // Indicaciones
@@ -205,16 +222,27 @@ reset();
 r = await call("POST", "ia/" + cid, { text: "Oi Ana, sou o Mario! Te ajudo com a reserva." }, { cookie: admin });
 assert.equal(r.status, 200);
 assert.equal(of("graph.facebook.com")[0].body.text.body, "Oi Ana, sou o Mario! Te ajudo com a reserva.");
-assert.equal((await one("SELECT handoff, paused FROM ia_chats WHERE id=?", cid)).handoff, 0);
+assert.deepEqual({ ...(await one("SELECT handoff, paused FROM ia_chats WHERE id=?", cid)) }, { handoff: 0, paused: 0 }, "responder como persona no detiene la IA");
 r = await call("GET", "ia/" + cid, null, { cookie: admin });
 assert.equal(r.data.messages.at(-1).role, "agent");
+// Detener la IA en una charla y reanudarla
+await call("PUT", "ia/" + cid, { paused: true }, { cookie: admin });
+reset(); await inbound(waMsg("Tem vaga?"));
+assert.equal(of("generativelanguage").length, 0, "detenida en esa charla no contesta");
 await call("PUT", "ia/" + cid, { paused: false }, { cookie: admin });
 reset();
 aiReply = "Perfeito!";
 await inbound(waMsg("Obrigada!"));
-assert.equal(of("generativelanguage").length, 1, "devuelta a la IA, vuelve a contestar");
+assert.equal(of("generativelanguage").length, 1, "reanudada, vuelve a contestar");
 assert.ok(of("generativelanguage")[0].body.contents.some((t) => t.role === "model" && t.parts[0].text.includes("sou o Mario")), "la IA ve lo que escribió la persona del equipo");
-console.log("✓ panel: estado sin claves, prueba sin enviar, indicaciones, responder como persona y devolver a la IA");
+// Detener todas las respuestas desde el panel (sin tocar Cloudflare)
+await call("PUT", "ia/config", { detenida: true }, { cookie: admin });
+reset(); await inbound(waMsg("Oi?", "5511555550000", "Leo"));
+assert.equal(of("generativelanguage").length + of("graph.facebook.com").filter((c) => c.body.type === "text").length, 0, "detenida en todo el sitio");
+assert.ok(await one("SELECT 1 x FROM ia_messages WHERE text='Oi?'"), "el mensaje se guarda igual");
+await call("PUT", "ia/config", { detenida: false }, { cookie: admin });
+assert.equal((await call("GET", "ia", null, { cookie: admin })).data.ia.detenida, false);
+console.log("✓ panel: detener/reanudar (todo o una charla), prueba sin enviar, indicaciones, responder como persona");
 
 // 11) Pago: la venta se cierra en la web y el equipo solo verifica el ingreso
 const pkgId = (await one("SELECT id FROM packages WHERE slug='city-tour-zona-sur'")).id;
@@ -296,17 +324,38 @@ reset();
 await inbound(eco("5491155556666", "Hola Lucía, soy Mario, ya te confirmo"));
 assert.equal(of("generativelanguage").length + of("graph.facebook.com").length, 0, "el eco no dispara nada");
 let cl2 = await one("SELECT * FROM ia_chats WHERE contact='5491155556666'");
-assert.equal(cl2.paused, 1, "la IA queda en pausa");
+assert.equal(cl2.paused, 0, "por defecto la IA sigue respondiendo");
 assert.equal((await one("SELECT role FROM ia_messages WHERE chat_id=? ORDER BY id DESC LIMIT 1", cl2.id)).role, "agent");
 reset();
 await inbound(waMsg("Dale, gracias!", "5491155556666", "Lucía"));
-assert.equal(of("generativelanguage").length, 0, "con una persona atendiendo, la IA no contesta");
+assert.equal(of("generativelanguage").length, 1);
+// Con la opción activada, responder desde el celular detiene la IA en esa charla
+await call("PUT", "ia/config", { pausaCelular: true }, { cookie: admin });
+await inbound(eco("5491155556666", "Te llamo ahora"));
+assert.equal((await one("SELECT paused FROM ia_chats WHERE contact='5491155556666'")).paused, 1);
+reset(); await inbound(waMsg("Ok!", "5491155556666", "Lucía"));
+assert.equal(of("generativelanguage").length, 0, "con la opción activada, la IA no contesta");
 // Avisos de otro número de la misma cuenta: se ignoran
 reset();
 const other = waMsg("Hola", "5491177778888", "Otro"); other.entry[0].changes[0].value.metadata = { phone_number_id: "999" };
 await inbound(other);
 assert.equal(of("generativelanguage").length, 0);
 assert.equal(await one("SELECT 1 x FROM ia_chats WHERE contact='5491177778888'"), null);
-console.log("✓ coexistencia: si alguien responde desde el celular, la IA se pausa en esa charla; se ignoran otros números");
+// Origen: anuncio de Meta (referral), web (nombra un paquete), promoción
+reset(); aiReply = "Oi!";
+const ad = waMsg("Oi, quero saber mais", "5511444440000", "Rita"); ad.entry[0].changes[0].value.messages[0].referral = { source_type: "ad", headline: "City Tour com 10% OFF", body: "Só em março", source_url: "https://fb.me/x" };
+await inbound(ad);
+assert.ok(/Anuncio de Meta: "City Tour com 10% OFF"/.test(of("generativelanguage")[0].body.system_instruction.parts[0].text), "la IA sabe que viene de un anuncio");
+assert.ok(/Anuncio/.test((await one("SELECT origin FROM ia_chats WHERE contact='5511444440000'")).origin));
+assert.ok(/\[Anuncio de Meta/.test((await one("SELECT message FROM leads WHERE phone='+5511444440000'")).message), "el origen queda en Consultas");
+reset(); await inbound(waMsg("Olá, tenho interesse em City Tour Zona Sul", "5511333330000", "Edu"));
+assert.equal((await one("SELECT origin FROM ia_chats WHERE contact='5511333330000'")).origin, 'Web: consulta por "City Tour Zona Sul"');
+reset(); await inbound(waMsg("Vi a promoção no Instagram", "5511222220000", "Gil"));
+assert.ok(/^Promoción/.test((await one("SELECT origin FROM ia_chats WHERE contact='5511222220000'")).origin));
+// Inglés: los botones del comprobante salen en inglés
+reset(); await inbound(waMsg("Hello! We are 3 people, how much is the tour?", "4477000000000", "John"));
+reset(); await inbound(waMsg("", "4477000000000", "John", "image"));
+assert.equal(of("graph.facebook.com").find((c) => c.body.type === "interactive").body.interactive.body.text, "We got your file. Is it the payment receipt for a booking?");
+console.log("✓ coexistencia (opcional), origen del contacto (anuncio, web, promoción) e inglés");
 
 console.log("\nTodo OK: asistente IA");

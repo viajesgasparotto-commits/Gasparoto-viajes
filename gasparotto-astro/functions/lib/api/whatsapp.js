@@ -19,7 +19,7 @@ export async function procesarWhatsapp(env, body) {
   for (const m of mensajesDe(body, phoneId)) {
     try {
       marcarLeido(env, m.id);
-      const base = { channel: "whatsapp", contact: m.from, name: m.name, extId: "wa:" + m.id };
+      const base = { channel: "whatsapp", contact: m.from, name: m.name, extId: "wa:" + m.id, referral: m.referral };
       let r;
       if (m.type === "image" || m.type === "document") {
         // Foto o archivo: la IA no lo ve. Se le pregunta al cliente con botones si es el comprobante de pago.

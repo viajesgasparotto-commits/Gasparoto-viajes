@@ -35,7 +35,10 @@ export function mensajesDe(body, phoneId = "") {
         : m.type === "interactive" ? (m.interactive?.button_reply?.title || m.interactive?.list_reply?.title)
         : "";
       const buttonId = String(m.interactive?.button_reply?.id || m.button?.payload || "");
-      out.push({ from: String(m.from || ""), name: names.get(m.from) || "", text: String(text || "").trim(), id: String(m.id || ""), type: m.type || "", buttonId });
+      // Mensajes que llegan desde un anuncio "Clic a WhatsApp" o una publicación traen "referral" (de dónde vino el cliente).
+      const rf = m.referral || null;
+      const referral = rf ? { source_type: String(rf.source_type || ""), source_url: String(rf.source_url || "").slice(0, 300), headline: String(rf.headline || "").slice(0, 200), body: String(rf.body || "").slice(0, 300) } : null;
+      out.push({ from: String(m.from || ""), name: names.get(m.from) || "", text: String(text || "").trim(), id: String(m.id || ""), type: m.type || "", buttonId, referral });
     }
   }
   return out.filter((m) => /^\d{6,20}$/.test(m.from));

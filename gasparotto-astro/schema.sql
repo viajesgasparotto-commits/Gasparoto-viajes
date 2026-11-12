@@ -190,3 +190,4 @@ CREATE INDEX IF NOT EXISTS ia_chats_updated ON ia_chats (updated_at);
 -- v21: el cliente avisa que pagó → el equipo verifica el ingreso (la IA sigue atendiendo).
 ALTER TABLE ia_chats ADD COLUMN pay_check INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE ia_chats ADD COLUMN pay_since TEXT DEFAULT '';
+ALTER TABLE ia_chats ADD COLUMN origin TEXT DEFAULT '';

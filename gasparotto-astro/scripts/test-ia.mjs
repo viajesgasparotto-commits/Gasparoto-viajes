@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { onRequest as api } from "../functions/api/[[path]].js";
 import { aiConfig, normalizeTurns } from "../functions/lib/ai.js";
-import { resetCatalogo } from "../functions/lib/asistente.js";
+import { resetCatalogo, pulir } from "../functions/lib/asistente.js";
 
 function d1() {
   const db = new DatabaseSync(":memory:");
@@ -118,7 +118,7 @@ assert.ok(/portugués de Brasil, español o inglés/.test(sys), "tres idiomas");
 assert.ok(/primera vez que visita Argentina/.test(sys) && /qué destinos/.test(sys) && /NUNCA vuelvas a preguntar/.test(sys), "preguntas de descubrimiento sin repetir");
 assert.ok(/ORIGEN del contacto: Contacto directo/.test(sys), "origen del contacto");
 assert.ok(sys.includes("BLOG (notas para recomendar") && sys.includes("https://gasparottoviajes.com/blog/guia-palermo/"), "el blog va en el contexto");
-assert.ok(sys.includes("4.9 estrellas en Google (312 reseñas)") && sys.includes("place_id:ChIJtest") && sys.includes("Passeio incrível"), "reputación de Google");
+assert.ok(sys.includes("4.9 estrellas en Google (312 reseñas)") && sys.includes("https://gasparottoviajes.com/google") && sys.includes("Passeio incrível"), "reputación de Google");
 assert.deepEqual(gem.body.contents, [{ role: "user", parts: [{ text: "Oi! Somos 4 pessoas, o que vocês recomendam?" }] }]);
 const sends = of("graph.facebook.com").filter((c) => c.body.type === "interactive");
 assert.equal(sends.length, 1, "con el enlace de un paquete sale un botón");
@@ -385,4 +385,47 @@ assert.equal(tx.length, 1); assert.equal(tx[0].body.text.body, aiReply);
 noButtons = false;
 console.log("✓ botón Reservar con respaldo en texto");
 
+// 15) Seguimiento automático
+env.IA_CRON_KEY = "cron-secreto"; env.IA_HORA_PRUEBA = 15;
+const cron = (key = "cron-secreto") => call("POST", "ia-seguimiento", {}, { headers: { "x-cron-key": key } });
+assert.equal((await cron("otra")).status, 401, "sin la clave del cron, nada");
+// Cliente que recibió una recomendación hace 4 h y no respondió
+reset(); aiReply = "Olá Nina! Recomendo o *City Tour Zona Sul*: https://gasparottoviajes.com/paquetes/city-tour-zona-sur/";
+await inbound(waMsg("Oi, quanto custa o city tour?", "5511010100000", "Nina"));
+const nina = (await one("SELECT id FROM ia_chats WHERE contact='5511010100000'")).id;
+await env.DB.prepare("UPDATE ia_messages SET at=datetime('now','-4 hours') WHERE chat_id=?").bind(nina).run();
+// Otro que ya pagó: no se lo molesta
+await inbound(waMsg("Oi", "5511020200000", "Paga"));
+const paga = (await one("SELECT id FROM ia_chats WHERE contact='5511020200000'")).id;
+await env.DB.prepare("UPDATE ia_messages SET at=datetime('now','-5 hours') WHERE chat_id=?").bind(paga).run();
+await env.DB.prepare("INSERT INTO bookings (package_id, day, pax, phone, status, total, currency) VALUES (?,?,?,?,?,?,?)").bind(pkgId, "2099-01-10", 2, "+55 11 02020-0000", "pagada", 1000, "BRL").run();
+// Otro que escribió hace 30 h: fuera de la ventana de 24 h
+await inbound(waMsg("Oi", "5511030300000", "Viejo"));
+await env.DB.prepare("UPDATE ia_messages SET at=datetime('now','-30 hours') WHERE chat_id=(SELECT id FROM ia_chats WHERE contact='5511030300000')").run();
+reset(); aiReply = "Oi Nina! Conseguiu escolher o dia? Se quiser, te ajudo a reservar: https://gasparottoviajes.com/paquetes/city-tour-zona-sur/";
+r = await cron();
+assert.equal(r.status, 200); assert.equal(r.data.enviados, 1, "solo a Nina");
+const fu = of("graph.facebook.com").filter((c) => c.body.type === "interactive")[0];
+assert.equal(fu.body.to, "5511010100000"); assert.equal(fu.body.interactive.type, "cta_url", "con botón Reservar");
+assert.ok(/MENSAJE DE SEGUIMIENTO/.test(of("generativelanguage")[0].body.system_instruction.parts[0].text));
+// No se repite en el mismo silencio
+reset(); r = await cron();
+assert.equal(r.data.enviados, 0, "un solo mensaje por silencio");
+// Fuera de horario, nada
+env.IA_HORA_PRUEBA = 23; reset(); r = await cron(); assert.ok(/horario/.test(r.data.off));
+env.IA_HORA_PRUEBA = 15;
+// Panel: apagarlo
+await call("PUT", "ia/config", { seguimiento: 0 }, { cookie: admin });
+r = await cron(); assert.ok(/apagado/.test(r.data.off));
+await call("PUT", "ia/config", { seguimiento: 3 }, { cookie: admin });
+assert.equal((await call("GET", "ia", null, { cookie: admin })).data.seguimiento, 3);
+console.log("✓ seguimiento automático: una vez por silencio, con botón, nunca si pagó, dentro de 24 h y en horario; se apaga desde el panel");
+
+{
+  const t = pulir("Olá, **Ana**!\n\n\n# Oferta\nVeja em https://gasparottoviajes.com. Gostou?? [Tango](https://gasparottoviajes.com/paquetes/tango/)");
+  assert.ok(t.includes("*Ana*") && !t.includes("**") && !t.includes("#") && !t.includes("\n\n\n"), "markdown → formato WhatsApp");
+  assert.ok(t.includes("https://gasparottoviajes.com Gostou?") && !t.includes("??"), "sin punto pegado al enlace ni ??");
+  assert.ok(t.includes("Tango:\nhttps://gasparottoviajes.com/paquetes/tango/"), "enlace markdown → enlace en su línea");
+  console.log("✓ formato: negritas de WhatsApp, párrafos, enlaces limpios");
+}
 console.log("\nTodo OK: asistente IA");

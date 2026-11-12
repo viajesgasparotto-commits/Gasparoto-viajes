@@ -1,6 +1,6 @@
 // Webhook público de WhatsApp: GET /api/whatsapp (verificación que hace Meta al configurarlo) y POST /api/whatsapp (mensajes entrantes).
 // Responde 200 enseguida y procesa en segundo plano (Meta reintenta si tarda). La lógica del asistente vive en functions/lib/asistente.js.
-import { recibir, recibirAdjunto, recibirBoton, respuestaDelCelular, BTN_SI, BTN_NO } from "../asistente.js";
+import { recibir, recibirAdjunto, recibirBoton, respuestaDelCelular, seguimientos, BTN_SI, BTN_NO } from "../asistente.js";
 import { firmaValida, mensajesDe, ecosDe, enviarBotonLink, enviarTexto, enviarBotones, marcarLeido, waReady } from "../whatsapp.js";
 import { json } from "./http.js";
 
@@ -52,7 +52,16 @@ export async function procesarWhatsapp(env, body) {
   }
 }
 
+// POST /api/ia-seguimiento (lo llama el cron "gasparotto-ia-cron" con la cabecera x-cron-key = IA_CRON_KEY).
+async function manejarSeguimiento(request, env) {
+  const key = String(env.IA_CRON_KEY || "").trim();
+  if (!key || request.headers.get("x-cron-key") !== key) return json({ error: "No autorizado" }, 401);
+  if (!env.DB || !waReady(env)) return json({ error: "WhatsApp no está configurado" }, 503);
+  return json(await seguimientos(env, { enviar: (to, text, lang) => responder(env, to, text, lang) }));
+}
+
 export async function manejarWhatsappPublico({ ctx, request, env, url, res, method }) {
+  if (res === "ia-seguimiento") return method === "POST" ? manejarSeguimiento(request, env) : json({ error: "Método no permitido" }, 405);
   if (res !== "whatsapp") return null;
   if (method === "GET") {
     const p = url.searchParams, token = String(env.WHATSAPP_VERIFY_TOKEN || "").trim();

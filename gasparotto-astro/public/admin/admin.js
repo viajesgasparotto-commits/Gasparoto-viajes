@@ -1357,7 +1357,7 @@ async function claude(){const v=$('#v');v.innerHTML=SK;let d;try{d=await api('cl
 /* ---------- asistente IA (WhatsApp) ---------- */
 // La IA contesta todo; el equipo solo la detiene (en todo el sitio o en una charla). IA_T = charla de prueba (no se guarda).
 let IA_T=[],IA_OPEN=0,IA_F='todas',IA_Q='',IA_D=null;
-const iaWho={user:'Cliente',assistant:'IA',agent:'Equipo'};
+const iaWho={user:'Cliente',assistant:'Gaspi (asistente)',agent:'Equipo'};
 const iaTxt=t=>esc(t).replace(/\*([^*\n]+)\*/g,'<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g,'<br>');
 const iaBub=m=>`<div class="ia-b ${m.role==='user'?'u':m.role==='agent'?'g':'a'}"><small>${iaWho[m.role]||''}${m.at?' · '+esc(ago(m.at)):''}</small><div>${iaTxt(m.text)}</div></div>`;
 const iaOrigin=o=>!o?'':`<span class="chip ${/^Anuncio|^Publicaci/.test(o)?'warn':/^Promo/.test(o)?'warn':/^Web/.test(o)?'ok':'neutral'}" title="${esc(o)}">${esc(/^Anuncio/.test(o)?'Anuncio':/^Publicaci/.test(o)?'Publicación':/^Promo/.test(o)?'Promoción':/^Web/.test(o)?'Desde la web':'Directo')}</span>`;
@@ -1379,6 +1379,8 @@ async function ia(){const v=$('#v');if(!IA_D)v.innerHTML=SK;let d;try{d=await ap
    <section class="card"><h3>Indicaciones para el asistente</h3><p class="muted" style="margin-top:0">Lo que tiene que saber o priorizar además de la web: qué recomendar primero, extras, promociones vigentes, horarios del equipo, tono. ${d.puedeEditar?'':'Solo un administrador puede cambiarlas.'}</p>
     <textarea id="ia-ins" rows="8" aria-label="Indicaciones para el asistente" ${d.puedeEditar?'':'disabled'} placeholder="Ej.: El servicio principal es el City Tour de Zona Sur (4 h). Ofrecé como extra el City Fotográfico Privado. Promoción vigente: … El equipo atiende de 9 a 20 h.">${esc(d.instrucciones)}</textarea>
     <label class="ia-chk"><input type="checkbox" id="ia-pc" ${d.pausaCelular?'checked':''} ${d.puedeEditar?'':'disabled'}> Detener la IA en una charla cuando alguien responde desde el celular</label>
+    <label class="ia-chk"><input type="checkbox" id="ia-sg" ${d.seguimiento?'checked':''} ${d.puedeEditar?'':'disabled'}> Seguimiento automático: si el cliente deja de responder, escribirle a las <select id="ia-sgh" ${d.puedeEditar?'':'disabled'}>${[1,2,3,4,6,8,12].map(h=>`<option value="${h}" ${(d.seguimiento||3)===h?'selected':''}>${h} h</option>`).join('')}</select></label>
+    <p class="muted ck-note" style="margin-top:4px">Un mensaje por silencio, entre 9 y 21 h, dentro de las 24 h que permite WhatsApp y nunca si ya pagó. ${d.cronListo?`Enviados en 7 días: ${d.seguimientos7}.`:'<b>Falta conectar el aviso programado (IA_CRON_KEY).</b>'}</p>
     ${d.puedeEditar?'<div style="margin-top:10px"><button class="p" id="ia-sv">Guardar</button></div>':''}</section>
   </div>
   <details class="card ia-cx"><summary><b>Conexión</b> <span class="muted">${I.ready?prov+' conectado':'Falta la clave de '+prov} · WhatsApp ${W.missing.length?'sin configurar':'conectado'}</span></summary>
@@ -1399,7 +1401,7 @@ async function ia(){const v=$('#v');if(!IA_D)v.innerHTML=SK;let d;try{d=await ap
   $('#ia-f').onsubmit=async e=>{e.preventDefault();const q=$('#ia-q').value.trim();if(!q)return;IA_T.push({role:'user',text:q});$('#ia-q').value='';paintT();$('#ia-go').disabled=true;
     try{const r=await api('ia/probar','POST',{messages:IA_T,origen:$('#ia-or').value});IA_T.push({role:'assistant',text:r.reply+(r.handoff?'\n\n[En WhatsApp, esta charla quedaría marcada para que la mire una persona]':'')+(r.pago?'\n\n[En WhatsApp, quedaría marcada para verificar el pago]':'')})}catch{IA_T.pop()}
     $('#ia-go').disabled=false;paintT();$('#ia-q').focus()};
-  if($('#ia-sv'))$('#ia-sv').onclick=async()=>{try{await api('ia/config','PUT',{instrucciones:$('#ia-ins').value,pausaCelular:$('#ia-pc').checked});toast('Guardado')}catch{}};
+  if($('#ia-sv'))$('#ia-sv').onclick=async()=>{try{await api('ia/config','PUT',{instrucciones:$('#ia-ins').value,pausaCelular:$('#ia-pc').checked,seguimiento:$('#ia-sg').checked?+$('#ia-sgh').value:0});toast('Guardado')}catch{}};
   if(IA_OPEN)iaChat(IA_OPEN)}
 async function iaChat(id){const box=$('#ia-det');if(!box)return;let d;try{d=await api('ia/'+id)}catch{return}
   const c=d.chat;

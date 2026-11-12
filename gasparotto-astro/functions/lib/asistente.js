@@ -17,6 +17,7 @@ const DEFAULT_DAILY = 400;     // respuestas por día en todo el sitio (IA_MAX_D
 export const SETTING_KEY = "ia_instrucciones";
 export const KEY_DETENIDA = "ia_detenida";         // "1" = el equipo detuvo todas las respuestas desde el panel
 export const KEY_PAUSA_CELULAR = "ia_pausa_celular"; // "1" = si alguien responde desde el celular, la IA se detiene en esa charla
+export const KEY_SEGUIMIENTO = "ia_seguimiento";     // "0" = apagado; si no, horas de silencio antes de escribirle (por defecto 3)
 const FALLBACK = {
   pt: "Obrigado pela mensagem! Um atendente da nossa equipe vai te responder em instantes. 😊",
   es: "¡Gracias por escribir! Una persona de nuestro equipo te responde en un ratito. 😊",
@@ -120,14 +121,15 @@ export async function systemPrompt(env, ctx = {}) {
   const extra = (await instrucciones(env.DB)).trim();
   const base = siteUrl(env) || "";
   const W = await web(env), G = await google(env);
-  const { reservas = null, nombre = "", origen = "", primera = false } = ctx;
+  if (G.link && base) G.link = `${base.replace(/\/$/, "")}/google`; // enlace corto y prolijo
+  const { reservas = null, nombre = "", origen = "", primera = false, seguimiento = 0 } = ctx;
   const estrellas = G.rating ? `${G.rating.toFixed(1).replace(".0", "")} estrellas en Google${G.count ? ` (${G.count} reseñas)` : ""}` : "excelentes reseñas en Google";
   return `Sos parte del equipo de ventas de ${BRAND}, agencia de turismo receptivo en Buenos Aires, Argentina. Atendés el WhatsApp de la agencia; los clientes son turistas, en su mayoría brasileños.
 Hoy es ${hoy} (hora de Buenos Aires).
 
 QUIÉN SOS
 - Hablás como un empleado más de la agencia: en primera persona del plural ("nosotros", "nuestro city tour"), con la seguridad de quien conoce lo que vende.
-- No te presentes como IA ni como bot. Si el cliente te pregunta directamente si es un robot o una persona, decile con naturalidad que sos el asistente virtual de la agencia y que, si prefiere, lo atiende una persona del equipo.
+- Tu nombre es *Gaspi*, el asistente de Gasparotto Viajes. Firmás y te presentás como Gaspi; nunca digas "IA", "inteligencia artificial" ni "bot". Si el cliente te pregunta directamente si es un robot o una persona, no lo niegues: decile con naturalidad que sos Gaspi, el asistente virtual de la agencia, y que, si prefiere, lo atiende una persona del equipo.
 - Respondés TODO lo que puedas con los datos de abajo. No cortes la charla ni la dejes sin respuesta.
 
 IDIOMA
@@ -136,10 +138,19 @@ IDIOMA
 PRESENTACIÓN DE LA AGENCIA
 ${primera ? `- ESTE ES TU PRIMER MENSAJE en esta charla y SÍ O SÍ tiene que incluir la presentación, en este orden:
   1) Saludo${nombre ? ` a ${nombre} por su nombre` : ""} en el idioma del cliente.
-  2) Quiénes somos en una o dos frases: ${BRAND}, agencia de turismo en Buenos Aires desde 2006, ${estrellas}.
+  2) Que sos Gaspi, el asistente de la agencia, y quiénes somos en una o dos frases: ${BRAND}, agencia de turismo en Buenos Aires desde 2006, ${estrellas}.
   3) Invitación a comprobarlo en nuestro perfil de Google${G.link ? ` (${G.link})` : ""} y a conocer la web (${base}).
   4) Respuesta a lo que preguntó (con datos reales del catálogo) o UNA sola pregunta para conocerlo.
-  Escribilo en prosa (sin viñetas). Ej. en portugués: "Olá, Ana! Que bom que você nos escreveu 😊 Somos a Gasparotto Viajes, agência em Buenos Aires desde 2006, com 4,9 estrelas no Google — pode conferir as avaliações aqui: <link> e conhecer nossos passeios em <web>. É a sua primeira vez na Argentina?"` : "- Ya te presentaste en esta charla: no repitas la presentación. Podés mencionar las reseñas de Google si ayuda a dar confianza (por ejemplo, ante una duda o una objeción)."}
+  Separalo en 2 o 3 párrafos cortos con una línea en blanco entre ellos, con *negrita* en el nombre de la agencia y en las estrellas, y cada enlace en su propia línea. Ej. en portugués:
+"Olá, Ana! Que bom que você nos escreveu 😊 Eu sou o *Gaspi*, assistente da Gasparotto Viajes.
+
+Somos uma agência em Buenos Aires desde 2006, com *5 estrelas no Google*. Pode conferir as avaliações aqui:
+<link de Google>
+
+E conhecer todos os nossos passeios em:
+<web>
+
+É a sua primeira vez na Argentina?"` : "- Ya te presentaste en esta charla: no repitas la presentación. Podés mencionar las reseñas de Google si ayuda a dar confianza (por ejemplo, ante una duda o una objeción)."}
 
 CÓMO LLEVÁS LA CHARLA
 - Una sola pregunta por mensaje. Antes de preguntar algo, revisá la charla y los DATOS DEL CLIENTE: NUNCA vuelvas a preguntar lo que ya sabés (nombre, fechas, personas, destinos, si ya vino, etc.). Usalo.
@@ -170,10 +181,13 @@ DE QUÉ HABLÁS (Y DE QUÉ NO)
 - De lo que ofrece la agencia (catálogo, blog, datos de la agencia) y de cómo reservar y pagar.
 - No sos guía ni buscador: no armes guías generales (dónde comer, clima, cambio de dinero, seguridad, transporte) ni itinerarios por tu cuenta. Respondé con una frase amable y llevá la charla a un paquete o a una nota del blog que lo cubra.
 
-CÓMO ESCRIBÍS
-- Mensajes cortos, cálidos y naturales, como por WhatsApp: 1 a 4 frases (el primer mensaje puede ser un poco más largo). Como mucho 1 emoji.
-- PROHIBIDO usar listas, viñetas, guiones o números para enumerar. Escribí en prosa, como una persona. Nunca hagas más de UNA pregunta por mensaje.
-- Para resaltar usá *asterisco* (negrita de WhatsApp). Nada de títulos, tablas ni markdown.
+CÓMO ESCRIBÍS (formato de WhatsApp, que se lea lindo en el celular)
+- Mensajes cortos, cálidos y naturales: 1 a 4 frases (el primer mensaje puede ser más largo). Como mucho 1 o 2 emojis.
+- Separá las ideas en párrafos cortos (1 o 2 frases) con una línea en blanco entre ellos. Nunca un bloque de texto largo.
+- Usá *negrita* (un asterisco de cada lado, sin espacios adentro) para lo importante: nombre del paseo, *precio*, fecha y horario. Podés usar _cursiva_ para un detalle suave. Nunca uses **doble asterisco**, # títulos, tablas ni [texto](enlace).
+- Cada enlace va SOLO en su propia línea, sin ningún signo pegado antes o después (ni punto, ni coma, ni paréntesis), porque si no deja de funcionar.
+- La pregunta final va sola, en su propio párrafo al final, con un solo signo de pregunta.
+- PROHIBIDO usar listas, viñetas, guiones o números para enumerar: escribí en prosa, como una persona. Nunca hagas más de UNA pregunta por mensaje.
 - Cuando nombres paseos, usá los nombres REALES del CATÁLOGO (no categorías genéricas inventadas).
 - Si preguntan por promociones: contá las que figuran en las INDICACIONES DE LA AGENCIA; si no hay ninguna cargada, decí que en este momento no tenemos una promoción especial y recomendá un paquete del catálogo con su precio.
 
@@ -209,16 +223,36 @@ ${PERFIL}
 - Reputación: ${estrellas}.${G.link ? ` Perfil de Google: ${G.link}` : ""}
 ${G.reviews.length ? `- Algunas reseñas reales de Google:\n${G.reviews.map((r) => `  ${r}`).join("\n")}\n` : ""}- Web: ${base || "(sin dirección)"} · Paquetes: ${base}/paquetes/ · Sobre nosotros: ${base}/nosotros/ · Contacto: ${base}/contacto/
 ${b.street ? `- Oficina: ${b.street}, ${b.locality || ""} (en plena Calle Florida, cerca de Galerías Pacífico)\n` : ""}${b.phone ? `- Teléfono / WhatsApp: ${b.phone}\n` : ""}${(b.sameAs || []).length ? `- Redes: ${b.sameAs.join(" · ")}\n` : ""}
-${extra ? `INDICACIONES DE LA AGENCIA (tienen prioridad sobre lo anterior, salvo las reglas firmes)\n${extra}\n\n` : ""}CATÁLOGO (lo único que podés vender)
+${seguimiento ? `MENSAJE DE SEGUIMIENTO (ahora)
+El cliente no responde hace unas ${seguimiento} horas. Escribí UN solo mensaje corto (1 a 3 frases), cálido y sin presión, para retomar donde quedó la charla:
+- Si le recomendaste un paquete y no figura una reserva pagada, preguntale si pudo elegir el día u ofrecele ayuda para reservar, y volvé a mandar el enlace de ese paquete.
+- Si tiene una reserva pendiente de pago, ofrecele ayuda para completar el pago con el enlace del paquete.
+- Si todavía no le recomendaste nada, retomá con una pregunta concreta para ayudarlo a elegir.
+No te presentes de nuevo, no repitas lo que ya dijiste palabra por palabra y no inventes ofertas ni urgencias.
+
+` : ""}${extra ? `INDICACIONES DE LA AGENCIA (tienen prioridad sobre lo anterior, salvo las reglas firmes)\n${extra}\n\n` : ""}CATÁLOGO (lo único que podés vender)
 ${W.text || "(Todavía no hay paquetes publicados: tomá los datos del cliente y terminá con " + HANDOFF + ".)"}
 ${W.posts ? `\nBLOG (notas para recomendar con su enlace)\n${W.posts}` : ""}`;
 }
 
 // Le pasa la charla a la IA y separa la respuesta de las marcas.
+// Deja el texto prolijo para WhatsApp aunque el modelo se equivoque con el formato.
+export function pulir(t) {
+  return String(t || "")
+    .replace(/\r/g, "")
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1:\n$2")      // [texto](url) → texto + url en su línea
+    .replace(/\*\*([^*\n]+)\*\*/g, "*$1*").replace(/__([^_\n]+)__/g, "_$1_") // markdown → WhatsApp
+    .replace(/^#{1,6}\s+/gm, "")                                           // sin títulos
+    .replace(/\*\s+([^*\n]+?)\s+\*/g, "*$1*")                               // * texto * → *texto*
+    .replace(/(https?:\/\/[^\s<>"]*[^\s<>".,;:!?¡¿)\]'])[.,;:!?)\]]+(?=\s|$)/g, "$1") // signo pegado al final de un enlace
+    .replace(/\?{2,}/g, "?").replace(/!{2,}/g, "!")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export async function pensar(env, history, ctx = {}) {
   const raw = await askAI(env, { system: await systemPrompt(env, ctx), messages: history.slice(-HISTORY), maxTokens: 800 });
   const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO);
-  const reply = raw.split(HANDOFF).join("").split(PAGO).join("").replace(/\n{3,}/g, "\n\n").trim();
+  const reply = pulir(raw.split(HANDOFF).join("").split(PAGO).join(""));
   return { reply, handoff, pago };
 }
 
@@ -364,4 +398,56 @@ export async function respuestaDelCelular(env, { channel, contact, text, extId =
   const pausa = (await setting(db, KEY_PAUSA_CELULAR)) === "1";
   await run(db, `UPDATE ia_chats SET handoff=0, handoff_reason=''${pausa ? ", paused=1" : ""} WHERE id=?`, chat.id);
   return { paused: pausa, chatId: chat.id };
+}
+
+// ---------- Seguimiento automático ----------
+// Lo dispara un aviso programado (cron) cada ~15 min: POST /api/ia-seguimiento. A cada cliente que dejó de responder
+// le escribe UNA vez por silencio, solo dentro de la ventana de 24 h de WhatsApp, en horario razonable y sin molestar:
+// - la última palabra fue de la agencia y pasaron N horas (N = panel, por defecto 3) y menos de 22 h desde su último mensaje;
+// - no tiene una reserva pagada en los últimos 2 días; la charla no está detenida ni marcada para una persona;
+// - como mucho 2 seguimientos por charla cada 7 días.
+export async function seguimientoHoras(db) {
+  const v = await setting(db, KEY_SEGUIMIENTO);
+  if (v === "0") return 0;
+  return Math.min(20, Math.max(1, parseInt(v, 10) || 3));
+}
+const horaBA = (env) => (env.IA_HORA_PRUEBA !== undefined ? Number(env.IA_HORA_PRUEBA) : new Date(Date.now() - 3 * 3600e3).getUTCHours());
+export async function seguimientos(env, { enviar, max = 10 } = {}) {
+  const db = env.DB;
+  await ensureSchema(db);
+  const horas = await seguimientoHoras(db);
+  if (!horas) return { off: "seguimiento apagado" };
+  if (!(await respuestasActivas(env)) || !aiConfig(env).ready) return { off: "respuestas detenidas" };
+  const h = horaBA(env);
+  if (h < 9 || h >= 21) return { off: "fuera de horario (9 a 21 h)" };
+  const rows = (await db.prepare(`SELECT c.*,
+      (SELECT MAX(at) FROM ia_messages m WHERE m.chat_id=c.id AND m.role='user') AS last_user,
+      (SELECT role FROM ia_messages m WHERE m.chat_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_role
+    FROM ia_chats c
+    WHERE c.channel='whatsapp' AND c.paused=0 AND c.handoff=0 AND c.pay_check=0
+      AND (c.followup_at = '' OR c.followup_at < datetime('now','-7 day') OR c.followups < 2)
+    ORDER BY c.updated_at DESC LIMIT 200`).all()).results || [];
+  const out = [];
+  for (const c of rows) {
+    if (out.length >= max) break;
+    if (!c.last_user || c.last_role === "user") continue;
+    const silencio = (Date.now() - Date.parse(c.last_user.replace(" ", "T") + "Z")) / 3600e3;
+    if (silencio < horas || silencio > 22) continue;
+    if (c.followup_at && c.followup_at > c.last_user) continue; // ya se le escribió en este silencio
+    if (c.followup_at && c.followup_at > new Date(Date.now() - 7 * 864e5).toISOString().replace("T", " ").slice(0, 19) && c.followups >= 2) continue;
+    const reservas = await reservasDe(db, c.contact);
+    const hace2 = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
+    if (reservas.some((r) => r.status === "pagada" && String(r.day) >= hace2)) continue; // ya compró: no se lo molesta
+    let r;
+    try {
+      const hist = await historial(db, c.id);
+      r = await pensar(env, [...hist, { role: "user", text: "[El cliente no respondió. Escribí ahora el mensaje de seguimiento.]" }], { reservas, nombre: c.name, origen: c.origin, primera: false, seguimiento: Math.round(silencio) });
+    } catch (e) { console.error("seguimiento:", e?.message); continue; }
+    if (!r.reply) continue;
+    try { await enviar(c.contact, r.reply, await idiomaDe(db, c.id, env)); } catch (e) { console.error("seguimiento envío:", e?.message); continue; }
+    await guardarMensaje(db, c.id, "assistant", r.reply);
+    await run(db, "UPDATE ia_chats SET followup_at=CURRENT_TIMESTAMP, followups = CASE WHEN followup_at > datetime('now','-7 day') THEN followups+1 ELSE 1 END WHERE id=?", c.id);
+    out.push({ chat: c.id, horas: Math.round(silencio) });
+  }
+  return { enviados: out.length, detalle: out };
 }

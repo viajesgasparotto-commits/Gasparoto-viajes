@@ -474,6 +474,8 @@ async function handlePt(ctx) {
   if (path === "/robots.txt") return new Response(buildRobots(env, isProdHost(env, url)), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
   if (path === "/sitemap.xml") return sitemap(env);
   if (path === "/privacidade/" || path === "/privacidade" || path === "/privacidad/") return privacyPage(env);
+  // Enlace corto al perfil de Google (lo usa la IA de WhatsApp para no mandar una URL larga).
+  if ((path === "/google" || path === "/google/") && String(env.GOOGLE_PLACE_ID || "").trim()) return Response.redirect(`https://www.google.com/maps/place/?q=place_id:${String(env.GOOGLE_PLACE_ID).trim()}`, 302);
   if (path === "/blog/feed.xml") return feed(env);
   if (path.startsWith("/api/") || path.startsWith("/admin") || path === "/mcp" || path.startsWith("/mcp/")) return next();
   const fixed = staticRedirect(path);

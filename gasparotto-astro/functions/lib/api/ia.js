@@ -4,7 +4,7 @@
 // POST /api/ia/probar {messages, origen?} · PUT /api/ia/config {instrucciones?, detenida?, pausaCelular?} (admin)
 // PUT /api/ia/:id {paused? | atendida? | pay_check?} · POST /api/ia/:id {text} (responder como persona)
 import { aiConfig } from "../ai.js";
-import { pensar, instrucciones, guardarMensaje, iaActiva, SETTING_KEY, KEY_DETENIDA, KEY_PAUSA_CELULAR } from "../asistente.js";
+import { pensar, instrucciones, guardarMensaje, iaActiva, seguimientoHoras, SETTING_KEY, KEY_DETENIDA, KEY_PAUSA_CELULAR, KEY_SEGUIMIENTO } from "../asistente.js";
 import { enviarTexto, waMissing } from "../whatsapp.js";
 import { json } from "./http.js";
 
@@ -32,6 +32,8 @@ export async function manejarIA({ request, env, url, res, id, method, user }) {
     return json({
       ia: { ...aiConfig(env), envActiva: iaActiva(env), detenida: (await getSetting(db, KEY_DETENIDA)) === "1", tope: parseInt(env.IA_MAX_DIARIO, 10) || 400 },
       pausaCelular: (await getSetting(db, KEY_PAUSA_CELULAR)) === "1",
+      seguimiento: await seguimientoHoras(db), cronListo: !!String(env.IA_CRON_KEY || "").trim(),
+      seguimientos7: await n("SELECT COALESCE(SUM(followups),0) n FROM ia_chats WHERE followup_at > datetime('now','-7 day')"),
       whatsapp: { missing: waMissing(env), webhook: `${url.origin}/api/whatsapp` },
       instrucciones: await instrucciones(db), puedeEditar: user.role === "admin", pending, stats, chats,
     });
@@ -57,6 +59,7 @@ export async function manejarIA({ request, env, url, res, id, method, user }) {
     if ("instrucciones" in b) await putSetting(db, SETTING_KEY, String(b.instrucciones ?? "").replace(/\r/g, "").trim().slice(0, 8000));
     if ("detenida" in b) await putSetting(db, KEY_DETENIDA, b.detenida ? "1" : "0");
     if ("pausaCelular" in b) await putSetting(db, KEY_PAUSA_CELULAR, b.pausaCelular ? "1" : "0");
+    if ("seguimiento" in b) await putSetting(db, KEY_SEGUIMIENTO, String(Math.min(20, Math.max(0, parseInt(b.seguimiento, 10) || 0))));
     return json({ ok: true });
   }
   if (rid && (method === "PUT" || method === "POST")) {

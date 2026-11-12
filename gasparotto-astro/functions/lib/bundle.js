@@ -203,7 +203,8 @@ export async function createBundleBooking(db, env, p, body) {
   }
   // Niños: si el paquete no se reserva por opción propia, cada niño paga según la política de cada servicio.
   const kidTab = optionsOf(p).length ? null : bundleKidTable(items);
-  const r = await createBooking(db, env, p, { ...body, day: start, time: "", kidTab });
+  const kidsOk = Number(p.accepts_children) === 1 || items.some((i) => Number(i.svc.accepts_children) === 1);
+  const r = await createBooking(db, env, kidsOk ? { ...p, accepts_children: 1 } : p, { ...body, day: start, time: "", kidTab });
   if (!r.ok) return r;
   const head = await db.prepare("SELECT * FROM bookings WHERE id=?").bind(r.id).first();
   const made = [];

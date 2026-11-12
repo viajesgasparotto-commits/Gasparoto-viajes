@@ -209,7 +209,8 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const paxVal = bk.enabled ? Math.min(bk.max_pax, Math.max(2, bk.min_pax)) : 2;
   // Paquete/servicio que acepta niños (se marca en el panel al crearlo): en vez de "Personas" se piden Adultos y Niños por separado.
   // El campo "pax" pasa a ser oculto y conv.js lo mantiene como adultos + niños, así el cupo, el mínimo/máximo y el total siguen igual.
-  const kids = Number(p.accepts_children) === 1;
+  // Un paquete que combina servicios acepta niños si los acepta él o alguno de sus servicios.
+  const kids = Number(p.accepts_children) === 1 || bItems.some((i) => Number(i.svc.accepts_children) === 1);
   const KT = L.lang === "es"
     ? { ad: "Adultos", ch: "Niños", chHint: "Menores de edad que viajan con vos", adLess: "Menos adultos", adMore: "Más adultos", chLess: "Menos niños", chMore: "Más niños" }
     : { ad: "Adultos", ch: "Crianças", chHint: "Menores que viajam com você", adLess: "Menos adultos", adMore: "Mais adultos", chLess: "Menos crianças", chMore: "Mais crianças" };

@@ -160,7 +160,7 @@ const kp = (tiers) => JSON.stringify({ tiers });
 await save({ title: "City Clasico", price: "R$ 250", accepts_children: 1, kids_policy: kp([{ from: 0, to: 2, pct: 0 }, { from: 3, to: 5, pct: 50 }]), meta: JSON.stringify({ kind: "servicio", policies: [["cancelacion", "Grátis até 24 h antes.", "", ""]] }) });
 await save({ title: "Tango Show", price: "R$ 220", accepts_children: 1, kids_policy: kp([{ from: 0, to: 3, pct: 0 }, { from: 4, to: 11, pct: 50 }]), meta: JSON.stringify({ kind: "servicio", policies: [["cancelacion", "Sem reembolso a menos de 48 h.", "", ""]] }) });
 for (const s of ["city-clasico", "tango-show"]) await call("PUT", "booking-config/" + (await row(s)).id, cfg(), admin);
-await save({ title: "Clasico combo", price: "R$ 1", accepts_children: 1, kids_policy: "", meta: JSON.stringify({ kind: "paquete", parts: ["city-clasico", "tango-show"], plan: [["city-clasico", 1, "", ""], ["tango-show", 1, "", ""]], pmode: "libre", win: 7, auto: 1, disc: 0 }) });
+await save({ title: "Clasico combo", price: "R$ 1", accepts_children: 0, kids_policy: "", meta: JSON.stringify({ kind: "paquete", parts: ["city-clasico", "tango-show"], plan: [["city-clasico", 1, "", ""], ["tango-show", 1, "", ""]], pmode: "libre", win: 7, auto: 1, disc: 0 }) });
 const CC = await row("clasico-combo"); assert.equal(CC.price, "R$ 470");
 await call("PUT", "booking-config/" + CC.id, cfg(), admin);
 const dk = addDays(d0, 30);

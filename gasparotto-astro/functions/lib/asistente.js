@@ -249,7 +249,7 @@ export function pulir(t) {
     .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1:\n$2")      // [texto](url) → texto + url en su línea
     .replace(/\*\*([^*\n]+)\*\*/g, "*$1*").replace(/__([^_\n]+)__/g, "_$1_") // markdown → WhatsApp
     .replace(/^#{1,6}\s+/gm, "")                                           // sin títulos
-    .replace(/\*\s+([^*\n]+?)\s+\*/g, "*$1*")                               // * texto * → *texto*
+    .replace(/(^|\s)\*\s+([^*\n]+?)\s+\*(?=\s|$|[.,;:!?])/gm, "$1*$2*")    // " * texto * " → "*texto*" (solo si el asterisco abre una palabra)
     .replace(/(https?:\/\/[^\s<>"]*[^\s<>".,;:!?¡¿)\]'])[.,;:!?)\]]+(?=\s|$)/g, "$1") // signo pegado al final de un enlace
     .replace(/\?{2,}/g, "?").replace(/!{2,}/g, "!")
     .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();

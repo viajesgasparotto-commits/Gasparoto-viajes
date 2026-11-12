@@ -422,6 +422,8 @@ console.log("✓ seguimiento automático: una vez por silencio, con botón, nunc
   assert.ok(t.includes("*Ana*") && !t.includes("**") && !t.includes("#") && !t.includes("\n\n\n"), "markdown → formato WhatsApp");
   assert.ok(t.includes("https://gasparottoviajes.com Gostou?") && !t.includes("??"), "sin punto pegado al enlace ni ??");
   assert.ok(t.includes("Tango:\nhttps://gasparottoviajes.com/paquetes/tango/"), "enlace markdown → enlace en su línea");
+  assert.equal(pulir("Es el *City Tour + Tango* a *R$ 470* en total"), "Es el *City Tour + Tango* a *R$ 470* en total", "no pega dos negritas seguidas");
+  assert.equal(pulir("Precio: * R$ 400 * por persona"), "Precio: *R$ 400* por persona", "arregla la negrita con espacios");
   console.log("✓ formato: negritas de WhatsApp, párrafos, enlaces limpios");
 }
 {

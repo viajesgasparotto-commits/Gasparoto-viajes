@@ -122,7 +122,8 @@ export async function systemPrompt(env, ctx = {}) {
   const base = siteUrl(env) || "";
   const W = await web(env), G = await google(env);
   if (G.link && base) G.link = `${base.replace(/\/$/, "")}/google`; // enlace corto y prolijo
-  const { reservas = null, nombre = "", origen = "", primera = false, seguimiento = 0 } = ctx;
+  const { reservas = null, nombre = "", origen = "", primera = false, seguimiento = 0, ficha = "" } = ctx;
+  const F = leerFicha(ficha);
   const estrellas = G.rating ? `${G.rating.toFixed(1).replace(".0", "")} estrellas en Google${G.count ? ` (${G.count} reseñas)` : ""}` : "excelentes reseñas en Google";
   return `Sos parte del equipo de ventas de ${BRAND}, agencia de turismo receptivo en Buenos Aires, Argentina. Atendés el WhatsApp de la agencia; los clientes son turistas, en su mayoría brasileños.
 Hoy es ${hoy} (hora de Buenos Aires).
@@ -213,7 +214,12 @@ Seguís respondiendo siempre, pero terminá tu mensaje con ${HANDOFF} (exactamen
 DATOS DEL CLIENTE (lo que ya sabés)
 - Nombre en WhatsApp: ${nombre || "(no lo sabemos)"}
 - ORIGEN del contacto: ${origen || "Contacto directo"}
-- Lo demás está en la charla: revisala antes de preguntar.
+${Object.keys(F).length ? Object.entries(F).map(([k, v]) => `- ${ETIQUETAS[k] || k}: ${v}`).join("\n") + "\n" : ""}- Lo demás está en la charla: revisala antes de preguntar. Estos datos valen aunque ya no aparezcan en la charla: NO los vuelvas a preguntar.
+
+FICHA DEL CLIENTE (anotá lo que vas sabiendo)
+- Cuando el cliente te cuente un dato nuevo o lo cambie, agregá AL FINAL de tu mensaje una línea así (el cliente no la ve):
+  [[FICHA fechas: 15 al 20 de marzo | personas: 4 (2 adultos y 2 chicos)]]
+- Claves que podés usar: fechas, personas, primera_vez, intereses, paseo_elegido, hotel, presupuesto, otros. Solo lo que el cliente dijo, corto, sin inventar. Si no hay nada nuevo, no pongas la línea.
 
 RESERVAS DE ESTE CLIENTE (según el sistema, hace un instante)
 ${reservas === null ? "(No disponible en esta prueba.)" : reservas.length ? reservasTxt(reservas) : "(No hay reservas con su número de teléfono.)"}
@@ -249,12 +255,36 @@ export function pulir(t) {
     .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// Ficha del cliente: datos que la IA anota (fechas, personas…) y que se le pasan siempre, aunque la charla sea larga.
+const ETIQUETAS = { fechas: "Fechas del viaje", personas: "Personas", primera_vez: "Primera vez en Argentina", intereses: "Le interesa", paseo_elegido: "Paseo que eligió", hotel: "Hotel / zona", presupuesto: "Presupuesto", otros: "Otros datos" };
+export function leerFicha(t) { try { const o = JSON.parse(t || "{}"); return o && typeof o === "object" && !Array.isArray(o) ? o : {}; } catch { return {}; } }
+export function sacarFicha(raw) {
+  const datos = {};
+  const texto = String(raw || "").replace(/\[\[\s*FICHA\b([^\]]*)\]\]/gi, (_, body) => {
+    for (const par of String(body).split("|")) {
+      const m = par.match(/^\s*([a-záéíóúñ_ ]{2,20})\s*[:=]\s*(.+?)\s*$/i);
+      if (!m) continue;
+      const k = m[1].trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_");
+      if (ETIQUETAS[k] && m[2]) datos[k] = m[2].slice(0, 160);
+    }
+    return "";
+  });
+  return { texto, datos };
+}
+async function guardarFicha(db, chatId, datos) {
+  if (!chatId || !Object.keys(datos).length) return;
+  const actual = leerFicha((await one(db, "SELECT datos FROM ia_chats WHERE id=?", chatId))?.datos);
+  await run(db, "UPDATE ia_chats SET datos=? WHERE id=?", JSON.stringify({ ...actual, ...datos }).slice(0, 2000), chatId);
+}
+
 export async function pensar(env, history, ctx = {}) {
   if (!ctx.idioma) ctx = { ...ctx, idioma: idiomaTextos(history.filter((h) => h.role === "user" && !String(h.text).startsWith("[")).map((h) => h.text).reverse().slice(0, 6)) };
   const raw = await askAI(env, { system: await systemPrompt(env, ctx), messages: history.slice(-HISTORY), maxTokens: 800 });
   const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO);
-  const reply = pulir(raw.split(HANDOFF).join("").split(PAGO).join(""));
-  return { reply, handoff, pago };
+  const { texto, datos } = sacarFicha(raw);
+  const reply = pulir(texto.split(HANDOFF).join("").split(PAGO).join(""));
+  if (ctx.chatId) await guardarFicha(env.DB, ctx.chatId, datos).catch(() => {});
+  return { reply, handoff, pago, datos };
 }
 
 // ---------- Conversaciones guardadas ----------
@@ -311,7 +341,7 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   const previas = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role<>'user' AND at > datetime('now','-12 hours')", chat.id))?.n || 0;
   let r;
   try {
-    r = await pensar(env, await historial(db, chat.id), { reservas: await reservasDe(db, contact), nombre: chat.name || name, origen: chat.origin, primera: previas === 0 });
+    r = await pensar(env, await historial(db, chat.id), { reservas: await reservasDe(db, contact), nombre: chat.name || name, origen: chat.origin, primera: previas === 0, chatId: chat.id, ficha: chat.datos });
   } catch (err) {
     // No se le manda un aviso enlatado al toque: el reintento programado (cada 5 min) le contesta bien en unos minutos.
     console.error("IA:", err?.message); await flag(db, chat, `${REINTENTO} ${String(err?.message || "")}`); return { skip: "error de la IA: se reintenta" };
@@ -350,7 +380,7 @@ export async function reintentos(env, { enviar, max = 10 }) {
     if (mins > 6 * 60) { await run(db, "UPDATE ia_chats SET handoff_reason='La IA no pudo responder: revisar' WHERE id=?", c.id); continue; }
     const previas = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role<>'user' AND at > datetime('now','-12 hours')", c.id))?.n || 0;
     let r = null;
-    try { r = await pensar(env, await historial(db, c.id), { reservas: await reservasDe(db, c.contact), nombre: c.name, origen: c.origin, primera: previas === 0 }); }
+    try { r = await pensar(env, await historial(db, c.id), { reservas: await reservasDe(db, c.contact), nombre: c.name, origen: c.origin, primera: previas === 0, chatId: c.id, ficha: c.datos }); }
     catch (e) { console.error("reintento:", e?.message); }
     const lang = await idiomaDe(db, c.id, env);
     if (r?.reply) {
@@ -483,7 +513,7 @@ export async function seguimientos(env, { enviar, max = 10 } = {}) {
     let r;
     try {
       const hist = await historial(db, c.id);
-      r = await pensar(env, [...hist, { role: "user", text: "[El cliente no respondió. Escribí ahora el mensaje de seguimiento.]" }], { reservas, nombre: c.name, origen: c.origin, primera: false, seguimiento: Math.round(silencio) });
+      r = await pensar(env, [...hist, { role: "user", text: "[El cliente no respondió. Escribí ahora el mensaje de seguimiento.]" }], { reservas, nombre: c.name, origen: c.origin, primera: false, seguimiento: Math.round(silencio), chatId: c.id, ficha: c.datos });
     } catch (e) { console.error("seguimiento:", e?.message); continue; }
     if (!r.reply) continue;
     try { await enviar(c.contact, r.reply, await idiomaDe(db, c.id, env)); } catch (e) { console.error("seguimiento envío:", e?.message); continue; }

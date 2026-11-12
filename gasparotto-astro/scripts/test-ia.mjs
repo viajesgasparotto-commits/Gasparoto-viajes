@@ -454,4 +454,20 @@ console.log("✓ seguimiento automático: una vez por silencio, con botón, nunc
   assert.ok(/último mensaje del cliente está en ESPAÑOL/.test(sys17), "idioma del último mensaje");
   console.log("✓ idioma: se toma del último mensaje (\"HOLA\" → español)");
 }
+{
+  // 18) Ficha del cliente: la IA anota fechas y personas, el cliente no ve la línea y queda guardado aunque la charla sea larga.
+  reset(); aiReply = "¡Genial! Para 4 personas tenemos el *City Tour*.\n[[FICHA fechas: 10 al 14 de marzo | personas: 4 (2 adultos y 2 chicos)]]";
+  await inbound(waMsg("Somos 4, vamos del 10 al 14 de marzo", "5491166660000", "Sol"));
+  const sent = of("graph.facebook.com").find((c) => c.body.type === "text" || c.body.type === "interactive");
+  const body = sent.body.text?.body || sent.body.interactive?.body?.text || "";
+  assert.ok(!/FICHA|\[\[/.test(body), "el cliente no ve la ficha");
+  const ch = await one("SELECT * FROM ia_chats WHERE contact='5491166660000'");
+  assert.deepEqual(JSON.parse(ch.datos), { fechas: "10 al 14 de marzo", personas: "4 (2 adultos y 2 chicos)" });
+  reset(); aiReply = "Perfecto.\n[[FICHA hotel: Palermo]]";
+  await inbound(waMsg("Estamos en Palermo", "5491166660000", "Sol"));
+  const sys18 = of("generativelanguage").at(-1).body.system_instruction.parts[0].text;
+  assert.ok(sys18.includes("Fechas del viaje: 10 al 14 de marzo") && sys18.includes("Personas: 4 (2 adultos y 2 chicos)"), "la ficha va siempre en el contexto");
+  assert.equal(JSON.parse((await one("SELECT datos FROM ia_chats WHERE id=?", ch.id)).datos).hotel, "Palermo", "se suma sin borrar lo anterior");
+  console.log("✓ ficha del cliente: fechas, personas y más quedan guardadas aunque la charla sea larga");
+}
 console.log("\nTodo OK: asistente IA");

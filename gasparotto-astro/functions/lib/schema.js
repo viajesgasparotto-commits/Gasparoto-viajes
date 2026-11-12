@@ -127,7 +127,7 @@ const MIGRATIONS = {
   // Actividades: links adjuntos (JSON [{label,url}], hasta 8, solo http/https)
   tasks: { links: "TEXT DEFAULT ''" },
   // Asistente IA: el cliente dice que pagó y falta que el equipo verifique el ingreso (no pausa la IA).
-  ia_chats: { pay_check: "INTEGER NOT NULL DEFAULT 0", pay_since: "TEXT DEFAULT ''", origin: "TEXT DEFAULT ''", followup_at: "TEXT DEFAULT ''", followups: "INTEGER NOT NULL DEFAULT 0" },
+  ia_chats: { pay_check: "INTEGER NOT NULL DEFAULT 0", pay_since: "TEXT DEFAULT ''", origin: "TEXT DEFAULT ''", followup_at: "TEXT DEFAULT ''", followups: "INTEGER NOT NULL DEFAULT 0", datos: "TEXT DEFAULT ''" },
   // Evidencia al completar una actividad: nota y link opcionales
   task_done: { note: "TEXT DEFAULT ''", link: "TEXT DEFAULT ''",
     // Revisión del administrador: review = ok | redo | '' (sin revisar)

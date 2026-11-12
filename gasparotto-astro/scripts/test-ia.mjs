@@ -176,16 +176,12 @@ assert.equal(of("generativelanguage").length, 0);
 env.IA_PROVEEDOR = "gemini"; delete env.ANTHROPIC_API_KEY;
 console.log("✓ Claude: cambiando IA_PROVEEDOR=claude usa la API de Anthropic sin tocar código");
 
-// 8) Error de la IA → aviso amable y la charla pasa a una persona
+// 8) Error de la IA → no manda un aviso enlatado al toque: la charla queda para reintentar (ver 16)
 reset(); aiFail = true;
 await inbound(waMsg("Olá", "5511888880000", "Bia"));
-const fb = of("graph.facebook.com").filter((c) => c.body.type === "text")[0];
-assert.ok(fb && /atendente/.test(fb.body.text.body), "aviso de que responde una persona");
+assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text").length, 0, "no manda el aviso enlatado al instante");
 const c3 = await one("SELECT * FROM ia_chats WHERE contact='5511888880000'");
-assert.equal(c3.handoff, 1); assert.ok(/límite/.test(c3.handoff_reason)); assert.equal(c3.paused, 0);
-reset();
-await inbound(waMsg("Alô??", "5511888880000", "Bia"));
-assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text").length, 0, "el aviso no se repite en cada mensaje");
+assert.equal(c3.handoff, 1); assert.ok(/^Error de la IA:/.test(c3.handoff_reason)); assert.equal(c3.paused, 0);
 aiFail = false;
 reset(); aiReply = "Oi Bia!";
 await inbound(waMsg("Oi de novo", "5511888880000", "Bia"));
@@ -195,7 +191,7 @@ reset();
 await inbound(waMsg("", "5511777770000", "Caio", "audio"));
 assert.equal(of("generativelanguage").length, 0);
 assert.ok(/texto/.test(of("graph.facebook.com").filter((c) => c.body.type === "text")[0].body.text.body));
-console.log("✓ fallas: si la IA no responde, el cliente recibe un aviso y la charla queda para el equipo; los audios piden texto");
+console.log("✓ fallas: si la IA no responde, la charla queda para reintentar (sin aviso enlatado); los audios piden texto");
 
 // 9) IA_ACTIVA=0 apaga las respuestas
 reset(); env.IA_ACTIVA = "0";
@@ -371,7 +367,7 @@ reset(); busy = 2; aiReply = "Olá!";
 await inbound(waMsg("Oi, tudo bem?", "5511111110000", "Teo"));
 const gm = of("generativelanguage");
 assert.equal(gm.length, 3, "dos intentos y el respaldo");
-assert.ok(gm[2].url.includes("gemini-2.5-flash-lite:"), "usa el modelo de respaldo");
+assert.ok(gm[2].url.includes("gemini-3.5-flash-lite:"), "usa el modelo de respaldo");
 assert.equal(of("graph.facebook.com").find((c) => c.body.type === "text").body.text.body, "Olá!", "el cliente recibe la respuesta, no el aviso");
 assert.equal(gm[0].body.generationConfig.thinkingConfig.thinkingBudget, 1024, "piensa antes de responder");
 assert.ok(/SÍ O SÍ tiene que incluir la presentación/.test(gm[0].body.system_instruction.parts[0].text) && /PROHIBIDO usar listas/.test(gm[0].body.system_instruction.parts[0].text));
@@ -427,5 +423,27 @@ console.log("✓ seguimiento automático: una vez por silencio, con botón, nunc
   assert.ok(t.includes("https://gasparottoviajes.com Gostou?") && !t.includes("??"), "sin punto pegado al enlace ni ??");
   assert.ok(t.includes("Tango:\nhttps://gasparottoviajes.com/paquetes/tango/"), "enlace markdown → enlace en su línea");
   console.log("✓ formato: negritas de WhatsApp, párrafos, enlaces limpios");
+}
+{
+  // 16) Reintento: la IA falló con un "buenas tardes"; el aviso programado le contesta bien después.
+  reset(); aiFail = true;
+  await inbound(waMsg("Buenas tardes", "5491155550000", "Leo"));
+  assert.equal(of("graph.facebook.com").length - of("graph.facebook.com").filter((c) => c.body.status === "read").length, 0, "nada enlatado");
+  aiFail = false; aiReply = "¡Buenas tardes, Leo! ¿En qué te puedo ayudar?"; reset();
+  let r = await cron();
+  assert.equal(r.data.reintentados, 1);
+  assert.equal(of("graph.facebook.com").find((c) => c.body.type === "text").body.text.body, "¡Buenas tardes, Leo! ¿En qué te puedo ayudar?");
+  const ch = await one("SELECT * FROM ia_chats WHERE contact='5491155550000'");
+  assert.equal(ch.handoff, 0, "se limpia la marca");
+  reset(); r = await cron(); assert.equal(r.data.reintentados, 0, "no repite");
+  // Sigue fallando 20 minutos después → recién ahí el aviso amable, una sola vez
+  aiFail = true; reset();
+  await inbound(waMsg("Hola?", "5491155550000", "Leo"));
+  await env.DB.prepare("UPDATE ia_messages SET at=datetime('now','-25 minutes') WHERE chat_id=? AND role='user'").bind(ch.id).run();
+  reset(); r = await cron();
+  assert.ok(/persona/.test(of("graph.facebook.com").find((c) => c.body.type === "text")?.body.text.body || ""), "aviso a los 20 min");
+  reset(); r = await cron(); assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text").length, 0, "el aviso no se repite");
+  aiFail = false;
+  console.log("✓ reintento: si la IA falla, contesta en el próximo aviso programado; el aviso enlatado solo si sigue fallando 20 min");
 }
 console.log("\nTodo OK: asistente IA");

@@ -1,6 +1,6 @@
 // Webhook público de WhatsApp: GET /api/whatsapp (verificación que hace Meta al configurarlo) y POST /api/whatsapp (mensajes entrantes).
 // Responde 200 enseguida y procesa en segundo plano (Meta reintenta si tarda). La lógica del asistente vive en functions/lib/asistente.js.
-import { recibir, recibirAdjunto, recibirBoton, respuestaDelCelular, seguimientos, BTN_SI, BTN_NO } from "../asistente.js";
+import { recibir, recibirAdjunto, recibirBoton, respuestaDelCelular, seguimientos, reintentos, BTN_SI, BTN_NO } from "../asistente.js";
 import { firmaValida, mensajesDe, ecosDe, enviarBotonLink, enviarTexto, enviarBotones, marcarLeido, waReady } from "../whatsapp.js";
 import { json } from "./http.js";
 
@@ -57,7 +57,9 @@ async function manejarSeguimiento(request, env) {
   const key = String(env.IA_CRON_KEY || "").trim();
   if (!key || request.headers.get("x-cron-key") !== key) return json({ error: "No autorizado" }, 401);
   if (!env.DB || !waReady(env)) return json({ error: "WhatsApp no está configurado" }, 503);
-  return json(await seguimientos(env, { enviar: (to, text, lang) => responder(env, to, text, lang) }));
+  const enviar = (to, text, lang) => responder(env, to, text, lang);
+  const r = await reintentos(env, { enviar });
+  return json({ ...(await seguimientos(env, { enviar })), ...r });
 }
 
 export async function manejarWhatsappPublico({ ctx, request, env, url, res, method }) {

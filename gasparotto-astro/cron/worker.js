@@ -1,4 +1,4 @@
-// Aviso programado del asistente IA: cada 15 minutos le pide a la web que envíe los seguimientos pendientes.
+// Aviso programado del asistente IA: cada 5 minutos le pide a la web que envíe los seguimientos pendientes.
 // Se publica aparte de la web: cd cron && npx wrangler deploy  ·  clave: npx wrangler secret put IA_CRON_KEY (la misma que en la web).
 export default {
   async scheduled(_ev, env, ctx) {

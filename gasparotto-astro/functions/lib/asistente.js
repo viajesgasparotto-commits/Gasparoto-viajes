@@ -270,6 +270,7 @@ export async function historial(db, chatId, n = HISTORY) {
   // Lo que escribió una persona del equipo cuenta como respuesta de la agencia para la IA.
   return rows.reverse().map((r) => ({ role: r.role === "user" ? "user" : "assistant", text: r.text }));
 }
+const REINTENTO = "Error de la IA:";
 const flag = (db, chat, reason) => run(db, "UPDATE ia_chats SET handoff=1, handoff_reason=? WHERE id=?", String(reason).slice(0, 200), chat.id);
 
 // Común a todo mensaje entrante: descarta reintentos de Meta, guarda el mensaje, registra el origen y abre la consulta si la charla es nueva.
@@ -310,8 +311,11 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   let r;
   try {
     r = await pensar(env, await historial(db, chat.id), { reservas: await reservasDe(db, contact), nombre: chat.name || name, origen: chat.origin, primera: previas === 0 });
-  } catch (err) { console.error("IA:", err?.message); return aviso(env, chat, String(err?.message || "Error de la IA")); }
-  if (!r.reply) return aviso(env, chat, "La IA no respondió");
+  } catch (err) {
+    // No se le manda un aviso enlatado al toque: el reintento programado (cada 5 min) le contesta bien en unos minutos.
+    console.error("IA:", err?.message); await flag(db, chat, `${REINTENTO} ${String(err?.message || "")}`); return { skip: "error de la IA: se reintenta" };
+  }
+  if (!r.reply) { await flag(db, chat, `${REINTENTO} sin texto`); return { skip: "la IA no respondió: se reintenta" }; }
   await guardarMensaje(db, chat.id, "assistant", r.reply);
   if (r.handoff) await flag(db, chat, "La IA pidió que una persona mire la charla");
   if (r.pago) await run(db, "UPDATE ia_chats SET pay_check=1, pay_since=CURRENT_TIMESTAMP WHERE id=?", chat.id);
@@ -327,6 +331,40 @@ async function aviso(env, chat, reason) {
   if (last && Object.values(FALLBACK).includes(last.text)) return { skip: reason, handoff: true };
   await guardarMensaje(db, chat.id, "assistant", reply);
   return { reply, handoff: true, chatId: chat.id, reason };
+}
+
+// Mensajes que quedaron sin respuesta porque la IA falló (saturada, sin cupo): el aviso programado los reintenta.
+// Si sigue fallando a los 20 minutos, recién ahí el cliente recibe el aviso amable y la charla queda para el equipo.
+export async function reintentos(env, { enviar, max = 10 }) {
+  const db = env.DB;
+  await ensureSchema(db);
+  if (!(await respuestasActivas(env)) || !aiConfig(env).ready) return { reintentados: 0 };
+  const chats = (await db.prepare(`SELECT c.*, (SELECT role FROM ia_messages m WHERE m.chat_id=c.id ORDER BY m.id DESC LIMIT 1) AS ultimo,
+      (SELECT at FROM ia_messages m WHERE m.chat_id=c.id AND m.role='user' ORDER BY m.id DESC LIMIT 1) AS last_user
+    FROM ia_chats c WHERE c.handoff=1 AND c.paused=0 AND c.handoff_reason LIKE ? ORDER BY c.updated_at LIMIT ?`).bind(`${REINTENTO}%`, max).all()).results || [];
+  const out = [];
+  for (const c of chats) {
+    if (c.ultimo !== "user" || !c.last_user) continue;
+    const mins = (Date.now() - Date.parse(String(c.last_user).replace(" ", "T") + "Z")) / 60000;
+    if (mins > 6 * 60) { await run(db, "UPDATE ia_chats SET handoff_reason='La IA no pudo responder: revisar' WHERE id=?", c.id); continue; }
+    const previas = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role<>'user' AND at > datetime('now','-12 hours')", c.id))?.n || 0;
+    let r = null;
+    try { r = await pensar(env, await historial(db, c.id), { reservas: await reservasDe(db, c.contact), nombre: c.name, origen: c.origin, primera: previas === 0 }); }
+    catch (e) { console.error("reintento:", e?.message); }
+    const lang = await idiomaDe(db, c.id, env);
+    if (r?.reply) {
+      try { await enviar(c.contact, r.reply, lang); } catch (e) { console.error("reintento envío:", e?.message); continue; }
+      await guardarMensaje(db, c.id, "assistant", r.reply);
+      await run(db, "UPDATE ia_chats SET handoff=?, handoff_reason=? WHERE id=?", r.handoff ? 1 : 0, r.handoff ? "La IA pidió que una persona mire la charla" : "", c.id);
+      if (r.pago) await run(db, "UPDATE ia_chats SET pay_check=1, pay_since=CURRENT_TIMESTAMP WHERE id=?", c.id);
+      out.push({ chat: c.id, ok: true });
+    } else if (mins >= 20) {
+      const a = await aviso(env, c, "La IA no pudo responder: revisar");
+      if (a.reply) { try { await enviar(c.contact, a.reply, lang); } catch {} }
+      out.push({ chat: c.id, aviso: true });
+    }
+  }
+  return { reintentados: out.length, detalle: out };
 }
 
 // ---------- Comprobantes: foto o archivo → botones para confirmar (sin IA) ----------

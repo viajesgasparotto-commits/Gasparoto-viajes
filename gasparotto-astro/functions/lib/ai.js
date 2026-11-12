@@ -57,17 +57,19 @@ async function post(url, headers, body) {
 }
 
 // Gemini a veces responde "alta demanda" (503) o límite (429): se reintenta y, si sigue, se usa un modelo de respaldo.
-// GEMINI_MODELO_RESPALDO (por defecto gemini-2.5-flash-lite). GEMINI_PENSAR = presupuesto de "pensamiento" (por defecto 1024; 0 lo apaga):
+// GEMINI_MODELO_RESPALDO (lista separada por comas; por defecto gemini-3.5-flash-lite,gemini-3.5-flash). GEMINI_PENSAR = presupuesto de "pensamiento" (por defecto 1024; 0 lo apaga):
 // pensar un poco antes de responder hace que siga mejor las reglas (presentarse, una pregunta por mensaje, usar el catálogo).
 async function askGemini(env, model, system, turns, maxTokens, temperature) {
-  const respaldo = String(env.GEMINI_MODELO_RESPALDO || "gemini-2.5-flash-lite").trim();
-  const intentos = [model, model, ...(respaldo && respaldo !== model ? [respaldo] : [])];
+  // Respaldo: si el modelo principal está saturado, prueba otros (Google retira modelos viejos: por eso hay más de uno).
+  const respaldos = String(env.GEMINI_MODELO_RESPALDO || "gemini-3.5-flash-lite,gemini-3.5-flash").split(",").map((m) => m.trim()).filter((m) => m && m !== model);
+  const intentos = [model, model, ...respaldos];
   let last;
   for (let i = 0; i < intentos.length; i++) {
     try { return await geminiOnce(env, intentos[i], system, turns, maxTokens, temperature); }
     catch (e) {
       last = e;
-      if (![429, 500, 502, 503, 504].includes(e.status)) throw e;
+      // Con el modelo principal solo se reintenta si está saturado; un respaldo que falle por lo que sea pasa al siguiente.
+      if (i < 2 && ![429, 500, 502, 503, 504].includes(e.status)) { if (!respaldos.length) throw e; i = 1; continue; }
       if (i < intentos.length - 1) await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 500));
     }
   }
@@ -78,7 +80,10 @@ async function geminiOnce(env, model, system, turns, maxTokens, temperature) {
   const generationConfig = { maxOutputTokens: maxTokens, temperature };
   const pensar = Math.max(0, parseInt(env.GEMINI_PENSAR ?? "1024", 10) || 0);
   // El pensamiento gasta del mismo cupo de salida: se suma para que la respuesta no salga cortada.
-  if (/flash/i.test(model)) {
+  if (/^gemini-[3-9]/i.test(model)) {
+    // Gemini 3 en adelante maneja el pensamiento solo: se deja margen para que no corte la respuesta.
+    generationConfig.maxOutputTokens = maxTokens + 2048;
+  } else if (/flash/i.test(model)) {
     const budget = /lite/i.test(model) ? 0 : pensar;
     generationConfig.thinkingConfig = { thinkingBudget: budget };
     generationConfig.maxOutputTokens = maxTokens + budget;

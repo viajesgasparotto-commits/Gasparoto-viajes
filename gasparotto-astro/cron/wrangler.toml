@@ -7,4 +7,4 @@ workers_dev = false
 TARGET = "https://gasparottoviajes.com/api/ia-seguimiento"
 
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/5 * * * *"]

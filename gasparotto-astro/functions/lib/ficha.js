@@ -39,6 +39,8 @@ export function normMeta(raw) {
     // pmode: "fijo" = la agencia fija el día de cada servicio y el cliente solo elige cuándo empieza; "libre" = el cliente puede mover cada servicio
     // a otro día dentro de los días del paquete. auto = precio = suma de los servicios (menos disc %, de 0 a 90).
     plan: [], pmode: m.pmode === "libre" ? "libre" : "fijo",
+    // win (solo "libre"): cuántos días tiene el cliente para repartir los servicios desde la fecha de inicio (1..14). 0 = hasta el último día del itinerario.
+    win: Math.min(14, Math.max(0, Math.round(Number(m.win) || 0))),
     auto: m.auto === 1 || m.auto === true || m.auto === "1" ? 1 : 0,
     disc: Math.min(90, Math.max(0, Math.round(Number(m.disc) || 0))),
     // Opciones con precio del mismo producto (ej. tango: Solo show · Jantar show · Platea VIP): [nombre, precio, precio anterior, detalle].
@@ -128,7 +130,7 @@ const H2 = "m-0 mb-6 font-display text-h3 font-semibold text-ink";
 const SCROLLER = "overflow-x-auto rounded-lg border border-ink/15 focus-visible:outline-3 focus-visible:outline-primary";
 
 // Bloques de la ficha. incl = líneas de "Qué incluye" (columna details).
-export function fichaHtml(p, incl, L) {
+export function fichaHtml(p, incl, L, polsIn = null) {
   const m = parseMeta(p.meta), facts = arr(m.facts), exc = arr(m.exc), stops = arr(m.stops), faq = arr(m.faq), table = arr(m.table), gal = galleryOf(p);
 
   // Datos rápidos: ficha técnica con una línea sobre cada dato
@@ -181,9 +183,9 @@ export function fichaHtml(p, incl, L) {
     : "";
 
   // Políticas (menores, cancelación, etc.): las generales primero; las de una opción llevan "Solo para: <opción>". Párrafos por línea.
-  const pol = policiesOf(p, L).sort((a, b) => (a.option ? 1 : 0) - (b.option ? 1 : 0));
+  const pol = (polsIn || policiesOf(p, L)).slice().sort((a, b) => (a.option ? 1 : 0) - (b.option ? 1 : 0));
   const pl = pol.length
-    ? `<section id="politicas" data-fx="up" class="mt-16 scroll-mt-24"><h2 class="${H2}">${esc(L.policies || "Políticas")}</h2><dl class="gvp">${pol.map((x) => `<div><dt>${esc(x.title)}${x.option ? `<span class="gvp-only">${esc(L.policyOnly || "Solo para")}: ${esc(x.option)}</span>` : ""}</dt><dd>${x.text.split(/\n+/).map((t) => t.trim()).filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join("")}</dd></div>`).join("")}</dl><link rel="stylesheet" href="/assets/options.css?v=2"></section>`
+    ? `<section id="politicas" data-fx="up" class="mt-16 scroll-mt-24"><h2 class="${H2}">${esc(L.policies || "Políticas")}</h2><dl class="gvp">${pol.map((x) => `<div><dt>${esc(x.title)}${x.option ? `<span class="gvp-only">${esc(L.policyOnly || "Solo para")}: ${esc(x.option)}</span>` : ""}</dt><dd>${x.text.split(/\n+/).map((t) => t.trim()).filter(Boolean).map((t) => `<p>${esc(t).replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>").replace(/\*\*/g, "")}</p>`).join("")}</dd></div>`).join("")}</dl><link rel="stylesheet" href="/assets/options.css?v=2"></section>`
     : "";
 
   return { top: top + hor, inc, st, tb, ga, fq, pl, ld: faqLd(faq) };

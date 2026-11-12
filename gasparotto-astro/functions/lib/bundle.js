@@ -5,8 +5,8 @@
 //   pmode "libre" → el día del panel es una sugerencia: el cliente puede mover cada servicio a otro día dentro de los días del paquete.
 // Precio (meta.auto + meta.disc): precio del paquete = suma de los servicios (la opción elegida en el itinerario o la más barata) menos el descuento %.
 // Reserva: la del paquete (lleva el total) + una fila por servicio reservable (parent_id, total 0) que ocupa el cupo de ese servicio en su día y horario.
-import { cheapestOption, optionsOf, parseMeta, planOf } from "./ficha.js";
-import { OCCUPIED, addDays, bookingConfig, createBooking, isDay, monthState } from "./booking.js";
+import { cheapestOption, optionsOf, parseMeta, planOf, policiesOf, POLICY_TYPES } from "./ficha.js";
+import { KID_MAX_AGE, OCCUPIED, addDays, bookingConfig, createBooking, isDay, kidPct, kidsPolicy, monthState } from "./booking.js";
 import { parsePrice } from "./seo.js";
 
 export const isBundle = (p) => parseMeta(p && p.meta).kind === "paquete" && planOf(p).length > 0;
@@ -53,6 +53,52 @@ export function bundleItems(p, svcs) {
   }).filter(Boolean);
 }
 export const spanOf = (items) => Math.max(1, ...items.map((i) => i.day));
+// Días que tiene el cliente para repartir los servicios ("libre"): la ventana del panel o, si no hay, hasta el último día del itinerario.
+export const winOf = (p, items) => Math.max(spanOf(items), Math.min(14, Number(parseMeta(p.meta).win) || 0));
+
+// ---------- Niños en paquetes ----------
+// Cada servicio tiene su propia política de niños (ej. City Tour: desde 6 años paga completo; Tango: de 4 a 11 paga 50%). En el paquete, un niño paga
+// la parte de cada servicio que le corresponde por su edad: % del precio adulto del paquete = Σ (precio del servicio × % del servicio) ÷ Σ precios.
+// Así funciona con precio automático, descuento o precio a mano. Devuelve una tabla de 0 a 17 años con el % (con decimales) o null si no aplica.
+export function bundleKidTable(items) {
+  const priced = items.filter((i) => i.unit > 0);
+  if (!priced.length || priced.length !== items.length) return null;
+  const pols = priced.map((i) => (Number(i.svc.accepts_children) === 1 ? kidsPolicy(i.svc).tiers : []));
+  if (!pols.some((t) => t.length)) return null;
+  const sum = priced.reduce((a, i) => a + i.unit, 0);
+  return Array.from({ length: KID_MAX_AGE + 1 }, (_, age) =>
+    Math.round((priced.reduce((a, i, k) => a + i.unit * kidPct(pols[k], age), 0) / sum) * 1e4) / 1e4);
+}
+// Texto de la política de niños de cada servicio (para la ficha del paquete): "0 a 2 años: gratis · 3 a 5 años: 50% · desde 6 años: precio de adulto".
+export function kidsText(tiers, lang = "pt") {
+  const es = /^es/i.test(lang);
+  const yrs = (a, b) => (a === b ? `${a} ${es ? (a === 1 ? "año" : "años") : a === 1 ? "ano" : "anos"}` : `${a} a ${b} ${es ? "años" : "anos"}`);
+  const out = tiers.map((t) => `${yrs(t.from, t.to)}: ${t.pct === 0 ? (es ? "gratis" : "grátis") : t.pct === 100 ? (es ? "precio de adulto" : "tarifa de adulto") : `${es ? "pagan" : "pagam"} ${t.pct}%`}`);
+  const last = tiers.length ? tiers[tiers.length - 1].to : -1;
+  if (last < KID_MAX_AGE) out.push(es ? `desde ${last + 1} años: precio de adulto` : `a partir de ${last + 1} anos: tarifa de adulto`);
+  return out.join(" · ");
+}
+// Políticas del paquete armadas solas con las de sus servicios: por cada tipo (menores, cancelación…) que el paquete no tenga escrito a mano,
+// junta la de cada servicio ("City Tour: …"). Menores sale de la tabla de edades del servicio si no escribió un texto.
+export function bundlePolicies(p, items, L = {}) {
+  const own = policiesOf(p, L), T = L.policyTypes || {}, lang = L.lang || "pt";
+  const have = new Set(own.filter((x) => !x.option).map((x) => x.type));
+  const extra = [];
+  for (const type of POLICY_TYPES) {
+    if (type === "otra" || have.has(type)) continue;
+    const lines = [];
+    for (const it of items) {
+      const sp = policiesOf(it.svc, L).filter((x) => x.type === type && !x.option);
+      if (sp.length) { lines.push(`**${it.title}:** ${sp.map((x) => x.text.replace(/\s*\n+\s*/g, " ")).join(" ")}`); continue; }
+      if (type === "menores" && Number(it.svc.accepts_children) === 1) {
+        const t = kidsPolicy(it.svc).tiers;
+        if (t.length) lines.push(`**${it.title}:** ${kidsText(t, lang)}`);
+      }
+    }
+    if (lines.length) extra.push({ type, title: T[type] || "", text: lines.join("\n"), option: "", auto: true });
+  }
+  return [...own, ...extra];
+}
 
 // Precio automático: suma de los servicios − descuento. ok = todos tienen precio numérico y en la misma moneda.
 export function bundleQuote(p, items) {
@@ -94,7 +140,7 @@ const minLeft = (a, b) => (a == null ? b : b == null ? a : Math.min(a, b));
 // Para una fecha de inicio: qué días (y horarios) puede ir cada servicio y cuántos lugares quedan.
 // fijo → un solo día por servicio; libre → todos los días del paquete. Devuelve también el máximo de personas que entra con la mejor elección.
 export async function bundleStart(db, p, items, start, at = stateCache(db)) {
-  const libre = parseMeta(p.meta).pmode === "libre", span = spanOf(items);
+  const libre = parseMeta(p.meta).pmode === "libre", span = libre ? winOf(p, items) : spanOf(items);
   let max = null;
   const out = [];
   for (const it of items) {
@@ -130,7 +176,7 @@ export async function createBundleBooking(db, env, p, body) {
   const items = bundleItems(p, await loadParts(db, p));
   const start = String(body.day || "");
   if (!isDay(start)) return { code: "data", error: "Faltan datos de la reserva.", status: 400 };
-  const libre = parseMeta(p.meta).pmode === "libre", span = spanOf(items);
+  const libre = parseMeta(p.meta).pmode === "libre", span = libre ? winOf(p, items) : spanOf(items);
   const want = new Map((Array.isArray(body.plan) ? body.plan : []).slice(0, 12).map((x) => [String(x && x.slug), x || {}]));
   const at = stateCache(db), chosen = [];
   for (const it of items) {
@@ -155,7 +201,9 @@ export async function createBundleBooking(db, env, p, body) {
     const pax = Number(body.pax) || 0;
     if (l.left < Math.max(1, pax, c.it.cfg.min_pax)) return { code: "item_full", error: `${c.it.title}: no hay lugar el ${c.day}${c.time ? " a las " + c.time : ""}.`, item: c.it.title, day: c.day, time: c.time, left: l.left, status: 409 };
   }
-  const r = await createBooking(db, env, p, { ...body, day: start, time: "" });
+  // Niños: si el paquete no se reserva por opción propia, cada niño paga según la política de cada servicio.
+  const kidTab = optionsOf(p).length ? null : bundleKidTable(items);
+  const r = await createBooking(db, env, p, { ...body, day: start, time: "", kidTab });
   if (!r.ok) return r;
   const head = await db.prepare("SELECT * FROM bookings WHERE id=?").bind(r.id).first();
   const made = [];

@@ -97,6 +97,8 @@
       var kidsOn = f.hasAttribute("data-kids"), adEl = q("adults"), chEl = q("children");
       // Tramos de precio por edad (data-kid-tiers): [{from,to,pct}]. Sin tramos, los niños pagan el precio completo y no se pregunta la edad.
       var kidTiers = []; try { kidTiers = JSON.parse(f.getAttribute("data-kid-tiers") || "[]") || []; } catch (e) { kidTiers = []; }
+      // Paquete que combina servicios (data-kid-mode="tab"): el % sale de la política de cada servicio y se muestra por edad ("1 niño de 6 años × R$ 310").
+      var kidTab = f.getAttribute("data-kid-mode") === "tab";
       var agesBox = f.querySelector("[data-ages]"), agesList = f.querySelector("[data-ages-list]"), agesErr = f.querySelector('[data-err="ages"]');
       function kidPct(age) { for (var i = 0; i < kidTiers.length; i++) if (age >= kidTiers[i].from && age <= kidTiers[i].to) return kidTiers[i].pct; return 100; }
       function getAges() { var out = []; if (agesList) Array.prototype.forEach.call(agesList.querySelectorAll("select"), function (s) { out.push(s.value === "" ? null : Number(s.value)); }); return out; }
@@ -420,8 +422,11 @@
           if (!kidTiers.length) parts.push(c + " " + (c === 1 ? L.childOne : L.childMany));
           else {
             var by = {}, order = [], ag = getAges();
+            if (kidTab) { for (var j = 0; j < c; j++) parts.push("1 " + L.childOne + (ag[j] === null || ag[j] === undefined ? "" : " (" + KL.n.replace("{n}", ag[j]) + ")")); }
+            else {
             for (var i = 0; i < c; i++) { var pc = ag[i] === null || ag[i] === undefined ? 100 : kidPct(ag[i]); if (!(pc in by)) { by[pc] = 0; order.push(pc); } by[pc]++; }
             order.forEach(function (pc) { parts.push(by[pc] + " " + (by[pc] === 1 ? L.childOne : L.childMany) + (pc === 0 ? " " + KL.free : pc < 100 ? " " + KL.at.replace("{p}", pc) : "")); });
+            }
           }
         }
         return parts.join(" + ");
@@ -437,6 +442,13 @@
         if (!kidsOn) { rows.push(["p", n + " " + (n === 1 ? L.person : L.people) + " \u00d7 " + m(unit), m(unit * n)]); return rows; }
         var a = Math.round(Number(adEl.value)) || 0, c = Math.round(Number(chEl.value)) || 0, ag = getAges(), by = {}, order = [];
         rows.push(["p", a + " " + (a === 1 ? L.adultOne : L.adultMany) + " \u00d7 " + m(unit), m(unit * a)]);
+        if (kidTab) {
+          for (var j = 0; j < c; j++) {
+            var has = ag[j] !== null && ag[j] !== undefined, ea = has ? Math.round(unit * kidPct(ag[j]) / 100) : unit;
+            rows.push(["p", "1 " + L.childOne + (has ? " (" + KL.n.replace("{n}", ag[j]) + ")" : "") + (ea === 0 ? " " + KL.free : " \u00d7 " + m(ea)), m(ea)]);
+          }
+          return rows;
+        }
         for (var i = 0; i < c; i++) { var pc = kidTiers.length && ag[i] !== null && ag[i] !== undefined ? kidPct(ag[i]) : 100; if (!(pc in by)) { by[pc] = 0; order.push(pc); } by[pc]++; }
         order.forEach(function (pc) {
           var k = by[pc], each = Math.round(unit * pc / 100), lbl = k + " " + (k === 1 ? L.childOne : L.childMany);

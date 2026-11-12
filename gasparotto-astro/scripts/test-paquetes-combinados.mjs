@@ -155,4 +155,36 @@ assert.equal((await row("viejo")).price, "R$ 500", "sin automático: precio a ma
 r = await call("GET", "avail?slug=tigre&month=" + month); assert.equal(r.data.bundle, false);
 console.log("✓ paquetes sin automático y servicios sueltos: sin cambios");
 
+// 10) Niños en paquetes: cada servicio con su política (City: desde 6 paga completo; Tango: 4 a 11 paga 50%) y fechas distintas por servicio
+const kp = (tiers) => JSON.stringify({ tiers });
+await save({ title: "City Clasico", price: "R$ 250", accepts_children: 1, kids_policy: kp([{ from: 0, to: 2, pct: 0 }, { from: 3, to: 5, pct: 50 }]), meta: JSON.stringify({ kind: "servicio", policies: [["cancelacion", "Grátis até 24 h antes.", "", ""]] }) });
+await save({ title: "Tango Show", price: "R$ 220", accepts_children: 1, kids_policy: kp([{ from: 0, to: 3, pct: 0 }, { from: 4, to: 11, pct: 50 }]), meta: JSON.stringify({ kind: "servicio", policies: [["cancelacion", "Sem reembolso a menos de 48 h.", "", ""]] }) });
+for (const s of ["city-clasico", "tango-show"]) await call("PUT", "booking-config/" + (await row(s)).id, cfg(), admin);
+await save({ title: "Clasico combo", price: "R$ 1", accepts_children: 1, kids_policy: "", meta: JSON.stringify({ kind: "paquete", parts: ["city-clasico", "tango-show"], plan: [["city-clasico", 1, "", ""], ["tango-show", 1, "", ""]], pmode: "libre", win: 7, auto: 1, disc: 0 }) });
+const CC = await row("clasico-combo"); assert.equal(CC.price, "R$ 470");
+await call("PUT", "booking-config/" + CC.id, cfg(), admin);
+const dk = addDays(d0, 30);
+r = await call("GET", "avail?slug=clasico-combo&start=" + dk);
+assert.equal(r.data.span, 7, "ventana de 7 días para repartir los servicios");
+r = await call("POST", "book", { slug: "clasico-combo", date: dk, pax: 2, adults: 1, children: 1, ages: [6], name: "Mario", phone: "+54 11 5555-1111", plan: [{ slug: "tango-show", day: addDays(dk, 3) }] });
+assert.equal(r.status, 200, JSON.stringify(r.data));
+assert.equal(r.data.total, 470 + 250 + 110, "adulto 470 + niño de 6: City completo (250) + Tango 50% (110)");
+assert.deepEqual(r.data.itin.map((x) => [x.title, x.day]), [["City Clasico", dk], ["Tango Show", addDays(dk, 3)]], "cada servicio en su fecha");
+r = await call("POST", "book", { slug: "clasico-combo", date: dk, pax: 2, adults: 1, children: 1, ages: [2], name: "Mario", phone: "+54 11 5555-2222" });
+assert.equal(r.data.total, 470, "un nene de 2 años no paga en ninguno");
+r = await call("POST", "book", { slug: "clasico-combo", date: dk, pax: 2, adults: 1, children: 1, ages: [4], name: "Mario", phone: "+54 11 5555-3333" });
+assert.equal(r.data.total, 470 + 125 + 110, "4 años: 50% en los dos");
+{
+  const { bundlePolicies, bundleItems, loadParts } = await import("../functions/lib/bundle.js");
+  const CCr = await row("clasico-combo"), its = bundleItems(CCr, await loadParts(env.DB, CCr));
+  const pols = bundlePolicies(CCr, its, { lang: "pt", policyTypes: { menores: "Menores de idade", cancelacion: "Cancelamento" } });
+  const men = pols.find((x) => x.type === "menores"), can = pols.find((x) => x.type === "cancelacion");
+  assert.ok(men && /City Clasico:\*\* 0 a 2 anos: grátis · 3 a 5 anos: pagam 50% · a partir de 6 anos: tarifa de adulto/.test(men.text), men && men.text);
+  assert.ok(/Tango Show:\*\* 0 a 3 anos: grátis · 4 a 11 anos: pagam 50% · a partir de 12 anos/.test(men.text));
+  assert.ok(can && can.text.includes("**City Clasico:** Grátis até 24 h antes.") && can.text.includes("**Tango Show:** Sem reembolso a menos de 48 h."));
+  const own = bundlePolicies({ ...CCr, meta: JSON.stringify({ ...JSON.parse(CCr.meta), policies: [["cancelacion", "Política própria do pacote.", "", ""]] }) }, its, { lang: "pt", policyTypes: {} });
+  assert.deepEqual(own.filter((x) => x.type === "cancelacion").map((x) => x.text), ["Política própria do pacote."], "la escrita a mano reemplaza a la automática");
+}
+console.log("✓ niños por servicio en paquetes, fecha distinta para cada servicio y políticas unificadas solas");
+
 console.log("\nTodo OK");

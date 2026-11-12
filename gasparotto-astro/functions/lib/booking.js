@@ -155,7 +155,7 @@ export const OCCUPIED = "(b.status='pagada' OR (b.status='pendiente' AND b.hold_
 // Crea la reserva pendiente. Devuelve { ok:true, id, token, ... } o { code, error, status } (code: off | data | pax | unavailable | full | limit).
 // La revisión de cupo y el INSERT son UNA sola sentencia SQL: dos clientes a la vez no pueden pasarse del cupo (la segunda no inserta nada).
 // time: "HH:MM" del horario elegido (obligatorio solo si el producto se reserva por horario; si no, se ignora).
-export async function createBooking(db, env, p, { day, time, pax, adults, children, ages, name, phone, message, option }) {
+export async function createBooking(db, env, p, { day, time, pax, adults, children, ages, name, phone, message, option, kidTab = null }) {
   const cfg = bookingConfig(p);
   if (!cfg.enabled) return { code: "off", error: "Este paquete no se reserva por fecha.", status: 409 };
   if (!isDay(day) || !name || String(phone).replace(/\D/g, "").length < 6) return { code: "data", error: "Faltan datos de la reserva.", status: 400 };
@@ -170,7 +170,9 @@ export async function createBooking(db, env, p, { day, time, pax, adults, childr
     adults = a; children = c;
   } else { adults = pax; children = 0; }
   // Edades de los niños: si el paquete tiene tramos de precio por edad, hacen falta (una por niño) para calcular el total.
-  const tiers = kidsPolicy(p).tiers;
+  // kidTab (paquetes que combinan servicios): % por edad de 0 a 17 calculado con la política de cada servicio; reemplaza a los tramos propios.
+  const tab = Array.isArray(kidTab) && kidTab.length === KID_MAX_AGE + 1 ? kidTab : null;
+  const tiers = tab ? tab.map((pct, a) => ({ from: a, to: a, pct })) : kidsPolicy(p).tiers;
   ages = Array.isArray(ages) ? ages.map(Number) : [];
   if (children > 0 && tiers.length) {
     if (ages.length !== children || ages.some((x) => !Number.isInteger(x) || x < 0 || x > KID_MAX_AGE)) return { code: "pax", error: "Indicá la edad de cada niño.", status: 400 };

@@ -6,7 +6,7 @@ import { googleBlock, googlePhoto } from "./lib/google.js";
 import { parsePrice, priceCurrency, siteUrl, isProdHost, absUrl, clip, pageTitle, sanitizeHtml, ldScript, postLd, blogIndexLd, packageLd, packageSeo, personLd, buildSitemap, buildRobots, breadcrumbLd, orgLd, websiteLd, ymd, BRAND, LOGO, initBrand } from "./lib/seo.js";
 import { fichaHtml, compareTable, filterBar, kindOf, partsOf, timesOf, galleryOf, isVideoUrl, optionsOf, cheapestOption, policiesOf } from "./lib/ficha.js";
 import { bookingConfig, holdMinutes, kidsPolicy } from "./lib/booking.js";
-import { bundleItems, bundleQuote, isBundle, loadParts, spanOf } from "./lib/bundle.js";
+import { bundleItems, bundleKidTable, bundlePolicies, bundleQuote, isBundle, kidsText, loadParts, spanOf, winOf } from "./lib/bundle.js";
 import { pixEnabled } from "./lib/pix.js";
 import { STATIC_PAGES } from "./lib/static-pages.js";
 import { SITE, legacyTarget, staticRedirect } from "./lib/site.js";
@@ -156,7 +156,9 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const shareImgs = [...new Set([image, ...galleryOf(p).filter((g) => !isVideoUrl(g.src)).map((g) => absUrl(env, g.src))].filter(Boolean))].slice(0, 4);
   const pct = discountPct(p.price_old, p.price);
   const details = (p.details || "").split("\n").map((x) => x.trim()).filter(Boolean);
-  const F = fichaHtml(p, details, L);
+  // Paquete que combina servicios: las políticas que el paquete no tenga escritas se arman solas con las de cada servicio.
+  const bPols = extra.items && extra.items.length ? bundlePolicies(p, extra.items, L) : null;
+  const F = fichaHtml(p, details, L, bPols);
   const waFor = (x) => waLink(env, x.title, L.waTitle), K = kindText(L.lang);
   // SEO de la ficha: título y descripción propios; si la agencia no los escribió, se arman con el nombre, la categoría, el tipo y el precio.
   const SEO = packageSeo(p, { kindLabel: K[kindOf(p)] || "", catLabel: cat ? cat.label : "", priceTxt: p.price ? String(p.price).trim() : "", lang: L.lang });
@@ -212,12 +214,14 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
     ? { ad: "Adultos", ch: "Niños", chHint: "Menores de edad que viajan con vos", adLess: "Menos adultos", adMore: "Más adultos", chLess: "Menos niños", chMore: "Más niños" }
     : { ad: "Adultos", ch: "Crianças", chHint: "Menores que viajam com você", adLess: "Menos adultos", adMore: "Mais adultos", chLess: "Menos crianças", chMore: "Mais crianças" };
   // Precio de niños por edad (se configura en el panel al crear el paquete/servicio): conv.js pide la edad de cada niño y calcula el total con estos tramos.
-  const kidTiers = kids ? kidsPolicy(p).tiers : [];
+  // Paquete que combina servicios: cada niño paga según la política de cada servicio (tabla por edad, ver bundleKidTable).
+  const kidTab = kids && bItems.length && !opts.length ? bundleKidTable(bItems) : null;
+  const kidTiers = kidTab ? kidTab.map((pct, a) => ({ from: a, to: a, pct })) : kids ? kidsPolicy(p).tiers : [];
   const KP = L.lang === "es"
     ? { title: "Tarifa para niños", free: "gratis", pays: "pagan", yrs: (a, b) => (a === b ? `${a} ${a === 1 ? "año" : "años"}` : `${a} a ${b} años`), adult: (n) => `Desde ${n} años: tarifa de adulto`, ages: "Edad de cada niño" }
     : { title: "Tarifa para crianças", free: "grátis", pays: "pagam", yrs: (a, b) => (a === b ? `${a} ${a === 1 ? "ano" : "anos"}` : `${a} a ${b} anos`), adult: (n) => `A partir de ${n} anos: tarifa de adulto`, ages: "Idade de cada criança" };
-  const kidLines = kidTiers.map((t) => `${KP.yrs(t.from, t.to)}: ${t.pct === 0 ? KP.free : t.pct === 100 ? (L.lang === "es" ? "precio completo" : "preço cheio") : `${KP.pays} ${t.pct}%`}`);
-  if (kidTiers.length && kidTiers[kidTiers.length - 1].to < 17) kidLines.push(KP.adult(kidTiers[kidTiers.length - 1].to + 1));
+  const kidLines = kidTab ? bItems.filter((i) => Number(i.svc.accepts_children) === 1 && kidsPolicy(i.svc).tiers.length).map((i) => `${i.title}: ${kidsText(kidsPolicy(i.svc).tiers, L.lang)}`) : kidTiers.map((t) => `${KP.yrs(t.from, t.to)}: ${t.pct === 0 ? KP.free : t.pct === 100 ? (L.lang === "es" ? "precio completo" : "preço cheio") : `${KP.pays} ${t.pct}%`}`);
+  if (!kidTab && kidTiers.length && kidTiers[kidTiers.length - 1].to < 17) kidLines.push(KP.adult(kidTiers[kidTiers.length - 1].to + 1));
   const kidInfo = kidLines.length
     ? `<div data-kid-info class="rounded-lg bg-mist px-4 py-3"><p class="m-0 text-sm font-semibold text-ink">${esc(KP.title)}</p><ul class="m-0 mt-1 grid list-none gap-0.5 p-0 text-sm leading-snug text-mute">${kidLines.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`
     : "";
@@ -233,7 +237,7 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const timeBlock = bk.enabled && bk.byTime ? `<div data-times hidden><span class="${label}">${esc(TT.label)}</span><small class="mt-0.5 block text-xs leading-tight text-mute">${esc(TT.hint)}</small><div data-time-list class="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3"></div><input type="hidden" name="time"><p data-err="time" id="gv-time-err" class="${err}" hidden></p></div>` : "";
   const OT = L.lang === "es" ? { pick: "Elegir", picked: "Elegida", rc: "Opción", list: "Opciones y precios", listP: "Mismo día, horario y cupo: solo cambia lo que incluye cada opción.", per: "por persona" } : { pick: "Escolher", picked: "Escolhida", rc: "Opção", list: "Opções e preços", listP: "Mesmo dia, horário e vagas: só muda o que cada opção inclui.", per: "por pessoa" };
   // Políticas (menores, cancelación, etc.): la sección va en la ficha (F.pl, #politicas). Acá: aviso en cada opción que tiene una propia y un enlace en el formulario.
-  const pols = policiesOf(p, L);
+  const pols = bPols || policiesOf(p, L);
   const PO = L.lang === "es" ? { see: "Ver política", form: "Antes de reservar, revisá las políticas" } : { see: "Ver política", form: "Antes de reservar, confira as políticas" };
   const polFor = (o) => pols.filter((x) => x.option === o.name).map((x) => x.title);
   const polLink = (o) => (polFor(o).length ? `<a href="#politicas" class="gvo-pol">${esc(PO.see)}: ${esc(polFor(o).join(", "))}</a>` : "");
@@ -249,13 +253,13 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   // un renglón por servicio (día y horario). En modo "libre" el cliente puede mover cada servicio de día; si la agencia no fijó el horario, lo elige él.
   const bundleOn = bk.enabled && bItems.length > 0;
   const IT = L.lang === "es" ? { h: "Itinerario", hint: "Elegí la fecha de inicio para ver qué día va cada servicio.", rc: "Itinerario" } : { h: "Roteiro", hint: "Escolha a data de início para ver em que dia é cada serviço.", rc: "Roteiro" };
-  const bundleData = bundleOn ? JSON.stringify({ mode: bMeta.pmode === "libre" ? "libre" : "fijo", span: spanOf(bItems), disc: bAuto ? extra.quote.disc : 0, sum: bAuto ? extra.quote.sum : 0,
+  const bundleData = bundleOn ? JSON.stringify({ mode: bMeta.pmode === "libre" ? "libre" : "fijo", span: bMeta.pmode === "libre" ? winOf(p, bItems) : spanOf(bItems), disc: bAuto ? extra.quote.disc : 0, sum: bAuto ? extra.quote.sum : 0,
     comp: bAuto ? bItems.map((i) => ({ t: i.title, o: i.option, u: i.unit })) : null }) : "";
   const itinBlock = bundleOn ? `<div data-itin class="gvi"><span class="${label}">${esc(IT.h)}</span><p data-itin-hint class="m-0 mt-0.5 text-xs leading-tight text-mute">${esc(IT.hint)}</p><ol data-itin-list class="gvi-list" hidden></ol><p data-err="plan" id="gv-plan-err" class="${err}" hidden></p><input type="hidden" name="plan" value=""></div>` : "";
   const dateBlock = bk.enabled
     ? `<div data-cal><span class="${label}">${esc(L.fDateExact)}</span><div class="tw-cal mt-1.5"><div class="tw-cal-head"><button type="button" data-cal-nav="-1" class="tw-cal-nav" aria-label="${esc(L.calPrev)}">‹</button><p data-cal-title class="tw-cal-title" aria-live="polite"></p><button type="button" data-cal-nav="1" class="tw-cal-nav" aria-label="${esc(L.calNext)}">›</button></div><div data-cal-grid class="tw-cal-grid"></div><p data-cal-note class="tw-cal-note" role="status" aria-live="polite"></p></div><input type="hidden" name="date"><p data-err="date" id="gv-date-err" class="${err}" hidden></p></div>`
     : `<div><label for="gv-date" class="${label}">${esc(L.fDate)}</label><input id="gv-date" name="date" type="date" class="${field}"></div>`;
-  const lead = `${opts.length || pols.length || bItems.length || bk.enabled ? '<link rel="stylesheet" href="/assets/options.css?v=3">' : ""}<form id="pedir" class="tw-lead relative scroll-mt-24" data-gv-lead data-package="${esc(p.title)}" data-slug="${esc(p.slug)}"${kids ? ' data-kids="1"' : ""}${kidTiers.length ? ` data-kid-tiers="${esc(JSON.stringify(kidTiers))}"` : ""}${bk.enabled ? ` data-min-pax="${bk.min_pax}" data-max-pax="${bk.max_pax}" data-hold-min="${holdMinutes(env)}"${unitC ? ` data-unit="${unitC}" data-cur="${priceCurrency(env, best ? best.price : p.price)}"` : ""}${payPix ? ' data-paymode="pix"' : ""}` : ""}${bundleOn ? ` data-bundle="${esc(bundleData)}"` : ""} novalidate>
+  const lead = `${opts.length || pols.length || bItems.length || bk.enabled ? '<link rel="stylesheet" href="/assets/options.css?v=3">' : ""}<form id="pedir" class="tw-lead relative scroll-mt-24" data-gv-lead data-package="${esc(p.title)}" data-slug="${esc(p.slug)}"${kids ? ' data-kids="1"' : ""}${kidTiers.length ? ` data-kid-tiers="${esc(JSON.stringify(kidTiers))}"` : ""}${kidTab ? ' data-kid-mode="tab"' : ""}${bk.enabled ? ` data-min-pax="${bk.min_pax}" data-max-pax="${bk.max_pax}" data-hold-min="${holdMinutes(env)}"${unitC ? ` data-unit="${unitC}" data-cur="${priceCurrency(env, best ? best.price : p.price)}"` : ""}${payPix ? ' data-paymode="pix"' : ""}` : ""}${bundleOn ? ` data-bundle="${esc(bundleData)}"` : ""} novalidate>
 <div data-fields>
 <h3 class="m-0 font-display text-[1.65rem] font-semibold leading-tight text-ink">${esc(L.formTitle)}</h3>
 <p class="m-0 mt-1.5 text-[0.95rem] leading-snug text-mute">${esc(L.formSub)}</p>

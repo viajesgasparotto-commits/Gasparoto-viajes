@@ -25,7 +25,7 @@ const env = {
 // ---------- fetch simulado: Gemini, Claude y la Graph API de WhatsApp ----------
 const calls = [];
 let aiReply = "Olá! Para 4 pessoas recomendo o *City Tour Zona Sul*: https://gasparottoviajes.com/paquetes/city-tour-zona-sur/";
-let aiFail = false, busy = 0;
+let aiFail = false, busy = 0, noButtons = false;
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), body = init.body ? JSON.parse(init.body) : null;
   calls.push({ url: u, headers: init.headers || {}, body });
@@ -35,7 +35,10 @@ globalThis.fetch = async (url, init = {}) => {
     return Response.json({ candidates: [{ content: { parts: [{ text: aiReply }] }, finishReason: "STOP" }] });
   }
   if (u.includes("api.anthropic.com")) return Response.json({ content: [{ type: "text", text: aiReply }] });
-  if (u.includes("graph.facebook.com")) return Response.json({ messages: [{ id: "wamid.out" }] });
+  if (u.includes("graph.facebook.com")) {
+    if (noButtons && body?.interactive?.type === "cta_url") return new Response(JSON.stringify({ error: { message: "not supported" } }), { status: 400 });
+    return Response.json({ messages: [{ id: "wamid.out" }] });
+  }
   throw new Error("fetch inesperado: " + u);
 };
 const of = (host) => calls.filter((c) => c.url.includes(host));
@@ -117,11 +120,15 @@ assert.ok(/ORIGEN del contacto: Contacto directo/.test(sys), "origen del contact
 assert.ok(sys.includes("BLOG (notas para recomendar") && sys.includes("https://gasparottoviajes.com/blog/guia-palermo/"), "el blog va en el contexto");
 assert.ok(sys.includes("4.9 estrellas en Google (312 reseñas)") && sys.includes("place_id:ChIJtest") && sys.includes("Passeio incrível"), "reputación de Google");
 assert.deepEqual(gem.body.contents, [{ role: "user", parts: [{ text: "Oi! Somos 4 pessoas, o que vocês recomendam?" }] }]);
-const sends = of("graph.facebook.com").filter((c) => c.body.type === "text");
-assert.equal(sends.length, 1);
+const sends = of("graph.facebook.com").filter((c) => c.body.type === "interactive");
+assert.equal(sends.length, 1, "con el enlace de un paquete sale un botón");
 assert.equal(sends[0].body.to, "5511999990000");
-assert.equal(sends[0].body.text.body, aiReply);
+assert.equal(sends[0].body.interactive.type, "cta_url");
+assert.equal(sends[0].body.interactive.action.parameters.display_text, "Reservar agora");
+assert.equal(sends[0].body.interactive.action.parameters.url, "https://gasparottoviajes.com/paquetes/city-tour-zona-sur/");
+assert.equal(sends[0].body.interactive.body.text, "Olá! Para 4 pessoas recomendo o *City Tour Zona Sul*", "el texto va sin el enlace suelto");
 assert.equal(sends[0].headers.authorization, "Bearer wa-token");
+assert.ok(/el mejor vendedor/.test(sys) && /pregunta de elección fácil/.test(sys), "técnica de cierre");
 assert.ok(of("graph.facebook.com").some((c) => c.body.status === "read"), "marca como leído");
 const chat = await one("SELECT * FROM ia_chats WHERE contact='5511999990000'");
 assert.equal(chat.name, "Ana"); assert.equal(chat.msgs, 2); assert.equal(chat.paused, 0);
@@ -369,5 +376,13 @@ assert.equal(of("graph.facebook.com").find((c) => c.body.type === "text").body.t
 assert.equal(gm[0].body.generationConfig.thinkingConfig.thinkingBudget, 1024, "piensa antes de responder");
 assert.ok(/SÍ O SÍ tiene que incluir la presentación/.test(gm[0].body.system_instruction.parts[0].text) && /PROHIBIDO usar listas/.test(gm[0].body.system_instruction.parts[0].text));
 console.log("✓ alta demanda de Gemini: reintenta y usa el modelo de respaldo; presentación obligatoria y sin listas");
+
+// 14) Si WhatsApp rechaza el botón, el mensaje sale igual como texto con el enlace
+reset(); noButtons = true; aiReply = "Hola! Te recomiendo el *City Tour Zona Sul*: https://gasparottoviajes.com/paquetes/city-tour-zona-sur/ ¿Te queda mejor a las 9:00 o a las 14:00?";
+await inbound(waMsg("Hola, somos 2", "5491199990000", "Pepe"));
+const tx = of("graph.facebook.com").filter((c) => c.body.type === "text");
+assert.equal(tx.length, 1); assert.equal(tx[0].body.text.body, aiReply);
+noButtons = false;
+console.log("✓ botón Reservar con respaldo en texto");
 
 console.log("\nTodo OK: asistente IA");

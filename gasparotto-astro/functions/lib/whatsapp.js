@@ -84,5 +84,11 @@ export async function enviarBotones(env, to, body, options) {
     action: { buttons: options.slice(0, 3).map(([id, title]) => ({ type: "reply", reply: { id: String(id).slice(0, 256), title: String(title).slice(0, 20) } })) } } });
 }
 
+// Mensaje con botón de enlace ("Reservar ahora"): WhatsApp lo muestra como un botón que abre la página.
+export async function enviarBotonLink(env, to, body, url, label) {
+  await graphPost(env, { recipient_type: "individual", to, type: "interactive", interactive: { type: "cta_url", body: { text: String(body).slice(0, 1024) },
+    action: { name: "cta_url", parameters: { display_text: String(label).slice(0, 20), url } } } });
+}
+
 // Marca el mensaje como leído (los dos tildes azules). Si falla, no importa.
 export const marcarLeido = (env, id) => graphPost(env, { status: "read", message_id: id }).catch(() => {});

@@ -149,8 +149,15 @@ CÓMO LLEVÁS LA CHARLA
 - Después: fechas del viaje y cuántas personas (y si hay niños).
 - Con eso, recomendá 1 opción del catálogo (2 como mucho): por qué le sirve, precio y enlace, e invitá a reservar ("Entrá al enlace, elegí el día y pagás en un minuto").
 
-TU TRABAJO ES VENDER
-- El objetivo de cada charla es que el cliente reserve. Llevá vos la conversación.
+TU TRABAJO ES VENDER (como el mejor vendedor de la agencia)
+- El objetivo de cada charla es que el cliente reserve. Llevá vos la conversación y en cada mensaje acercalo un paso a la reserva.
+- Personalizá: usá lo que te contó (con quién viaja, fechas, qué le gusta) para explicar por qué ESE paseo es para él. Ej.: "Como vienen en pareja y es su primera vez, el *City Tour* es ideal para ubicarse el primer día".
+- Vendé la experiencia, no la ficha: una frase que haga imaginar el paseo (sacada de la descripción del catálogo) + el beneficio concreto. Nada de listas de características.
+- Prueba social: cuando ayude a decidir, mencioná las reseñas (${estrellas}) o citá en pocas palabras una reseña real de abajo.
+- Precio con valor: decí el precio junto a lo que incluye (duración, traslado, guía, etc., si figura). Si hay precio anterior, mostrá el ahorro.
+- Cierre: cuando ya sabés qué le sirve, cerrá con una pregunta de elección fácil usando horarios o fechas reales del catálogo ("¿Te queda mejor el de las 9:00 o el de las 14:00?") o una invitación directa ("¿Lo reservamos para el sábado?"), y mandá el enlace del paquete. Explicá que reservar es simple: elige el día, paga online y recibe la confirmación.
+- Después de mandar el enlace, pedile que te avise cuando lo reserve (así le confirmás todo) u ofrecé ayuda si se traba.
+- Si vuelve a escribir sin haber reservado, retomá donde quedó y volvé a invitarlo a reservar (sin presionar).
 - La venta se cierra SIEMPRE en la web: el cliente entra al enlace del paquete, elige fecha y personas, y paga ahí. No tomes reservas por chat ni pidas datos para reservar.
 - Si el paquete dice "se reserva coordinando con el equipo", tomá fecha y personas y marcá la charla para una persona.
 - Si encaja, ofrecé un servicio complementario del catálogo. No insistas si dice que no.
@@ -274,7 +281,7 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   await guardarMensaje(db, chat.id, "assistant", r.reply);
   if (r.handoff) await flag(db, chat, "La IA pidió que una persona mire la charla");
   if (r.pago) await run(db, "UPDATE ia_chats SET pay_check=1, pay_since=CURRENT_TIMESTAMP WHERE id=?", chat.id);
-  return { reply: r.reply, handoff: r.handoff, pago: r.pago, chatId: chat.id };
+  return { reply: r.reply, handoff: r.handoff, pago: r.pago, chatId: chat.id, lang: await idiomaDe(db, chat.id, env) };
 }
 
 // La IA no pudo responder: la charla queda marcada y el cliente recibe un aviso amable (una sola vez seguida, no en cada mensaje).

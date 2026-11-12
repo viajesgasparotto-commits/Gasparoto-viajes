@@ -1,13 +1,26 @@
 // Webhook público de WhatsApp: GET /api/whatsapp (verificación que hace Meta al configurarlo) y POST /api/whatsapp (mensajes entrantes).
 // Responde 200 enseguida y procesa en segundo plano (Meta reintenta si tarda). La lógica del asistente vive en functions/lib/asistente.js.
 import { recibir, recibirAdjunto, recibirBoton, respuestaDelCelular, BTN_SI, BTN_NO } from "../asistente.js";
-import { firmaValida, mensajesDe, ecosDe, enviarTexto, enviarBotones, marcarLeido, waReady } from "../whatsapp.js";
+import { firmaValida, mensajesDe, ecosDe, enviarBotonLink, enviarTexto, enviarBotones, marcarLeido, waReady } from "../whatsapp.js";
 import { json } from "./http.js";
 
 const NO_TEXT = {
   pt: "Por enquanto consigo ler apenas mensagens de texto. Pode me escrever? 😊",
   es: "Por ahora solo puedo leer mensajes de texto. ¿Me lo escribís? 😊",
 };
+
+// Si la respuesta lleva el enlace de UN paquete, sale con un botón "Reservar" (más fácil de tocar que un enlace suelto).
+// Si WhatsApp rechaza el botón, se manda como texto normal.
+const RESERVAR = { pt: "Reservar agora", es: "Reservar ahora", en: "Book now" };
+export async function responder(env, to, text, lang = "pt") {
+  const urls = [...new Set(String(text).match(/https?:\/\/[^\s)]+\/paquetes\/[a-z0-9-]+\/?/gi) || [])];
+  if (urls.length === 1 && text.length <= 1000) {
+    const body = text.replace(urls[0], "").replace(/[:\-–—]\s*$/m, "").replace(/\s+([.,!?])/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
+    try { return await enviarBotonLink(env, to, body || text, urls[0], RESERVAR[lang] || RESERVAR.pt); }
+    catch (e) { console.error("botón:", e?.message); }
+  }
+  return enviarTexto(env, to, text);
+}
 
 export async function procesarWhatsapp(env, body) {
   const phoneId = String(env.WHATSAPP_PHONE_ID || "").trim();
@@ -34,7 +47,7 @@ export async function procesarWhatsapp(env, body) {
         if (["audio", "video", "sticker"].includes(m.type)) await enviarTexto(env, m.from, NO_TEXT[/^pt/i.test(String(env.SITE_LANG || "")) ? "pt" : "es"]);
         continue;
       }
-      if (r.reply) await enviarTexto(env, m.from, r.reply);
+      if (r.reply) await responder(env, m.from, r.reply, r.lang);
     } catch (e) { console.error("whatsapp:", e?.message || e); }
   }
 }

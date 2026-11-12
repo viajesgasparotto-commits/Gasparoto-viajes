@@ -1,0 +1,32 @@
+---
+export const partial = true;
+import PageHero from "../../components/PageHero.astro";
+import CtaBand from "../../components/CtaBand.astro";
+import { metaComment } from "../../lib/meta";
+
+const meta = {
+  title: "Como reservar passeios e shows em Buenos Aires | {{BRAND}}",
+  description: "Reserve tango, city tour e passeios em Buenos Aires em três passos: escolha a data e as pessoas, garanta o seu lugar e confirme pelo WhatsApp com a {{BRAND}}.",
+};
+const steps = [
+  { n: "1", title: "Escolha", text: "Escolha o seu pacote, a data disponível no calendário e quantas pessoas viajam.", link: { label: "Ver pacotes", href: "/paquetes/" } },
+  { n: "2", title: "Garanta o seu lugar", text: "Seguramos o seu lugar na hora por alguns minutos, sem cobrar nada ainda." },
+  { n: "3", title: "Confirme", text: "Pague com Pix ou confirme pelo WhatsApp antes de o prazo acabar e pronto: a sua viagem está garantida." },
+];
+---
+<Fragment set:html={metaComment(meta)} /><PageHero eyebrow="Reservas" title="Como reservar" lead="Três passos simples, sem complicação." />
+
+<section class="tw tw-section bg-white">
+  <ol class="tw-wrap m-0 grid list-none gap-12 py-0 md:grid-cols-3 md:gap-10">
+    {steps.map((s, i) => (
+      <li data-fx="up" data-fx-delay={i * 0.1} class="border-t-2 border-primary pt-6">
+        <p class="m-0 font-display text-6xl font-semibold leading-none text-accent">{s.n}</p>
+        <h3 class="m-0 mt-6 font-display text-h3 font-semibold text-ink">{s.title}</h3>
+        <p class="m-0 mt-3 max-w-xs leading-relaxed text-mute">{s.text}</p>
+        {s.link && <a href={s.link.href} class="tw-link mt-6 inline-block font-semibold text-primary">{s.link.label}</a>}
+      </li>
+    ))}
+  </ol>
+</section>
+
+<CtaBand title="Pronto para consultar?" lead="Escolha a sua data ou fale com a gente se precisar de algo especial." label="Consultar pelo WhatsApp" track="reservas" />

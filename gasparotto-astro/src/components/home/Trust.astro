@@ -1,0 +1,30 @@
+---
+// Tarjeta de confianza que se superpone al borde inferior de la portada: cuatro razones con ícono, separadas por filetes finos (gap-px sobre fondo tenue).
+// La tercera lleva la cifra de clientes destacada con una etiqueta de acento. Textos e íconos en "trust" de data/home.ts.
+import { trust } from "../../data/home";
+
+const icons: Record<string, string> = {
+  calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 14.5h2M13.5 14.5h2"/>',
+  pin: '<path d="M12 21s-7-6.2-7-11.2A7 7 0 0 1 19 9.8C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.6"/>',
+  people: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3 20c.4-3.4 2.9-5.5 6-5.5s5.6 2.1 6 5.5"/><path d="M16 5.6a3.1 3.1 0 0 1 0 5.8M18 14.9c1.9.6 3.1 2.4 3.4 5.1"/>',
+  tag: '<path d="M3.5 12.2V4.5h7.7l9.3 9.3a1.6 1.6 0 0 1 0 2.3l-5.4 5.4a1.6 1.6 0 0 1-2.3 0z"/><circle cx="8" cy="9" r="1.2"/>',
+};
+---
+<section class="tw relative z-10 -mt-14 pb-12 md:-mt-16 md:pb-16" style="background:linear-gradient(to bottom, transparent 3.5rem, #fff 3.5rem)" aria-label="Por que escolher a gente">
+  <div class="tw-wrap">
+    <ul data-fx="up" class="m-0 grid list-none gap-px overflow-hidden rounded-xl bg-ink/10 p-0 shadow-soft ring-1 ring-ink/10 sm:grid-cols-2 lg:grid-cols-4">
+      {trust.map((t) => (
+        <li class="flex gap-4 bg-white p-6 lg:flex-col lg:gap-5 lg:p-7">
+          <span aria-hidden="true" class="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" set:html={icons[t.icon]} />
+          </span>
+          <div>
+            {t.badge && <p class="m-0 mb-2 inline-block rounded-full bg-accent px-3 py-1 text-[0.8125rem] font-semibold leading-none text-white">{t.badge}</p>}
+            <p class="m-0 font-display text-[1.1875rem] font-semibold leading-tight text-ink">{t.k}</p>
+            <p class="m-0 mt-1.5 text-[0.9375rem] leading-snug text-mute">{t.v}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>

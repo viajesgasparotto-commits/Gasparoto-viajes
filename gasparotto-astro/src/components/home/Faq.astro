@@ -1,0 +1,19 @@
+---
+import { faq } from "../../data/home";
+---
+<section class="tw tw-section bg-mist">
+  <div class="tw-wrap grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:gap-24">
+    <h2 data-fx="up" class="m-0 font-display text-h2 font-semibold text-ink lg:sticky lg:top-28 lg:self-start">{faq.title}</h2>
+    <div class="border-t border-ink/20">
+      {faq.items.map((f) => (
+        <details class="group border-b border-ink/20">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-6 py-6 text-lg font-semibold text-ink [&::-webkit-details-marker]:hidden">
+            {f.q}
+            <span aria-hidden="true" class="tw-plus"></span>
+          </summary>
+          <p class="m-0 max-w-xl pb-7 pr-10 leading-relaxed text-mute">{f.a}</p>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

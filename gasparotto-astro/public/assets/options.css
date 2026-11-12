@@ -1,0 +1,64 @@
+/* Opciones con precio de un mismo producto (ej. Solo show · Jantar show · Platea VIP). CSS plano, como gallery.css.
+   .gvo = selector dentro del formulario de reserva · .gvo-table = lista "Opções e preços" en la ficha. */
+.gvo{margin:0;padding:0;border:0;min-width:0}
+.gvo legend{padding:0;margin-bottom:.4rem}
+.gvo-list{display:grid;gap:.5rem}
+.gvo-o{position:relative;display:flex;align-items:center;gap:.85rem;padding:.8rem .95rem;border:1px solid rgba(12,30,56,.25);border-radius:.5rem;background:#fff;cursor:pointer;transition:border-color .15s,box-shadow .15s,background-color .15s}
+.gvo-o:hover{border-color:rgba(12,30,56,.5)}
+.gvo-o input{flex:none;width:1.15rem;height:1.15rem;margin:0;accent-color:var(--gv-primary,#0066a9);cursor:pointer}
+.gvo-o input:focus-visible{outline:3px solid rgb(0 102 169/.35);outline-offset:3px}
+.gvo-o:has(input:checked){border-color:var(--gv-primary,#0066a9);background:#f3f8fc;box-shadow:inset 0 0 0 1px var(--gv-primary,#0066a9)}
+.gvo-b{display:grid;gap:.1rem;min-width:0;flex:1}
+.gvo-n{font-weight:600;font-size:.98rem;line-height:1.25;color:#0c1e38}
+.gvo-b small{font-size:.8125rem;line-height:1.3;color:#52627a}
+.gvo-p{display:grid;justify-items:end;flex:none;text-align:right;line-height:1.1}
+.gvo-p s{font-size:.78rem;color:#52627a}
+.gvo-p b{font-family:var(--font-display,Georgia,serif);font-size:1.15rem;font-weight:600;color:var(--gv-primary,#0066a9);white-space:nowrap}
+
+.gvo-table{list-style:none;margin:0;padding:0;border-top:1px solid rgba(12,30,56,.2)}
+.gvo-table li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.5rem 1.25rem;padding:1.15rem 0;border-bottom:1px solid rgba(12,30,56,.2)}
+.gvo-tn b{display:block;font-family:var(--font-display,Georgia,serif);font-size:1.2rem;font-weight:600;line-height:1.2;color:#0c1e38}
+.gvo-tn span{display:block;margin-top:.25rem;font-size:.95rem;line-height:1.45;color:#52627a}
+.gvo-tp{display:grid;justify-items:end;text-align:right;line-height:1.1}
+.gvo-tp s{font-size:.85rem;color:#52627a}
+.gvo-tp b{font-family:var(--font-display,Georgia,serif);font-size:1.45rem;font-weight:600;color:var(--gv-primary,#0066a9);white-space:nowrap}
+.gvo-tp small{margin-top:.2rem;font-size:.78rem;color:#52627a}
+.gvo-table .tw-btn{grid-column:1 / -1;justify-self:start}
+@media(min-width:640px){.gvo-table li{grid-template-columns:minmax(0,1fr) auto auto}.gvo-table .tw-btn{grid-column:auto;justify-self:end}}
+.gvo-tn .gvo-pol{display:inline-block;margin-top:.4rem;font-size:.85rem;font-weight:600;color:var(--gv-primary,#0066a9);text-decoration:underline;text-underline-offset:2px}
+.gvo-b .gvo-polf{color:#7a4b00}
+.gvo-b .gvo-polf::before{content:"ⓘ ";}
+/* Políticas del producto (menores, cancelación…): sección #politicas de la ficha y enlace en el formulario */
+.gvp{margin:0;border-top:1px solid rgba(12,30,56,.2)}
+.gvp>div{display:grid;gap:.5rem;padding:1.25rem 0;border-bottom:1px solid rgba(12,30,56,.2)}
+.gvp dt{margin:0;font-weight:600;line-height:1.3;color:#0c1e38}
+.gvp-only{display:block;width:fit-content;margin-top:.4rem;padding:.1rem .6rem;border-radius:999px;background:#eef3f8;font-size:.75rem;font-weight:600;color:#52627a}
+.gvp dd{display:grid;gap:.5rem;max-width:42rem;margin:0;line-height:1.6;color:#52627a}
+.gvp dd p{margin:0}
+.gvp-form{margin:0;font-size:.875rem;line-height:1.4;color:#52627a}
+.gvp-form a{font-weight:600;color:var(--gv-primary,#0066a9);text-decoration:underline;text-underline-offset:2px}
+@media(min-width:640px){.gvp>div{grid-template-columns:13rem minmax(0,1fr);gap:2rem}}
+/* Itinerario de un paquete que combina servicios (formulario) y etiqueta "Dia 1 · 20:00" en la lista de servicios incluidos */
+.gvi-tag{display:inline-flex;width:fit-content;align-items:center;margin-bottom:.15rem;padding:.15rem .6rem;border-radius:999px;background:#eef3f8;font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gv-primary,#0066a9)}
+.gvi-list{list-style:none;margin:.5rem 0 0;padding:0;display:grid;gap:.5rem;counter-reset:gvi}
+.gvi-r{display:grid;gap:.45rem;padding:.75rem .9rem;border:1px solid rgba(12,30,56,.2);border-radius:.5rem;background:#fff}
+.gvi-r[data-bad]{border-color:#b42318;box-shadow:inset 0 0 0 1px #b42318}
+.gvi-h{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem}
+.gvi-h b{font-size:.95rem;line-height:1.25;color:#0c1e38}
+.gvi-h small{display:block;font-size:.78rem;color:#52627a}
+.gvi-d{flex:none;font-size:.8rem;font-weight:700;color:var(--gv-primary,#0066a9);text-align:right;white-space:nowrap;text-transform:capitalize}
+.gvi-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.5rem}
+.gvi-ctl label{display:grid;gap:.2rem;font-size:.75rem;font-weight:600;color:#52627a}
+.gvi-ctl select{width:100%;min-height:2.75rem;padding:.45rem .6rem;border:1px solid rgba(12,30,56,.3);border-radius:.4rem;background:#fff;font:inherit;font-size:.9rem;color:#0c1e38}
+.gvi-ctl select:focus-visible{outline:3px solid rgb(0 102 169/.3);outline-offset:1px}
+.gvi-na{font-size:.78rem;color:#52627a}
+/* Desglose del total */
+.gvb{display:grid;gap:.3rem;margin:.6rem 0 .5rem;padding:.6rem 0 0;border-top:1px dashed rgba(12,30,56,.2);font-size:.85rem}
+.gvb div{display:flex;justify-content:space-between;gap:1rem}
+.gvb dt{color:#52627a}.gvb dd{margin:0;font-weight:600;color:#0c1e38;white-space:nowrap;font-variant-numeric:tabular-nums}
+.gvb .gvb-c dt,.gvb .gvb-c dd{font-size:.8rem;font-weight:400;color:#52627a}
+.gvb .gvb-d dd{color:#15803d}
+.gvb .gvb-s{padding-top:.3rem;border-top:1px solid rgba(12,30,56,.1)}
+[data-rc="itin"]{white-space:pre-line}
+.gvd-it{display:grid;gap:.3rem}.gvd-it[hidden]{display:none}.gvd-it dd{white-space:pre-line;line-height:1.5}
+@media(prefers-reduced-motion:reduce){.gvo-o{transition:none}}

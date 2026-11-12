@@ -1,0 +1,35 @@
+---
+// Tres accesos como tríptico de fotos. Cada panel lleva su foto a sangre y, abajo, el rótulo de color de la marca
+// (bordó = tango, azul = ciudad, verde profundo = Delta) con título y enlace, como los carteles de la oficina.
+// En escritorio el panel con foco se ensancha. Textos y fotos: src/data/home.ts.
+import { intents } from "../../data/home";
+// Clases escritas completas para que Tailwind las detecte.
+const tones: Record<string, string> = { rose: "bg-accent", blue: "bg-primary", teal: "bg-teal" };
+---
+<section class="tw bg-white" aria-labelledby="intents-h">
+  <div class="tw-wrap tw-section pb-10 sm:pb-14">
+    <h2 id="intents-h" data-fx="up" class="m-0 max-w-2xl font-display text-h2 font-semibold text-ink">{intents.title}</h2>
+  </div>
+  <ul class="m-0 flex list-none flex-col p-0 md:h-[36rem] md:flex-row">
+    {intents.tiles.map((t) => (
+      <li class="group/tile relative isolate flex-1 overflow-hidden bg-night transition-[flex-grow] duration-700 ease-soft md:hover:flex-[1.5] md:focus-within:flex-[1.5]">
+        <img
+          src={t.img}
+          alt={t.alt}
+          width="1672"
+          height="941"
+          loading="lazy"
+          style={`object-position:${t.pos}`}
+          class="absolute inset-0 -z-10 size-full object-cover transition duration-1000 ease-soft group-hover/tile:scale-105"
+        />
+        <a href={t.href} class="flex h-full min-h-80 flex-col justify-end text-white no-underline focus-visible:outline-offset-[-6px] focus-visible:outline-white md:min-h-0">
+          <span class={`block p-6 sm:p-8 ${tones[t.tone] ?? "bg-primary"}`}>
+            <span class="block font-display text-[clamp(1.75rem,2.8vw,2.5rem)] font-semibold leading-[1.08] tracking-tight">{t.title}</span>
+            <span class="mt-2 block max-w-xs leading-snug text-white/90">{t.text}</span>
+            <span class="tw-link mt-5 inline-flex items-center gap-2 font-semibold">{t.cta}<i aria-hidden="true" class="tw-arrow"></i></span>
+          </span>
+        </a>
+      </li>
+    ))}
+  </ul>
+</section>

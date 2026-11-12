@@ -1,0 +1,23 @@
+ADMIN_PASSWORD=cambiame-en-local
+
+# Cobro con Pix (fase 3). Sin MP_ACCESS_TOKEN el botón no aparece.
+MP_ACCESS_TOKEN=
+MP_WEBHOOK_SECRET=
+
+# Reseñas y fotos de Google (Places API New). Opcional: sin clave se usan las reseñas cargadas a mano.
+GOOGLE_PLACES_API_KEY=
+
+# Asistente IA de WhatsApp (functions/lib/asistente.js). Para pruebas: Gemini (gratis). Después: Claude.
+# IA_PROVEEDOR = gemini | claude (vacío = usa el que tenga clave, Claude primero)
+IA_PROVEEDOR=gemini
+GEMINI_API_KEY=
+# GEMINI_MODEL=gemini-2.5-flash
+ANTHROPIC_API_KEY=
+# CLAUDE_MODEL=claude-sonnet-5-5
+# IA_ACTIVA=0 apaga las respuestas automáticas sin borrar nada. IA_MAX_DIARIO = tope de respuestas por día (por defecto 400).
+IA_ACTIVA=1
+# WhatsApp Business Platform (Cloud API de Meta). El webhook es https://<tu-dominio>/api/whatsapp
+WHATSAPP_TOKEN=
+WHATSAPP_PHONE_ID=
+WHATSAPP_APP_SECRET=
+WHATSAPP_VERIFY_TOKEN=

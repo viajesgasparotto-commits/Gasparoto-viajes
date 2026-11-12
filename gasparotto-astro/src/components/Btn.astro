@@ -1,0 +1,11 @@
+---
+// Botón-enlace. Estilos en tw.css (.tw-btn y variantes). El texto va en un <span> interno (contrato con conv.js).
+interface Props { href: string; variant?: "light" | "ghost" | "wa" | "primary" | "line"; track?: string }
+const { href, variant = "primary", track } = Astro.props;
+---
+<a
+  href={href}
+  data-gv-wa={track}
+  rel={href.startsWith("http") || href.startsWith("{{") ? "noopener" : undefined}
+  class={`tw-btn tw-btn--${variant}`}
+><span><slot /></span></a>

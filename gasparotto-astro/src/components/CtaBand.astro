@@ -1,0 +1,19 @@
+---
+// Cierre antes del pie: banda azul a todo el ancho, texto a la izquierda y acciones a la derecha. Sin tarjeta, sin degradado.
+import Btn from "./Btn.astro";
+import { T } from "../lib/tokens";
+interface Props { title: string; lead: string; label: string; track: string; secondary?: { label: string; href: string } }
+const { title, lead, label, track, secondary } = Astro.props;
+---
+<section class="tw bg-primary text-white">
+  <div data-fx="up" class="tw-wrap tw-section grid items-end gap-10 lg:grid-cols-[1.4fr_1fr] lg:gap-16">
+    <div>
+      <h2 class="m-0 font-display text-h2 font-semibold text-white">{title}</h2>
+      <p class="m-0 mt-5 max-w-md text-lead text-white/90">{lead}</p>
+    </div>
+    <div class="flex flex-wrap gap-3 lg:justify-end">
+      <Btn variant="light" href={T.WA_URL} track={track}>{label}</Btn>
+      {secondary && <Btn variant="ghost" href={secondary.href}>{secondary.label}</Btn>}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,35 @@
+{
+  // Config de Gasparoto Viajes. Para una agencia nueva partí de la plantilla neutra: node scripts/new-agency.mjs --slug mi-agencia --name "Mi Agencia" --url https://miagencia.com --wa 5491100000000
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gasparoto-viajes",
+  "compatibility_date": "2025-01-01",
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    { "binding": "DB", "database_name": "gasparotto-viajes-db", "database_id": "71fe8829-91dc-4c31-bb82-4226446e40d1" }
+  ],
+  "r2_buckets": [
+    { "binding": "IMAGES", "bucket_name": "gasparotto-viajes-images" }
+  ],
+  "vars": {
+    // Vacío = comportamiento seguro: sin SITE_URL el sitio sale como "no indexar"; sin WHATSAPP_NUMBER los botones van a /reservas.
+    "SITE_URL": "https://gasparottoviajes.com",
+    "WHATSAPP_NUMBER": "541164199083",
+    // Place ID de la ficha de Google Business Profile (reseñas, enlace "Dejar una reseña" y mapa). Ver ADMIN.md › Reseñas de Google.
+    "GOOGLE_PLACE_ID": "ChIJX4G6FADLvJUR1cJ5MTNtey8",
+    "BRAND_NAME": "Gasparotto Viajes",
+    "SITE_LANG": "pt-BR",
+    "BRAND_LOGO": "/assets/logo.png",
+    "BRAND_PERKS": "Atendimento personalizado|Reserve fácil pelo WhatsApp|Montamos o roteiro sob medida",
+    "PRICE_CURRENCY": "BRL",
+    // Minutos que una reserva pendiente retiene el cupo (entre 15 y 30; vacío = 20).
+    "BOOKING_HOLD_MINUTES": "20",
+    // Medición (vacío = no se carga nada de terceros ni se muestra el banner de cookies). Formatos: GTM-XXXXXX y solo dígitos.
+    "GTM_ID": "",
+    "META_PIXEL_ID": "",
+    // Página de privacidad (ruta interna o https). Vacío = el banner no muestra enlace.
+    "PRIVACY_URL": "",
+    "BRAND_PRIMARY": "#0066a9",
+    "BRAND_ACCENT": "#7f1d35",
+    "BRAND_CTA": "#1a6b43"
+  }
+}

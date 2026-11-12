@@ -1,0 +1,39 @@
+---
+// Fragmento de la portada. NO es una página completa: el motor (functions/_middleware.js) lo toma de
+// /fragmentos/home/, reemplaza los marcadores y lo mete dentro del layout (cabecera y pie).
+// "partial" = Astro no agrega <html>, <head> ni doctype.
+export const partial = true;
+
+import Hero from "../../components/home/Hero.astro";
+import Trust from "../../components/home/Trust.astro";
+import Intents from "../../components/home/Intents.astro";
+import How from "../../components/home/How.astro";
+import Mix from "../../components/home/Mix.astro";
+import Faq from "../../components/home/Faq.astro";
+import FinalCta from "../../components/home/FinalCta.astro";
+import { meta, featured } from "../../data/home";
+
+// 1ª línea: título y descripción para <title>/SEO (la lee staticPage en el middleware).
+const head = "<!--" + JSON.stringify(meta) + "-->\n";
+---
+<Fragment set:html={head} /><Hero />
+<Trust />
+<section class="tw tw-section bg-white"><div class="tw-wrap"><Fragment set:html={'<div data-panel="google" hidden></div>'} /></div></section>
+<Intents />
+
+<section id="paquetes" class="tw tw-section bg-white">
+  <div class="tw-wrap">
+    <div data-fx="up" class="mb-14 max-w-2xl">
+      <h2 class="m-0 font-display text-h2 font-semibold text-ink">{featured.title}</h2>
+      <p class="m-0 mt-5 text-lead text-mute">{featured.lead}</p>
+    </div>
+    {/* El motor reemplaza este marcador por las tarjetas de paquetes destacados. Es un <div hidden>: si no se reemplaza, no se ve. */}
+    <Fragment set:html={'<div data-panel="featured" hidden></div>'} />
+  </div>
+</section>
+
+<Mix />
+<How />
+<Fragment set:html={'<div data-panel="posts" hidden></div>'} />
+<Faq />
+<FinalCta />

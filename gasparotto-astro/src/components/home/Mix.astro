@@ -1,0 +1,27 @@
+---
+// Dos accesos grandes: paquetes (varios servicios juntos) o servicios sueltos. Textos y fotos: src/data/home.ts (mix).
+import { mix } from "../../data/home";
+// Clases escritas completas para que Tailwind las detecte.
+const tones: Record<string, string> = { "bg-night": "bg-night", "bg-primary": "bg-primary" };
+---
+<section class="tw tw-section bg-mist" aria-labelledby="mix-h">
+  <div class="tw-wrap">
+    <div data-fx="up" class="mb-12 max-w-2xl">
+      <h2 id="mix-h" class="m-0 font-display text-h2 font-semibold text-ink">{mix.title}</h2>
+      <p class="m-0 mt-5 text-lead text-mute">{mix.lead}</p>
+    </div>
+    <ul class="m-0 grid list-none gap-6 p-0 md:grid-cols-2 md:gap-8">
+      {mix.cards.map((c, i) => (
+        <li data-fx="up" data-fx-delay={i * 0.1} class={`group relative isolate overflow-hidden rounded-xl text-white ${tones[c.tone] ?? "bg-night"}`}>
+          <img src={c.img} alt={c.alt} width="1672" height="941" loading="lazy" style={`object-position:${c.pos}`} class="absolute inset-0 -z-10 size-full object-cover opacity-30 mix-blend-luminosity transition duration-1000 ease-soft group-hover:scale-105" />
+          <a href={c.href} class="flex min-h-[22rem] flex-col justify-end p-7 text-white no-underline focus-visible:outline-offset-[-6px] focus-visible:outline-white sm:p-10">
+            <span class="text-sm font-bold uppercase tracking-[0.16em] text-white/80">{c.kicker}</span>
+            <span class="mt-3 block font-display text-[clamp(1.75rem,3vw,2.5rem)] font-semibold leading-[1.08] tracking-tight">{c.title}</span>
+            <span class="mt-3 block max-w-md leading-snug text-white/90">{c.text}</span>
+            <span class="tw-link mt-6 inline-flex items-center gap-2 font-semibold">{c.cta}<i aria-hidden="true" class="tw-arrow"></i></span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>

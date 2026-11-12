@@ -1,0 +1,35 @@
+---
+// Portada con foto a todo el ancho. La cabecera arranca transparente sobre la imagen (ver .tw-header en tw.css; data-hero-photo la activa).
+// El degradado no decora: oscurece el cielo y la base para que el texto blanco se lea con cualquier foto que se ponga.
+import Btn from "../Btn.astro";
+import { T } from "../../lib/tokens";
+import { hero } from "../../data/home";
+---
+<section data-hero data-hero-photo class="tw-home relative isolate flex min-h-[min(100svh,56rem)] items-end overflow-hidden bg-night text-white">
+  <img
+    src="/assets/hero-obelisco.webp"
+    alt="Entardecer sobre o Obelisco e a Avenida 9 de Julio, em Buenos Aires"
+    width="1672"
+    height="941"
+    fetchpriority="high"
+    class="absolute inset-0 -z-20 size-full object-cover object-[70%_50%]"
+  />
+  <div aria-hidden="true" class="absolute inset-0 -z-10 bg-linear-to-t from-night/90 via-night/30 to-night/25 lg:bg-linear-to-r lg:from-night/75 lg:via-night/15 lg:to-transparent"></div>
+
+  <div class="tw-wrap pb-24 pt-40 sm:pb-28 lg:pb-32">
+    {/* El título entra línea por línea desde atrás de una máscara: es el único movimiento de entrada de la portada. */}
+    <h1 class="m-0 max-w-4xl font-display text-display font-semibold text-white">
+      {hero.lines.map((l) => (
+        <Fragment>
+          <span class="-mb-[0.08em] block overflow-hidden pb-[0.12em]"><span data-line class="block">{l}</span></span>{" "}
+        </Fragment>
+      ))}
+    </h1>
+    <p data-fx="hero" class="m-0 mt-8 max-w-lg text-lead text-white/90">{hero.sub}</p>
+    <div data-fx="hero" class="mt-10 flex flex-wrap gap-3">
+      <Btn variant="light" href={T.WA_URL} track={`hero-${T.AB}`}>{T.AB_CTA}</Btn>
+      <Btn variant="ghost" href={hero.secondary.href}>{hero.secondary.label}</Btn>
+    </div>
+    <p data-fx="hero" class="m-0 mt-6 max-w-md text-[0.9375rem] text-white/80">{hero.proof}</p>
+  </div>
+</section>

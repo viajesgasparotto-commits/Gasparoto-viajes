@@ -1,0 +1,53 @@
+---
+// Página fija /traslados/ (functions/lib/site.js › pages). No promete datos que la agencia no publicó: para precios, vehículos y
+// horarios remite al WhatsApp. Si en el panel hay paquetes o servicios de traslado publicados (por título, categoría o
+// subcategoría con "traslado"), el motor los muestra en el marcador "traslados"; si no hay, el marcador desaparece.
+// {{WA:…}} = enlace de WhatsApp con el mensaje escrito (lo reemplaza el motor).
+export const partial = true;
+import PageHero from "../../components/PageHero.astro";
+import Btn from "../../components/Btn.astro";
+import Eyebrow from "../../components/Eyebrow.astro";
+import CtaBand from "../../components/CtaBand.astro";
+import { metaComment } from "../../lib/meta";
+
+const meta = {
+  title: "Traslados em Buenos Aires | {{BRAND}}",
+  description: "Consulte traslados em Buenos Aires com a {{BRAND}}. Mais informações, disponibilidade e preço final pelo WhatsApp.",
+};
+const WA = "{{WA:Olá! Quero informações sobre traslados em Buenos Aires.}}";
+const ask = [
+  "Data e horário de chegada ou de saída",
+  "Número do voo, se você já tiver",
+  "Endereço ou nome do hotel",
+  "Quantas pessoas viajam",
+];
+---
+<Fragment set:html={metaComment(meta)} /><PageHero eyebrow="Traslados" title="Traslados em Buenos Aires" lead="Para mais informações sobre traslados, fale com a gente pelo WhatsApp. Respondemos com a disponibilidade e o preço final.">
+  <div class="mt-9 flex flex-wrap gap-3">
+    <Btn variant="wa" href={WA} track="traslados">Consultar pelo WhatsApp</Btn>
+    <Btn variant="ghost" href="tel:+541164199083">Ligar +54 11 6419-9083</Btn>
+  </div>
+</PageHero>
+
+<Fragment set:html={'<div data-panel="traslados" hidden></div>'} />
+
+<section class="tw tw-section bg-mist">
+  <div class="tw-wrap grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
+    <div data-fx="up">
+      <Eyebrow>Como consultar</Eyebrow>
+      <h2 class="m-0 font-display text-h2 font-semibold text-ink">Mande estes dados e a gente responde</h2>
+      <p class="m-0 mt-5 max-w-md text-lead text-mute">Com essas informações confirmamos a disponibilidade e o valor final antes de reservar.</p>
+      <div class="mt-9"><Btn variant="wa" href={WA} track="traslados-dados">Enviar pelo WhatsApp</Btn></div>
+    </div>
+    <ol class="m-0 grid list-none gap-0 border-t border-ink/20 p-0">
+      {ask.map((x, i) => (
+        <li data-fx="up" data-fx-delay={i * 0.06} class="flex items-baseline gap-5 border-b border-ink/20 py-6">
+          <span class="font-display text-3xl font-semibold leading-none text-accent">{i + 1}</span>
+          <span class="text-lg font-semibold text-ink">{x}</span>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<CtaBand title="Mais informações pelo WhatsApp" lead="Conte a data, o horário e quantas pessoas viajam." label="Falar no WhatsApp" track="traslados-cierre" />

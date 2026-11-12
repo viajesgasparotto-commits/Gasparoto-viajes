@@ -1,0 +1,326 @@
+/* ==========================================================================
+   SISTEMA VISUAL (v43). Todo el sitio sale de estos tokens: cambiar acá cambia todo.
+   Idea: cartelería de viaje porteña. Azul del logo como campo de color pleno, tinta azul noche para el texto,
+   bordó de terciopelo (tango) como único acento cálido y un celeste de cielo para detalles sobre fondos oscuros.
+   Sin degradados decorativos, sin sellos ni círculos concéntricos. La forma viene de dos recursos de la marca:
+   la ruta punteada con pines y el rótulo de color bajo cada foto (ver .tw-caption).
+   Tipografía: Besley (serif tipo Clarendon, la de los carteles de transporte y etiquetas de equipaje) para títulos,
+   Familjen Grotesk para texto e interfaz. Escala fluida (text-display, text-title, text-h2, text-h3, text-lead).
+   Ritmo: base de 8 px; secciones con .tw-section; ancho de lectura de texto <= 62ch; contenedor .tw-wrap (76rem).
+   Marca (cambia por agencia): primary, accent, cta. Neutros (fijos): night, ink, mute, mist, celeste.
+   "source(none)" evita el escaneo automático; solo se escanea lo que declaran los @source de abajo.
+   ========================================================================== */
+@import "tailwindcss" source(none);
+
+@source "../../src";
+@source "../../functions";
+
+@theme {
+  --color-primary: var(--gv-primary);
+  --color-accent: var(--gv-accent);
+  --color-cta: var(--gv-cta);
+  --color-night: #071a33;
+  --color-ink: #0c1e38;
+  --color-mute: #52627a;
+  --color-mist: #eaf1f7;
+  --color-celeste: #93c5ea;
+  --color-sky: #93c5ea;
+  --color-rose: var(--gv-accent);
+  --color-teal: #0f5b63;
+
+  --font-display: "Besley", Georgia, "Times New Roman", serif;
+  --font-text: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-sans: "Familjen Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --text-display: clamp(2.5rem, 8vw, 7.25rem);
+  --text-display--line-height: 0.95;
+  --text-display--letter-spacing: -0.03em;
+  --text-title: clamp(2.75rem, 6vw, 5rem);
+  --text-title--line-height: 1;
+  --text-title--letter-spacing: -0.025em;
+  --text-h2: clamp(2.25rem, 4.4vw, 3.75rem);
+  --text-h2--line-height: 1.05;
+  --text-h2--letter-spacing: -0.02em;
+  --text-h3: clamp(1.5rem, 2.4vw, 2rem);
+  --text-h3--line-height: 1.15;
+  --text-h3--letter-spacing: -0.01em;
+  --text-lead: 1.25rem;
+  --text-lead--line-height: 1.55;
+
+  /* Radios: rectángulos casi rectos (la marca es de cartel, no de burbuja). rounded-full queda solo para círculos reales. */
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.5rem;
+  --radius-3xl: 0.625rem;
+  --shadow-soft: 0 1px 2px rgb(7 26 51 / 0.06), 0 12px 28px -14px rgb(7 26 51 / 0.28);
+  --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@theme static {
+  --color-ok: #15633a;
+  --color-bad: #b42318;
+}
+
+@layer base {
+  html { scroll-padding-top: 5.25rem; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  body { margin: 0; background: #fff; color: var(--color-ink); font-family: var(--font-sans); font-size: 1.0625rem; line-height: 1.65; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; }
+  ::selection { background: var(--color-celeste); color: var(--color-night); }
+  button:not(:disabled), [role="button"]:not(:disabled), summary { cursor: pointer; }
+}
+
+@layer components {
+  .tw-wrap { width: 100%; max-width: 76rem; margin-inline: auto; padding-inline: clamp(1.25rem, 4vw, 3rem); }
+  .tw-section { padding-block: clamp(4rem, 8vw, 7.5rem); }
+  .tw-hero-bg { background: var(--color-night); }
+  .tw-cta-bg { background: var(--color-primary); }
+  /* Enlace de texto: subrayado fino que se corre al pasar el mouse. Sin flechas. */
+  .tw-link { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 0.3em; transition: text-underline-offset 0.25s var(--ease-soft), color 0.2s; }
+  .tw-link:hover { text-underline-offset: 0.5em; }
+  /* Título de tarjeta (paquetes y blog): al pasar sobre la tarjeta toma el azul de marca. */
+  .tw-card-title { transition: color .25s var(--ease-soft); }
+  .group:hover .tw-card-title, .group:focus-within .tw-card-title { color: var(--color-primary); }
+  /* Rótulo de color bajo una foto: el recurso de los carteles de la oficina (foto + banda azul con el nombre). */
+  .tw-caption { background: var(--color-primary); color: #fff; padding: 0.75rem 1.25rem; font-size: 0.9375rem; font-weight: 600; line-height: 1.35; }
+
+  .fx-on [data-fx] { opacity: 0; }
+  .fx-on [data-line] { transform: translateY(105%); }
+  .fx-on [data-wipe] { clip-path: inset(0 0 100% 0 round 0.375rem); }
+  .fx-on [data-timeline-fill] { transform: scale(0); }
+}
+
+@layer components {
+  /* Texto libre que se carga desde el panel (descripción del paquete y cuerpo del blog).
+     Estiliza etiquetas, no clases, porque el HTML no es nuestro. Con el reset global (preflight) las listas, márgenes y
+     tamaños de título vienen en cero: todo lo que el redactor puede usar se define acá. */
+  .tw-prose { color: var(--color-ink); font-size: 1.0625rem; line-height: 1.75; overflow-wrap: anywhere; }
+  .tw-prose > :first-child { margin-top: 0; }
+  .tw-prose > :last-child { margin-bottom: 0; }
+  .tw-prose p { margin: 0 0 1.1em; }
+  .tw-prose h2 { margin: 1.9em 0 .6em; font-family: var(--font-display); font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -.01em; scroll-margin-top: 6rem; }
+  .tw-prose h3 { margin: 1.6em 0 .5em; font-family: var(--font-display); font-size: 1.25rem; line-height: 1.25; font-weight: 700; }
+  .tw-prose h4 { margin: 1.4em 0 .4em; font-size: 1rem; font-weight: 700; }
+  .tw-prose a { color: var(--color-primary); font-weight: 600; text-decoration: underline; text-decoration-color: var(--color-accent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  .tw-prose ul, .tw-prose ol { margin: 0 0 1.2em; padding-left: 1.4em; }
+  .tw-prose ul { list-style: disc; }
+  .tw-prose ol { list-style: decimal; }
+  .tw-prose li > ul, .tw-prose li > ol { margin: .35em 0 0; }
+  .tw-prose li > ul { list-style: circle; }
+  .tw-prose strong, .tw-prose b { font-weight: 700; }
+  .tw-prose li { margin: .35em 0; }
+  .tw-prose ul li::marker { color: var(--color-accent); }
+  .tw-prose blockquote { margin: 2em 0; padding: 0 0 0 1.5rem; border-left: 3px solid var(--color-accent); font-family: var(--font-display); font-size: 1.35rem; line-height: 1.4; font-weight: 500; color: var(--color-ink); }
+  .tw-prose blockquote p:last-child { margin: 0; }
+  .tw-prose img { display: block; max-width: 100%; height: auto; margin: 1.6em 0; border-radius: .5rem; }
+  .tw-prose figure { margin: 1.8em 0; }
+  .tw-prose figure img { margin: 0; }
+  .tw-prose figcaption { margin-top: .5rem; font-size: .9rem; color: var(--color-mute); text-align: center; }
+  .tw-prose hr { margin: 2em 0; border: 0; border-top: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
+  .tw-prose table { display: block; width: 100%; margin: 1.5em 0; overflow-x: auto; border-collapse: collapse; font-size: .95rem; }
+  .tw-prose th, .tw-prose td { vertical-align: top; padding: .6rem .75rem; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); text-align: left; }
+  .tw-prose th { background: var(--color-mist); color: var(--color-primary); font-weight: 700; }
+  /* Variante editorial para artículos del blog (v54): cuerpo en serif de lectura (Newsreader), títulos en Besley,
+     letra capital, cita destacada, cuadros con ícono e imágenes que sobresalen de la columna en pantallas grandes. */
+  .tw-prose--post { font-family: var(--font-text); font-size: 1.1875rem; line-height: 1.72; font-optical-sizing: auto; color: color-mix(in srgb, var(--color-ink) 92%, white); }
+  @media (min-width: 640px) { .tw-prose--post { font-size: 1.3125rem; line-height: 1.7; } }
+  .tw-prose--post p { margin-bottom: 1.25em; text-wrap: pretty; }
+  .tw-prose--post > p:first-child::first-letter { float: left; margin: .07em .11em 0 0; font-family: var(--font-display); font-size: 4.4em; font-weight: 700; line-height: .8; color: var(--color-primary); }
+  .tw-prose--post h2 { position: relative; margin: 2.5em 0 .65em; padding-top: 1.15rem; font-size: clamp(1.75rem, 3vw, 2.25rem); line-height: 1.12; letter-spacing: -.02em; text-wrap: balance; }
+  .tw-prose--post h2::before { content: ""; position: absolute; top: 0; left: 0; width: 2.75rem; height: 3px; background: var(--color-accent); }
+  .tw-prose--post > h2:first-child { margin-top: 0; }
+  .tw-prose--post h3 { font-size: 1.5rem; line-height: 1.2; letter-spacing: -.01em; margin: 2em 0 .5em; }
+  .tw-prose--post a { text-decoration-thickness: 1.5px; text-underline-offset: .22em; text-decoration-color: color-mix(in srgb, var(--color-accent) 70%, transparent); transition: text-decoration-color .2s, color .2s; }
+  .tw-prose--post a:hover { text-decoration-color: var(--color-accent); color: var(--color-night); }
+  .tw-prose--post ol li::marker { font-weight: 700; color: var(--color-primary); }
+  .tw-prose--post blockquote { position: relative; margin: 2.4em 0; padding: 2.6rem 0 0; border: 0; font-family: var(--font-display); font-size: clamp(1.4rem, 2.6vw, 1.85rem); font-style: italic; font-weight: 500; line-height: 1.32; letter-spacing: -.01em; color: var(--color-ink); }
+  .tw-prose--post blockquote::before { content: "\201C"; position: absolute; top: -.1rem; left: -.02em; font-size: 5rem; font-style: normal; font-weight: 700; line-height: 1; color: var(--color-accent); }
+  .tw-prose--post blockquote p { margin: 0; }
+  .tw-prose--post img { border-radius: .75rem; }
+  .tw-prose--post figcaption { text-align: left; font-family: var(--font-sans); }
+  @media (min-width: 1024px) { .tw-prose--post figure, .tw-prose--post > img { width: calc(100% + 6rem); max-width: none; margin-inline: -3rem; } }
+  .tw-prose--post table, .tw-prose--post .gvb-dato, .tw-prose--post .gvb-tip { font-family: var(--font-sans); font-size: 1rem; line-height: 1.6; }
+  /* Cuadros que ya usan los redactores (se conservan los nombres para no romper lo publicado). */
+  .tw-prose .gvb-dato, .tw-prose .gvb-tip { position: relative; margin: 1.8em 0; padding: 1.25rem 1.5rem; border-radius: .5rem; }
+  .tw-prose .gvb-dato { background: color-mix(in srgb, var(--color-primary) 7%, white); border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent); }
+  .tw-prose .gvb-tip { background: color-mix(in srgb, var(--color-cta) 9%, white); border-left: 5px solid var(--color-cta); }
+  .tw-prose .gvb-dato strong, .tw-prose .gvb-tip strong { display: block; margin-bottom: .35rem; font-size: .9375rem; color: var(--color-primary); }
+  .tw-prose .gvb-dato p:last-child, .tw-prose .gvb-tip p:last-child { margin: 0; }
+  .tw-prose--post .gvb-dato, .tw-prose--post .gvb-tip { padding: 1.35rem 1.5rem 1.35rem 4.5rem; }
+  .tw-prose--post .gvb-dato::before, .tw-prose--post .gvb-tip::before { position: absolute; left: 1.25rem; top: 1.25rem; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 9999px; background: var(--color-primary); color: #fff; font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; font-style: italic; line-height: 1; }
+  .tw-prose--post .gvb-dato::before { content: "i"; }
+  .tw-prose--post .gvb-tip::before { content: "\2605"; background: var(--color-cta); font-style: normal; font-size: .95rem; }
+  .tw-prose--post .gvb-tip strong { color: var(--color-cta); }
+
+  /* Formulario de reserva (ficha). conv.js cambia la clase del mensaje a "gv-lead-msg err" (por eso se estila por selector).
+     Los campos llevan utilidades en el markup (functions/_middleware.js); acá solo lo que Tailwind no cubre: ocultar las flechas del
+     campo numérico y normalizar el campo de fecha en iOS/Android. */
+  .tw-lead .gv-lead-msg { margin: .75rem 0 0; min-height: 0; font-size: .9rem; font-weight: 600; line-height: 1.5; }
+  .tw-lead .gv-lead-msg:empty { display: none; }
+  .tw-lead .gv-lead-msg.err { color: var(--color-bad); }
+  .tw-lead input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+  .tw-lead input[type="number"]::-webkit-inner-spin-button, .tw-lead input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .tw-lead input[type="date"] { min-width: 0; -webkit-appearance: none; appearance: none; text-align: left; }
+  .tw-lead input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+  .tw-lead [hidden] { display: none !important; }
+  /* Indicador de los 2 pasos del formulario (Tu viaje → Tus datos). conv.js solo cambia data-s: todo | now | done. */
+  .tw-steps { display: flex; align-items: center; margin: 1.25rem 0 0; padding: 1.25rem 0 0; border-top: 1px solid color-mix(in srgb, var(--color-ink) 14%, transparent); list-style: none; }
+  .tw-steps > li { display: flex; align-items: center; gap: .6rem; font-size: .9rem; font-weight: 600; line-height: 1.2; color: var(--color-mute); transition: color .25s; }
+  .tw-steps > li:first-child { flex: 1; }
+  .tw-steps > li:first-child::after { content: ""; flex: 1; height: 2px; margin-inline: .875rem; border-radius: 2px; background: var(--color-mist); transition: background-color .35s var(--ease-soft); }
+  .tw-steps > li[data-s="done"]:first-child::after { background: var(--color-cta); }
+  .tw-steps > li[data-s="now"], .tw-steps > li[data-s="done"] { color: var(--color-ink); }
+  .tw-steps-dot { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex-shrink: 0; border-radius: 9999px; background: var(--color-mist); font-size: .8125rem; font-weight: 700; line-height: 1; transition: background-color .25s, color .25s; }
+  .tw-steps > li[data-s="now"] .tw-steps-dot { background: var(--color-primary); color: #fff; }
+  .tw-steps > li[data-s="done"] .tw-steps-dot { background: var(--color-cta); color: #fff; }
+  .tw-lead [data-step]:focus-visible { outline: none; }
+
+  /* Pasos de la reserva (lugar guardado → pago/confirmación → confirmada). conv.js solo cambia data-s: todo | now | done. */
+  .tw-tstep { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .375rem; font-size: .75rem; line-height: 1.25; color: var(--color-mute); }
+  .tw-tstep > [data-tdot] { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background: var(--color-mist); font-weight: 700; font-size: .8125rem; }
+  .tw-tstep[data-s="now"] { color: var(--color-ink); font-weight: 600; }
+  .tw-tstep[data-s="now"] > [data-tdot] { background: var(--color-primary); color: #fff; }
+  .tw-tstep[data-s="done"] { color: var(--color-ink); }
+  .tw-tstep[data-s="done"] > [data-tdot] { background: var(--color-cta); color: #fff; }
+
+  /* Calendario de reserva por fecha (conv.js > initCal). Solo los días con lugar son botones; el resto queda apagado. */
+  .tw-cal { border: 1px solid color-mix(in srgb, var(--color-ink) 25%, transparent); border-radius: var(--radius-lg); padding: .75rem; background: #fff; }
+  .tw-cal-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .5rem; }
+  .tw-cal-title { margin: 0; font-weight: 600; color: var(--color-ink); }
+  .tw-cal-title::first-letter { text-transform: uppercase; }
+  .tw-cal-nav { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 0; border-radius: 9999px; background: transparent; color: var(--color-primary); font-size: 1.6rem; line-height: 1; cursor: pointer; transition: background .2s; }
+  .tw-cal-nav:hover:not(:disabled) { background: var(--color-mist); }
+  .tw-cal-nav:disabled { opacity: .3; cursor: default; }
+  .tw-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; text-align: center; }
+  .tw-cal-wd { padding: .25rem 0; font-size: .75rem; font-weight: 600; text-transform: uppercase; color: var(--color-mute); }
+  .tw-cal-day { display: grid; place-items: center; min-height: 2.5rem; aspect-ratio: 1; border: 0; border-radius: .5rem; background: transparent; font: inherit; font-size: .95rem; color: var(--color-mute); opacity: .4; }
+  button.tw-cal-day { opacity: 1; color: var(--color-ink); font-weight: 600; cursor: pointer; background: color-mix(in srgb, var(--color-primary) 8%, white); transition: background .15s; }
+  button.tw-cal-day:hover { background: color-mix(in srgb, var(--color-primary) 20%, white); }
+  button.tw-cal-day[aria-pressed="true"] { background: var(--color-primary); color: #fff; }
+  .tw-cal-nav:focus-visible, button.tw-cal-day:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+  .tw-cal-note { margin: .5rem 0 0; min-height: 1.25rem; font-size: .875rem; font-weight: 600; color: var(--color-mute); }
+  /* Botones de horario (reserva por horario): hora + cuántos lugares quedan. No son cuadrados como los días. */
+  .tw-slot { aspect-ratio: auto; min-height: 3.25rem; padding: .4rem .5rem; align-content: center; gap: .1rem; line-height: 1.15; text-align: center; }
+  .tw-slot small { display: block; font-size: .75rem; font-weight: 500; opacity: .85; }
+  button.tw-slot[data-short="1"] { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-accent, #d97706) 70%, white); }
+  button.tw-slot:disabled { opacity: .45; cursor: not-allowed; background: transparent; }
+  button.tw-slot:disabled:hover { background: transparent; }
+
+  /* Botón flotante de WhatsApp: lo crea conv.js (clase tw-fab) en las páginas que no traen uno propio. */
+  .tw-fab { position: fixed; right: 1.125rem; bottom: 1.125rem; z-index: 40; display: flex; align-items: center; justify-content: center; width: 3.5rem; height: 3.5rem; border-radius: var(--radius-xl); background: var(--color-cta); color: #fff; box-shadow: var(--shadow-soft); text-decoration: none; transition: filter .25s; }
+  .tw-fab:hover { filter: brightness(1.12); }
+  .tw-fab svg { width: 1.875rem; height: 1.875rem; }
+  .tw-fab:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 3px; }
+  @keyframes tw-pulse { from { transform: scale(1); opacity: .7; } to { transform: scale(1.5); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .tw-fab::after { animation: none; } }
+
+  /* Con la barra fija de la ficha (solo móvil) se oculta el botón flotante y se deja lugar al pie. */
+  @media (max-width: 1023.98px) {
+    body:has([data-gv-sticky]) { padding-bottom: 5rem; }
+    body:has([data-gv-sticky]) .tw-fab { display: none; }
+  }
+}
+
+/* ==========================================================================
+   COMPONENTES (v44): botones, campos, etiquetas, pestañas, cabecera sobre foto.
+   Misma geometría en todo el sitio: radio chico (--radius-lg), bordes de 1 px, sin sombras de adorno.
+   Contrato: en los botones el texto va dentro de un <span> (conv.js lo usa); el ícono, si hay, es hermano del span.
+   ========================================================================== */
+@layer components {
+  .tw-btn { display: inline-flex; align-items: center; justify-content: center; gap: .6rem; min-height: 3.25rem; padding-inline: 1.75rem; border: 1px solid transparent; border-radius: var(--radius-lg); font-size: .9375rem; font-weight: 600; line-height: 1.1; text-decoration: none; cursor: pointer; transition: background-color .25s, color .25s, border-color .25s, filter .25s, transform .2s var(--ease-soft); }
+  .tw-btn > span { color: inherit; font-weight: inherit; }
+  .tw-btn:hover { transform: translateY(-1px); }
+  .tw-btn:active { transform: translateY(1px); }
+  .tw-btn:focus-visible { outline: 3px solid var(--color-celeste); outline-offset: 3px; }
+  .tw-btn:disabled { opacity: .6; cursor: default; }
+  .tw-btn--sm { min-height: 2.5rem; padding-inline: 1rem; font-size: .875rem; gap: .5rem; }
+  .tw-btn--primary { background: var(--color-primary); color: #fff; }
+  .tw-btn--primary:hover { background: var(--color-night); }
+  .tw-btn--wa { background: var(--color-cta); color: #fff; }
+  .tw-btn--wa:hover { filter: brightness(1.12); }
+  .tw-btn--light { background: #fff; color: var(--color-night); }
+  .tw-btn--light:hover { background: var(--color-celeste); }
+  .tw-btn--ghost { border-color: rgb(255 255 255 / .55); color: #fff; }
+  .tw-btn--ghost:hover { background: rgb(255 255 255 / .12); border-color: #fff; }
+  .tw-btn--line { border-color: color-mix(in srgb, var(--color-ink) 30%, transparent); color: var(--color-ink); }
+  .tw-btn--line:hover { background: var(--color-ink); border-color: var(--color-ink); color: #fff; }
+  .tw-btn--wa-line { border-color: color-mix(in srgb, var(--color-cta) 50%, transparent); color: var(--color-cta); }
+  .tw-btn--wa-line:hover { background: var(--color-cta); border-color: var(--color-cta); color: #fff; }
+
+  /* Formularios */
+  .tw-field { display: block; width: 100%; min-height: 3rem; padding: .7rem .9rem; border: 1px solid color-mix(in srgb, var(--color-ink) 28%, transparent); border-radius: var(--radius-lg); background: #fff; color: var(--color-ink); font: inherit; font-size: 1rem; transition: border-color .2s, box-shadow .2s; }
+  .tw-field::placeholder { color: color-mix(in srgb, var(--color-mute) 70%, transparent); }
+  .tw-field:hover { border-color: color-mix(in srgb, var(--color-ink) 55%, transparent); }
+  .tw-field:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent); }
+  .tw-field[aria-invalid="true"] { border-color: var(--color-bad); }
+  select.tw-field { appearance: none; padding-right: 2.5rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230c1e38' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .8rem center; background-size: 1.1rem; }
+  .tw-label-f { display: block; margin-bottom: .4rem; font-size: .9375rem; font-weight: 600; color: var(--color-ink); }
+  .tw-step { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; flex-shrink: 0; border: 1px solid color-mix(in srgb, var(--color-ink) 28%, transparent); border-radius: var(--radius-lg); background: #fff; color: var(--color-primary); font-size: 1.25rem; line-height: 1; cursor: pointer; transition: border-color .2s, background-color .2s; }
+  .tw-step:hover:not(:disabled) { border-color: var(--color-primary); background: var(--color-mist); }
+  .tw-step:disabled { opacity: .35; cursor: default; }
+
+  /* Rótulo que cuelga del borde de una foto (destacado / descuento) */
+  .tw-tag { position: absolute; left: 0; top: 1rem; padding: .5rem .85rem; background: #fff; color: var(--color-night); font-size: .8125rem; font-weight: 700; line-height: 1; border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+  .tw-tag--sale { background: var(--color-accent); color: #fff; }
+
+  /* Pestañas de categoría: subrayado en la activa, scroll horizontal en móvil */
+  .tw-tabs { display: flex; gap: 2rem; margin-bottom: 2.5rem; overflow-x: auto; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 15%, transparent); scrollbar-width: none; }
+  .tw-tabs::-webkit-scrollbar { display: none; }
+  .tw-tabs a { position: relative; flex-shrink: 0; padding: .9rem 0; color: var(--color-mute); font-weight: 600; text-decoration: none; transition: color .2s; }
+  .tw-tabs a:hover { color: var(--color-ink); }
+  .tw-tabs a[aria-current="page"] { color: var(--color-ink); }
+  .tw-tabs a[aria-current="page"]::after { content: ""; position: absolute; inset: auto 0 -1px 0; height: 2px; background: var(--color-primary); }
+
+  /* Subcategorías (segunda fila bajo las categorías, ?sub=): pastillas en vez de pestañas para que se lea como un filtro dentro de la categoría. */
+  .tw-tabs[data-subcats] { gap: .5rem; margin-top: -1.25rem; margin-bottom: 2rem; padding-bottom: .25rem; border-bottom: 0; }
+  .tw-tabs[data-subcats] a { padding: .55rem 1.05rem; border: 1px solid color-mix(in srgb, var(--color-ink) 22%, transparent); border-radius: 999px; font-size: .9375rem; line-height: 1.2; color: var(--color-ink); }
+  .tw-tabs[data-subcats] a:hover { border-color: var(--color-ink); }
+  .tw-tabs[data-subcats] a[aria-current="page"] { background: var(--color-night); border-color: var(--color-night); color: #fff; }
+  .tw-tabs[data-subcats] a::after { display: none; }
+
+  /* Botón circular de ícono (compartir). data-done lo pone fx.ts tras copiar el enlace. */
+  .tw-icon-btn { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid color-mix(in srgb, var(--color-ink) 22%, transparent); border-radius: 9999px; background: #fff; color: var(--color-ink); cursor: pointer; text-decoration: none; transition: background-color .2s, color .2s, border-color .2s, transform .2s var(--ease-soft); }
+  .tw-icon-btn:hover { background: var(--color-ink); border-color: var(--color-ink); color: #fff; transform: translateY(-1px); }
+  .tw-icon-btn:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+  .tw-icon-btn[data-done] { background: var(--color-ok); border-color: var(--color-ok); color: #fff; }
+  .tw-icon-btn[data-done] .i-link { display: none; }
+  .tw-icon-btn[data-done] .i-ok { display: block; }
+
+  /* Índice del artículo: línea guía a la izquierda y la sección que se está leyendo marcada (fx.ts pone aria-current). */
+  .tw-toc-link { display: block; padding: .5rem 0 .5rem 1rem; border-left: 2px solid color-mix(in srgb, var(--color-ink) 12%, transparent); color: var(--color-mute); font-size: .9375rem; font-weight: 500; line-height: 1.35; text-decoration: none; transition: color .2s, border-color .2s; }
+  .tw-toc-link:hover { color: var(--color-ink); }
+  .tw-toc-link[aria-current="true"] { border-color: var(--color-accent); color: var(--color-ink); font-weight: 700; }
+
+  /* Preguntas frecuentes: el + se dibuja con dos líneas y se abre en cruz */
+  .tw-plus { position: relative; display: block; width: 1rem; height: 1rem; flex-shrink: 0; color: var(--color-primary); }
+  .tw-plus::before, .tw-plus::after { content: ""; position: absolute; background: currentColor; transition: transform .3s var(--ease-soft); }
+  .tw-plus::before { inset: 50% 0 auto 0; height: 2px; margin-top: -1px; }
+  .tw-plus::after { inset: 0 auto 0 50%; width: 2px; margin-left: -1px; }
+  details[open] > summary .tw-plus::after { transform: scaleY(0); }
+
+  /* Flecha de enlace: línea con punta que se estira al pasar sobre el panel/tarjeta (solo CSS). */
+  .tw-arrow { position: relative; display: inline-block; width: 1.25rem; height: 2px; background: currentColor; transition: width .3s var(--ease-soft); }
+  .tw-arrow::after { content: ""; position: absolute; right: 0; top: 50%; width: .5rem; height: .5rem; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: translateY(-50%) rotate(45deg); }
+  .group\/tile:hover .tw-arrow, .group\/tile:focus-within .tw-arrow, .group:hover .tw-arrow { width: 2rem; }
+  /* Tarjeta de paquete: la foto sube apenas y aparece una sombra suave; en móvil no hay hover, solo el toque. */
+  @media (hover: hover) { .tw-pkg { transition: translate .35s var(--ease-soft); } .tw-pkg:hover { translate: 0 -4px; } .tw-pkg:hover .tw-pkg-img { box-shadow: var(--shadow-soft); } }
+  .tw-pkg-img { transition: box-shadow .35s var(--ease-soft); }
+  /* Barra de avance de lectura en la cabecera (fx.ts la escala con el scroll). */
+  .tw-progress { position: absolute; inset: auto 0 -1px 0; height: 2px; background: var(--color-accent); transform-origin: left; transform: scaleX(0); pointer-events: none; }
+  /* Móvil: botones a ancho completo en las bandas de cierre y mejor ritmo de títulos largos. */
+  @media (max-width: 639.98px) { .tw-btn { min-height: 3.5rem; } .tw-section { padding-block: clamp(3.25rem, 11vw, 4rem); } }
+
+  /* Cabecera: sólida por defecto; sobre una portada con foto arranca transparente y se vuelve sólida al hacer scroll. */
+  .tw-header { background: rgb(255 255 255 / .94); color: var(--color-ink); border-color: color-mix(in srgb, var(--color-ink) 10%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  .tw-sub { color: var(--hdr-sub, var(--color-primary)); }
+  body:has([data-hero-photo]) .tw-header { margin-bottom: -4.5rem; }
+  body:has([data-hero-photo]) .tw-header:not([data-stuck]) { background: transparent; border-color: transparent; color: #fff; --hdr-sub: var(--color-celeste); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* v122: ficha de paquete/servicio. La tarjeta de reserva es más alta que la pantalla: sin esto el calendario y el botón "Continuar"
+   quedaban cortados y solo se alcanzaban llegando al final de toda la página. Ahora la tarjeta queda fija y se desplaza por dentro. */
+@media (min-width: 1024px) {
+  .gv-aside { max-height: calc(100vh - 7rem); max-height: calc(100dvh - 7rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; border-radius: var(--radius-lg); }
+  .gv-aside .tw-cal-day { aspect-ratio: 1.2; min-height: 2.25rem; }
+  .gv-aside .tw-slot { aspect-ratio: auto; min-height: 3.25rem; }
+}

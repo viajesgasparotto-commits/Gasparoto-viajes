@@ -1,0 +1,18 @@
+---
+// Cabecera de las páginas internas: campo azul noche plano, título grande a la izquierda. Slot "aside" = foto con rótulo (opcional).
+import Eyebrow from "./Eyebrow.astro";
+interface Props { eyebrow: string; title: string; lead?: string }
+const { eyebrow, title, lead } = Astro.props;
+const hasAside = Astro.slots.has("aside");
+---
+<section data-hero class="tw-page relative isolate overflow-hidden bg-night text-white">
+  <div class={`tw-wrap grid items-center gap-12 py-16 sm:py-24 ${hasAside ? "lg:grid-cols-[1.4fr_.6fr] lg:gap-20" : ""}`}>
+    <div>
+      <div data-fx="hero"><Eyebrow dark>{eyebrow}</Eyebrow></div>
+      <h1 data-fx="hero" class="m-0 font-display text-title font-semibold text-white">{title}</h1>
+      {lead && <p data-fx="hero" class="m-0 mt-7 max-w-xl text-lead text-white/80">{lead}</p>}
+      <div data-fx="hero"><slot /></div>
+    </div>
+    {hasAside && <div data-fx="hero" class="mx-auto w-full max-w-xs"><slot name="aside" /></div>}
+  </div>
+</section>

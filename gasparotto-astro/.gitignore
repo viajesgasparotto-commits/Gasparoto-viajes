@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+# generados por "npm run build"
+public/assets/tw.css
+public/assets/fx.js
+public/admin/admin.css

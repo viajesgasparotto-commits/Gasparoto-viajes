@@ -1,0 +1,16 @@
+---
+export const partial = true;
+import Btn from "../../components/Btn.astro";
+import { metaComment } from "../../lib/meta";
+
+const meta = { title: "Página não encontrada | {{BRAND}}", description: "A página que você procura não existe." };
+---
+<Fragment set:html={metaComment(meta)} /><section class="tw-page bg-night px-5 py-28 text-center text-white sm:py-40">
+  <p data-fx="hero" class="m-0 font-display text-[8rem] font-semibold leading-none text-celeste sm:text-[11rem]">404</p>
+  <h1 data-fx="hero" class="m-0 mt-4 font-display text-h2 font-semibold">Esta página se perdeu na viagem</h1>
+  <p data-fx="hero" class="mx-auto mb-0 mt-4 max-w-md text-lg text-white/80">A página que você procura não existe ou não está mais disponível.</p>
+  <div data-fx="hero" class="mt-9 flex flex-wrap justify-center gap-3">
+    <Btn variant="light" href="/">Voltar ao início</Btn>
+    <Btn variant="ghost" href="/paquetes/">Ver pacotes</Btn>
+  </div>
+</section>

@@ -1,0 +1,13 @@
+---
+// Panel de administración (cáscara). El HTML de cada vista lo arma public/admin/admin.js; los estilos salen de
+// src/styles/admin.css → public/admin/admin.css. Se sirve desde /admin/ (cabeceras "no-store" y noindex en public/_headers),
+// por eso el CSS y el JS no necesitan "?v=". El motor deja pasar /admin sin tocarlo (functions/_middleware.js).
+---
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Panel de administración</title><link rel="icon" href="/assets/logo.png">
+<link rel="stylesheet" href="/admin/admin.css">
+</head><body>
+<div id="app"></div><div id="msg" role="status"></div>
+
+<script is:inline src="/admin/admin.js"></script></body></html>

@@ -1,0 +1,41 @@
+---
+export const partial = true;
+import PageHero from "../../components/PageHero.astro";
+import Btn from "../../components/Btn.astro";
+import Eyebrow from "../../components/Eyebrow.astro";
+import { metaComment } from "../../lib/meta";
+import { T } from "../../lib/tokens";
+
+const meta = {
+  title: "Contato e atendimento em Buenos Aires | {{BRAND}}",
+  description: "Fale com a {{BRAND}} pelo WhatsApp ou telefone +54 11 6419-9083. Escritório na Florida 537, Local 356, Buenos Aires. Atendimento para reservas de passeios e shows de tango.",
+};
+const socials = [
+  ["Instagram", "https://www.instagram.com/gasparottoviajes/"],
+  ["Facebook", "https://www.facebook.com/profile.php?id=61578579680087"],
+  ["TikTok", "https://www.tiktok.com/@gasparotto.viajes"],
+];
+---
+<Fragment set:html={metaComment(meta)} /><PageHero eyebrow="Contato" title="Vamos conversar sobre a sua viagem" lead="A forma mais rápida de tirar dúvidas é pelo WhatsApp.">
+  <div class="mt-9 flex flex-wrap gap-3">
+    <Btn variant="wa" href={T.WA_URL} track="contacto">Falar no WhatsApp</Btn>
+    <Btn variant="ghost" href="tel:+541164199083">Ligar +54 11 6419-9083</Btn>
+  </div>
+</PageHero>
+
+<section class="tw tw-section bg-white">
+  <div class="tw-wrap grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
+    <div data-fx="up">
+      <Eyebrow>Escritório</Eyebrow>
+      <p class="m-0 font-display text-h3 font-semibold text-ink">Florida 537, Local 356, C1005 Cidade Autônoma de Buenos Aires.</p>
+      <div class="mt-8"><Btn variant="line" href="https://www.google.com/maps/search/?api=1&query=Florida+537+Buenos+Aires">Como chegar</Btn></div>
+      <p class="m-0 mb-4 mt-14 text-base font-semibold text-accent">Redes sociais</p>
+      <ul class="m-0 flex list-none flex-wrap gap-x-8 gap-y-2 p-0">
+        {socials.map(([name, href]) => (
+          <li><a href={href} rel="noopener me" class="tw-link inline-block py-2 font-semibold text-ink">{name}</a></li>
+        ))}
+      </ul>
+    </div>
+    <div data-fx="up" data-fx-delay="0.1"><Fragment set:html={'<div data-panel="google" data-v="map" hidden></div>'} /></div>
+  </div>
+</section>

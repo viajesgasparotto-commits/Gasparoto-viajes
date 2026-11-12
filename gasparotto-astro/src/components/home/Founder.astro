@@ -1,0 +1,27 @@
+---
+// Fundador: la foto lleva el rótulo azul de los carteles de la oficina (nombre y cargo), no un marco decorativo.
+import { founder } from "../../data/home";
+const [name, role] = founder.by.split(" · ");
+---
+<section class="tw tw-section bg-mist">
+  <div class="tw-wrap grid items-center gap-12 md:grid-cols-[.8fr_1.2fr] md:gap-20">
+    <figure class="m-0 mx-auto w-full max-w-sm">
+      <img
+        src={founder.img}
+        alt={founder.alt}
+        width="1023"
+        height="1537"
+        loading="lazy"
+        data-wipe
+        class="block aspect-[1023/1537] w-full rounded-t-lg object-cover"
+      />
+      <figcaption class="tw-caption rounded-b-lg"><strong class="block">{name}</strong>{role && <span class="font-medium text-white/85">{role}</span>}</figcaption>
+    </figure>
+    <div data-fx="up" data-fx-delay="0.12">
+      <blockquote class="m-0">
+        <p class="m-0 font-display text-h2 font-semibold text-ink">{founder.quote}</p>
+      </blockquote>
+      <a href={founder.link.href} class="tw-link mt-9 inline-block font-semibold text-primary">{founder.link.label}</a>
+    </div>
+  </div>
+</section>

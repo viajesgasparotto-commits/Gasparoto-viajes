@@ -1,0 +1,66 @@
+---
+export const partial = true;
+import PageHero from "../../components/PageHero.astro";
+import Eyebrow from "../../components/Eyebrow.astro";
+import CtaBand from "../../components/CtaBand.astro";
+import { metaComment } from "../../lib/meta";
+import { meta, hero, quote, history, values, founder, team, cta } from "../../data/nosotros";
+---
+<Fragment set:html={metaComment(meta)} /><PageHero eyebrow={hero.eyebrow} title={hero.title} lead={hero.lead}>
+  <figure slot="aside" class="m-0">
+    <img src={hero.img} alt={hero.alt} width="1023" height="1537" fetchpriority="high" class="block aspect-[1023/1537] w-full rounded-t-lg object-cover" />
+    <figcaption class="tw-caption rounded-b-lg">{hero.caption}</figcaption>
+  </figure>
+</PageHero>
+
+<section class="tw tw-section bg-mist">
+  <div data-fx="up" class="tw-wrap">
+    <blockquote class="m-0 max-w-4xl"><p class="m-0 font-display text-h2 font-semibold text-ink">{quote}</p></blockquote>
+  </div>
+</section>
+
+<section class="tw tw-section bg-white">
+  <div class="tw-wrap">
+    <div data-fx="up"><Eyebrow>{history.eyebrow}</Eyebrow></div>
+    <ol class="m-0 mt-6 grid list-none gap-12 p-0 md:grid-cols-3 md:gap-10">
+      {history.items.map((h, i) => (
+        <li data-fx="up" data-fx-delay={i * 0.1} class="border-t-2 border-primary pt-6">
+          <span class="font-display text-6xl font-semibold leading-none text-accent">{h.year}</span>
+          <h3 class="m-0 mt-6 font-display text-h3 font-semibold text-ink">{h.title}</h3>
+          <p class="m-0 mt-2 leading-relaxed text-mute">{h.text}</p>
+        </li>
+      ))}
+    </ol>
+    <p data-fx="up" class="m-0 mt-16 max-w-2xl text-lead text-mute">{history.body}</p>
+  </div>
+</section>
+
+<section class="tw tw-section bg-mist">
+  <div class="tw-wrap">
+    <div data-fx="up"><Eyebrow>{values.eyebrow}</Eyebrow></div>
+    <div class="mt-6 grid gap-12 md:grid-cols-3 md:gap-10">
+      {values.items.map((v, i) => (
+        <article data-fx="up" data-fx-delay={i * 0.1} class="border-t-2 border-ink pt-6">
+          <h3 class="m-0 font-display text-h3 font-semibold text-ink">{v.title}</h3>
+          <p class="m-0 mt-3 leading-relaxed text-mute">{v.text}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<section class="tw tw-section bg-white">
+  <div class="tw-wrap grid items-center gap-12 md:grid-cols-[1.1fr_.9fr] md:gap-20">
+    <div data-fx="up">
+      <Eyebrow>{founder.eyebrow}</Eyebrow>
+      <h2 class="m-0 font-display text-h2 font-semibold text-ink">{founder.name}</h2>
+      {founder.paragraphs.map((p) => <p class="m-0 mt-6 text-lg leading-relaxed text-mute">{p}</p>)}
+    </div>
+    <figure data-fx="up" data-fx-delay="0.12" class="m-0 mx-auto w-full max-w-md">
+      <img src={team.img} alt={team.alt} width="765" height="1024" loading="lazy" class="block aspect-[765/1024] w-full rounded-t-lg object-cover" />
+      <figcaption class="tw-caption rounded-b-lg">{team.caption}</figcaption>
+    </figure>
+  </div>
+</section>
+
+<CtaBand title={cta.title} lead={cta.lead} label={cta.label} track="nosotros" secondary={cta.secondary} />

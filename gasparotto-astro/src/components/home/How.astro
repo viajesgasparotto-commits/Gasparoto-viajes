@@ -1,0 +1,25 @@
+---
+// Son pasos de verdad, por eso van numerados. La ruta punteada que los une se rellena con el scroll (fx.ts: data-timeline).
+import { how } from "../../data/home";
+---
+<section class="tw tw-section bg-mist">
+  <div class="tw-wrap">
+    <h2 data-fx="up" class="m-0 font-display text-h2 font-semibold text-ink">{how.title}</h2>
+    <ol data-timeline class="relative m-0 mt-16 grid list-none gap-14 p-0 md:grid-cols-3 md:gap-12">
+      <li aria-hidden="true" class="absolute bottom-3 left-[0.4375rem] top-3 w-0.5 bg-primary/20 md:hidden">
+        <i data-timeline-fill="y" class="block size-full origin-top bg-primary"></i>
+      </li>
+      <li aria-hidden="true" class="absolute left-3 right-3 top-[0.4375rem] hidden h-0.5 bg-primary/20 md:block">
+        <i data-timeline-fill="x" class="block size-full origin-left bg-primary"></i>
+      </li>
+      {how.steps.map((s) => (
+        <li class="relative pl-12 md:pl-0 md:pt-14">
+          <span aria-hidden="true" class="absolute left-0 top-0 z-10 size-4 rounded-full bg-primary ring-8 ring-mist"></span>
+          <p class="m-0 font-display text-6xl font-semibold leading-none text-accent">{s.n}</p>
+          <h3 class="m-0 mt-5 font-display text-h3 font-semibold text-ink">{s.title}</h3>
+          <p class="m-0 mt-3 max-w-xs leading-relaxed text-mute">{s.text}</p>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>

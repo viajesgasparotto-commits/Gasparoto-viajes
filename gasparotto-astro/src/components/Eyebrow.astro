@@ -1,0 +1,6 @@
+---
+// Bajada corta sobre un título (solo donde aporta contexto). Texto normal, sin mayúsculas ni espaciado.
+interface Props { dark?: boolean }
+const { dark = false } = Astro.props;
+---
+<p class={`m-0 mb-4 text-base font-semibold ${dark ? "text-celeste" : "text-accent"}`}><slot /></p>

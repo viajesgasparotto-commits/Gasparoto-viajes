@@ -27,7 +27,7 @@
     "GTM_ID": "",
     "META_PIXEL_ID": "",
     // Página de privacidad (ruta interna o https). Vacío = el banner no muestra enlace.
-    "PRIVACY_URL": "",
+    "PRIVACY_URL": "/privacidade/",
     "BRAND_PRIMARY": "#0066a9",
     "BRAND_ACCENT": "#7f1d35",
     "BRAND_CTA": "#1a6b43"

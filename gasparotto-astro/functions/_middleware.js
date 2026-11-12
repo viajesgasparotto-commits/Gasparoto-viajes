@@ -1,3 +1,4 @@
+import { privacyPage } from "./lib/privacy.js";
 import { videoBlock, esc, labels, pkgSection, chipsRow, listShell, CARD_GRID, waLink, pkgCard, priceHtml, discountPct, WA_ICON, bundleSection, kindSwitch, kindText } from "./lib/html.js";
 import { injectTheme, perks } from "./lib/brand.js";
 import { listCategories, catPath } from "./lib/categories.js";
@@ -472,6 +473,7 @@ async function handlePt(ctx) {
   if (path.startsWith("/google-foto/")) return googlePhoto(env, path.slice("/google-foto/".length).replace(/\/$/, ""));
   if (path === "/robots.txt") return new Response(buildRobots(env, isProdHost(env, url)), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
   if (path === "/sitemap.xml") return sitemap(env);
+  if (path === "/privacidade/" || path === "/privacidade" || path === "/privacidad/") return privacyPage(env);
   if (path === "/blog/feed.xml") return feed(env);
   if (path.startsWith("/api/") || path.startsWith("/admin") || path === "/mcp" || path.startsWith("/mcp/")) return next();
   const fixed = staticRedirect(path);

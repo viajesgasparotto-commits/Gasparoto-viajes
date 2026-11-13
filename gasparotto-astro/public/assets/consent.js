@@ -46,6 +46,9 @@
       }
       window.fbq("init", META);
       window.fbq("track", "PageView");
+      // Ficha de un paquete: ViewContent con el id del catálogo (anuncios dinámicos y remarketing por paquete).
+      var P = window.__GVP;
+      if (P && P.id) window.fbq("track", "ViewContent", { content_ids: [P.id], content_type: "product", content_name: P.name || "", value: P.value || 0, currency: P.currency || "BRL" });
     }
   }
 

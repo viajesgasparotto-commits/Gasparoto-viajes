@@ -4,7 +4,7 @@ import { esc } from "./html.js";
 import { BRAND } from "./seo.js";
 
 // Subir este número cuando cambie conv.js (los /assets/* se cachean un año).
-export const ASSET_V = "20";
+export const ASSET_V = "21";
 
 const hex = (v, fallback) => (/^#[0-9a-f]{3,8}$/i.test(String(v || "").trim()) ? String(v).trim() : fallback);
 
@@ -38,7 +38,7 @@ export const headInject = (env) =>
 
 // Banner de cookies + carga condicional de medición. Solo aparece si hay GTM_ID o META_PIXEL_ID válidos.
 // Los IDs se validan con formato estricto antes de llegar al HTML.
-export const CONSENT_V = "1";
+export const CONSENT_V = "2";
 const GTM_RE = /^GTM-[A-Z0-9]{4,12}$/, META_RE = /^\d{5,20}$/;
 export function consentTag(env) {
   const gtm = String(env.GTM_ID || "").trim(), meta = String(env.META_PIXEL_ID || "").trim(), priv = String(env.PRIVACY_URL || "").trim();

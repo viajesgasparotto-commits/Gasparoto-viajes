@@ -353,9 +353,33 @@ ${bar}
     images: shareImgs,
     imageAlt: p.image_alt || p.title,
     ogType: "website",
+    // Píxel de Meta: qué paquete se está viendo (ViewContent) con el mismo id que el catálogo (/meta-catalogo.csv) para los anuncios dinámicos.
+    metaExtra: `<script>window.__GVP=${JSON.stringify({ id: p.slug, name: p.title, value: Number(parsePrice(cheapestOption(opts)?.price || p.price)) || 0, currency: priceCurrency(env, cheapestOption(opts)?.price || p.price) }).replace(/</g, "\\u003c")}</script>`,
     ld: ldScript(packageLd(env, p, { url: canonical, desc, image, listing: cat, lang: L.lang, times: timesOf(p).map((r) => r[0]), kind: kindOf(p), options: opts })) + (F.ld ? ldScript(F.ld) : ""),
   });
 }
+
+// Catálogo para Meta (anuncios dinámicos / Advantage+ catálogo): todos los paquetes y servicios publicados, en CSV.
+// Meta lo descarga una vez por día (Administrador de ventas › Catálogo › Orígenes de datos): los paquetes nuevos entran solos.
+async function metaCatalog(env) {
+  const list = env.DB ? (await env.DB.prepare("SELECT * FROM packages WHERE published=1 ORDER BY featured DESC, id DESC").all()).results || [] : [];
+  const cats = new Map((await listCategories(env.DB, "packages").catch(() => [])).map((c) => [c.slug, c.label]));
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""').replace(/\s+/g, " ").trim()}"`;
+  const head = ["id", "title", "description", "availability", "condition", "price", "sale_price", "link", "image_link", "brand", "product_type", "google_product_category", "custom_label_0"];
+  const lines = [head.join(",")];
+  for (const p of list) {
+    const opt = cheapestOption(optionsOf(p));
+    const raw = opt ? opt.price : p.price, n = parsePrice(raw);
+    if (!n || !p.image) continue; // Meta exige precio e imagen
+    const cur = priceCurrency(env, raw), old = parsePrice(p.price_old);
+    const price = old && Number(old) > Number(n) ? `${Number(old).toFixed(2)} ${cur}` : `${Number(n).toFixed(2)} ${cur}`;
+    const sale = old && Number(old) > Number(n) ? `${Number(n).toFixed(2)} ${cur}` : "";
+    const desc = clip(stripTags(p.excerpt || p.content || p.title), 4900) || p.title;
+    lines.push([p.slug, clip(p.title, 150), desc, "in stock", "new", price, sale, `${siteUrl(env)}/paquetes/${p.slug}/`, absUrl(env, p.image), BRAND_NAME(env), cats.get(p.category) || p.category, "Arts & Entertainment > Event Tickets", kindOf(p)].map(q).join(","));
+  }
+  return new Response(lines.join("\n") + "\n", { headers: { "content-type": "text/csv; charset=utf-8", "cache-control": "public, max-age=3600" } });
+}
+const BRAND_NAME = (env) => String(env.BRAND_NAME || "Gasparotto Viajes").trim() || "Gasparotto Viajes";
 
 async function sitemap(env) {
   const lastmod = new Map(STATIC_PAGES);
@@ -482,6 +506,7 @@ async function handlePt(ctx) {
   // Enlace corto al perfil de Google (lo usa la IA de WhatsApp para no mandar una URL larga).
   if ((path === "/google" || path === "/google/") && String(env.GOOGLE_PLACE_ID || "").trim()) return Response.redirect(`https://www.google.com/maps/place/?q=place_id:${String(env.GOOGLE_PLACE_ID).trim()}`, 302);
   if (path === "/blog/feed.xml") return feed(env);
+  if (path === "/meta-catalogo.csv") return metaCatalog(env);
   if (path.startsWith("/api/") || path.startsWith("/admin") || path === "/mcp" || path.startsWith("/mcp/")) return next();
   const fixed = staticRedirect(path);
   if (fixed) return Response.redirect(url.origin + fixed, 301);

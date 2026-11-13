@@ -25,7 +25,7 @@
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({ event: "gv_whatsapp_click", item: item || "", page: location.pathname });
       if (typeof window.gtag === "function") window.gtag("event", "generate_lead", { method: "whatsapp", item_name: item || "" });
-      if (typeof window.fbq === "function") window.fbq("track", "Contact");
+      if (typeof window.fbq === "function") window.fbq("track", "Contact", window.__GVP && window.__GVP.id ? { content_ids: [window.__GVP.id], content_type: "product" } : {});
     } catch (e) {}
     var key = (item || "") + "|" + location.pathname;
     if (!G.leads || sent[key] && Date.now() - sent[key] < 30000) return;
@@ -672,7 +672,7 @@
         showSent(L.bkTitle, j.pay === "pix" ? L.bkBodyPay : L.bkBody, wa);
         fillDetail(j, d, pkg, j.pay === "pix" ? L.nextPix : L.nextWa);
         setTrack(2, j.pay === "pix");
-        try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: "gv_lead_form", item: pkg }, { event: "gv_booking_pending", item: pkg, value: j.total, currency: j.currency }); if (typeof window.gtag === "function") window.gtag("event", "generate_lead", { method: "booking", item_name: pkg }); if (typeof window.fbq === "function") window.fbq("track", "InitiateCheckout", { content_name: pkg, value: j.total, currency: j.currency }); } catch (e) {}
+        try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: "gv_lead_form", item: pkg }, { event: "gv_booking_pending", item: pkg, value: j.total, currency: j.currency }); if (typeof window.gtag === "function") window.gtag("event", "generate_lead", { method: "booking", item_name: pkg }); if (typeof window.fbq === "function") window.fbq("track", "InitiateCheckout", { content_ids: window.__GVP && window.__GVP.id ? [window.__GVP.id] : [], content_type: "product", content_name: pkg, value: j.total, currency: j.currency }); } catch (e) {}
         calApi.refresh();
       }
       function book(d, name, phone, pax, pkg) {
@@ -711,7 +711,7 @@
         if (b) fillDetail(b.j, b.d, b.pkg, L.nextPaid);
         setTrack(4, true);
         if (icsBtn && b) { icsBtn.href = icsUrl(b); icsBtn.setAttribute("download", "reserva-" + b.j.id + ".ics"); icsBtn.querySelector("span").textContent = L.icsBtn; icsBtn.hidden = false; }
-        try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: "gv_booking_paid", item: b && b.pkg, value: b && b.j.total, currency: b && b.j.currency }); if (typeof window.gtag === "function" && b) window.gtag("event", "purchase", { transaction_id: String(b.j.id), value: b.j.total, currency: b.j.currency, items: [{ item_name: b.pkg }] }); if (typeof window.fbq === "function" && b) window.fbq("track", "Purchase", { content_name: b.pkg, value: b.j.total, currency: b.j.currency }, { eventID: "gv-" + b.j.id }); } catch (e) {}
+        try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: "gv_booking_paid", item: b && b.pkg, value: b && b.j.total, currency: b && b.j.currency }); if (typeof window.gtag === "function" && b) window.gtag("event", "purchase", { transaction_id: String(b.j.id), value: b.j.total, currency: b.j.currency, items: [{ item_name: b.pkg }] }); if (typeof window.fbq === "function" && b) window.fbq("track", "Purchase", { content_ids: window.__GVP && window.__GVP.id ? [window.__GVP.id] : [], content_type: "product", content_name: b.pkg, value: b.j.total, currency: b.j.currency }, { eventID: "gv-" + b.j.id }); } catch (e) {}
         if (calApi) calApi.refresh();
       }
       function poll() {
@@ -786,7 +786,7 @@
               body: JSON.stringify({ name: name, phone: phone, date: d.date || "", pax: pax, message: (optName() ? L.opt + ": " + optName() + (leadMsg(d) ? " \u00b7 " : "") : "") + leadMsg(d), package: f.getAttribute("data-package") || "", slug: f.getAttribute("data-slug") || "", page: location.pathname, source: "form", website: d.website || "" }) }).catch(function () {});
           } catch (e) {}
         }
-        try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: "gv_lead_form", item: pkg }); if (typeof window.gtag === "function") window.gtag("event", "generate_lead", { method: "form", item_name: pkg }); if (typeof window.fbq === "function") window.fbq("track", "Lead", { content_name: pkg }); } catch (e) {}
+        try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: "gv_lead_form", item: pkg }); if (typeof window.gtag === "function") window.gtag("event", "generate_lead", { method: "form", item_name: pkg }); if (typeof window.fbq === "function") window.fbq("track", "Lead", { content_ids: window.__GVP && window.__GVP.id ? [window.__GVP.id] : [], content_type: "product", content_name: pkg }); } catch (e) {}
 
         // Confirmación en el mismo lugar del formulario.
         sentBox.querySelector("[data-sent-title]").textContent = G.wa ? L.sentTitle : L.okTitle;

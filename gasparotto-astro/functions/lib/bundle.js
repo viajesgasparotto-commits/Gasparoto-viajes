@@ -100,6 +100,14 @@ export function bundlePolicies(p, items, L = {}) {
   return [...own, ...extra];
 }
 
+// Servicio suelto: si acepta niños, tiene tabla de edades y no escribió una política de menores, la de menores se arma sola con la tabla.
+export function servicePolicies(p, L = {}) {
+  const own = policiesOf(p, L);
+  if (Number(p.accepts_children) !== 1 || own.some((x) => x.type === "menores" && !x.option)) return own;
+  const t = kidsPolicy(p).tiers;
+  return t.length ? [...own, { type: "menores", title: (L.policyTypes || {}).menores || "", text: kidsText(t, L.lang || "pt"), option: "", auto: true }] : own;
+}
+
 // Precio automático: suma de los servicios − descuento. ok = todos tienen precio numérico y en la misma moneda.
 export function bundleQuote(p, items) {
   const m = parseMeta(p.meta), disc = Math.min(90, Math.max(0, Math.round(Number(m.disc) || 0)));

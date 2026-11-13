@@ -6,7 +6,7 @@ import { googleBlock, googlePhoto } from "./lib/google.js";
 import { parsePrice, priceCurrency, siteUrl, isProdHost, absUrl, clip, pageTitle, sanitizeHtml, ldScript, postLd, blogIndexLd, packageLd, packageSeo, personLd, buildSitemap, buildRobots, breadcrumbLd, orgLd, websiteLd, ymd, BRAND, LOGO, initBrand } from "./lib/seo.js";
 import { fichaHtml, compareTable, filterBar, kindOf, partsOf, timesOf, galleryOf, isVideoUrl, optionsOf, cheapestOption, policiesOf } from "./lib/ficha.js";
 import { bookingConfig, holdMinutes, kidsPolicy } from "./lib/booking.js";
-import { bundleItems, bundleKidTable, bundlePolicies, bundleQuote, isBundle, kidsText, loadParts, spanOf, winOf } from "./lib/bundle.js";
+import { bundleItems, bundleKidTable, bundlePolicies, bundleQuote, isBundle, kidsText, loadParts, servicePolicies, spanOf, winOf } from "./lib/bundle.js";
 import { pixEnabled } from "./lib/pix.js";
 import { STATIC_PAGES } from "./lib/static-pages.js";
 import { SITE, legacyTarget, staticRedirect } from "./lib/site.js";
@@ -157,7 +157,8 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const pct = discountPct(p.price_old, p.price);
   const details = (p.details || "").split("\n").map((x) => x.trim()).filter(Boolean);
   // Paquete que combina servicios: las políticas que el paquete no tenga escritas se arman solas con las de cada servicio.
-  const bPols = extra.items && extra.items.length ? bundlePolicies(p, extra.items, L) : null;
+  // Servicio suelto: la de menores sale sola de la tabla de precios de niños si no la escribieron.
+  const bPols = extra.items && extra.items.length ? bundlePolicies(p, extra.items, L) : servicePolicies(p, L);
   const F = fichaHtml(p, details, L, bPols);
   const waFor = (x) => waLink(env, x.title, L.waTitle), K = kindText(L.lang);
   // SEO de la ficha: título y descripción propios; si la agencia no los escribió, se arman con el nombre, la categoría, el tipo y el precio.

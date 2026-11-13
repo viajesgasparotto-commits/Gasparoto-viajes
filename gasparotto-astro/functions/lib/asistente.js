@@ -6,6 +6,8 @@ import { CORTE_CACHE, askAI, aiConfig } from "./ai.js";
 import { parseMeta, timesOf, optionsOf } from "./ficha.js";
 import { siteUrl, stripTags, BRAND, initBrand } from "./seo.js";
 import { SITE } from "./site.js";
+import { bundleItems, bundlePolicies, isBundle, kidsText, servicePolicies } from "./bundle.js";
+import { kidsPolicy } from "./booking.js";
 import { ensureSchema } from "./schema.js";
 
 // Marcas que la IA agrega al final (nunca le llegan al cliente).
@@ -51,13 +53,29 @@ async function web(env) {
   if (Date.now() - cache.at < 60000 && cache.text) return cache;
   const db = env.DB, base = siteUrl(env) || "";
   const cats = new Map(((await db.prepare("SELECT slug, label FROM categories WHERE kind='packages'").all()).results || []).map((c) => [c.slug, c.label]));
-  const rows = (await db.prepare("SELECT slug, title, category, price, price_old, excerpt, details, content, meta, booking_enabled, pay_mode, time_booking, min_pax, max_pax FROM packages WHERE published=1 ORDER BY featured DESC, home_order, id DESC LIMIT 80").all()).results || [];
+  // Para niños y políticas de los paquetes combinados hacen falta sus servicios (aunque no estén publicados).
+  const all = ((await db.prepare("SELECT id, slug, title, price, meta, accepts_children, kids_policy, booking_enabled, time_booking FROM packages").all().catch(() => ({ results: [] }))).results) || [];
+  const PT = { policyTypes: { menores: "Menores", cancelacion: "Cancelación", documentacion: "Documentación", pagos: "Pagos" }, lang: "es" };
+  const ninos = (p, items) => {
+    if (items) {
+      const L = items.map((i) => Number(i.svc.accepts_children) === 1 ? (kidsPolicy(i.svc).tiers.length ? `${i.title}: ${kidsText(kidsPolicy(i.svc).tiers, "es")}` : `${i.title}: precio de adulto`) : `${i.title}: no acepta niños`);
+      return items.some((i) => Number(i.svc.accepts_children) === 1) ? `cada niño paga según cada servicio (${L.join(" | ")})` : "";
+    }
+    if (Number(p.accepts_children) !== 1) return "";
+    const t = kidsPolicy(p).tiers;
+    return t.length ? kidsText(t, "es") : "pagan como adulto";
+  };
+  const rows = (await db.prepare("SELECT slug, title, category, price, price_old, excerpt, details, content, meta, booking_enabled, pay_mode, time_booking, min_pax, max_pax, accepts_children, kids_policy FROM packages WHERE published=1 ORDER BY featured DESC, home_order, id DESC LIMIT 80").all()).results || [];
   const pkgs = rows.map((p) => {
     const m = parseMeta(p.meta);
     const facts = (Array.isArray(m.facts) ? m.facts : []).filter((f) => Array.isArray(f) && f[0] && f[1]).map((f) => `${f[0]}: ${f[1]}`).join("; ");
     const times = timesOf(p).map((t) => t[0]).join(", ");
     const opts = optionsOf(p).map((o) => `${o.name} ${o.price}`).join("; ");
     const reserva = p.booking_enabled ? (p.pay_mode === "pix" ? "reserva y pago online (Pix) en el enlace" : "reserva online en el enlace") : "se reserva coordinando con el equipo";
+    const items = isBundle(p) ? bundleItems(p, all) : null;
+    const kids = ninos(p, items);
+    const pols = (items ? bundlePolicies(p, items, PT) : servicePolicies(p, PT)).filter((x) => x.type !== "menores" || !kids)
+      .map((x) => `${x.title || "Condición"}${x.option ? ` (${x.option})` : ""}: ${String(x.text).replace(/\*\*/g, "").replace(/\s*\n+\s*/g, " / ")}`).join(" · ");
     return [
       `• ${p.title} [${cats.get(p.category) || p.category}]`,
       p.price ? `  Precio: ${p.price}${p.price_old ? ` (antes ${p.price_old})` : ""}` : "  Precio: a consultar",
@@ -68,6 +86,8 @@ async function web(env) {
       p.details && `  Incluye/detalles: ${clip(p.details, 500)}`,
       p.content && `  Descripción: ${clip(p.content, 700)}`,
       `  Personas: ${p.min_pax || 1} a ${p.max_pax || 10} · ${reserva}`,
+      kids && `  Niños: ${clip(kids, 400)}`,
+      pols && `  Políticas: ${clip(pols, 500)}`,
       `  Enlace: ${base}/paquetes/${p.slug}/`,
     ].filter(Boolean).join("\n");
   }).join("\n");
@@ -162,6 +182,7 @@ TU TRABAJO ES VENDER (como el mejor vendedor de la agencia)
 - Si encaja, ofrecé un servicio complementario del catálogo. No insistas si dice que no.
 - Objeciones: si le parece caro, explicá qué incluye y por qué vale; si hay una opción más económica, ofrecela. Si duda, preguntá qué le falta para decidir. Las reseñas de Google ayudan a dar confianza.
 - Si el cliente ya reservó, felicitalo y ofrecé lo complementario.
+- Niños: si viajan chicos, preguntá la edad (si no la dijo) y decí cuánto paga cada uno con la línea "Niños" del catálogo. Si un paquete o servicio no tiene línea "Niños", no hay tarifa especial: los menores pagan como adulto (si preguntan si un menor puede ir, decí que lo confirmás con el equipo y terminá con ${HANDOFF}).
 - Precio en promoción (el catálogo dice "antes …"): primero el precio anterior y después la promo, así: "De R$ 400, hoje temos a promoção por R$ 320 por pessoa" (en español: "De R$ 400, hoy tenemos la promoción a R$ 320 por persona"). No digas que la promo vence ni hasta cuándo dura, salvo que lo digan el catálogo o las indicaciones.
 - Nunca uses urgencia falsa (cupos que se agotan, ofertas que vencen) si no está en el catálogo o en las indicaciones.
 - Si sirve, recomendá una nota del BLOG (con su enlace) para que el cliente se informe o se entusiasme, y volvé a la venta.

@@ -19,7 +19,7 @@ function d1() {
 }
 const env = {
   DB: d1(), ADMIN_PASSWORD: "clave-general-123", SITE_URL: "https://gasparottoviajes.com", SITE_LANG: "pt-BR", BRAND_NAME: "Gasparotto Viajes",
-  IA_PROVEEDOR: "gemini", GEMINI_API_KEY: "g-key", WHATSAPP_TOKEN: "wa-token", WHATSAPP_PHONE_ID: "123456", WHATSAPP_APP_SECRET: "app-secret", WHATSAPP_VERIFY_TOKEN: "verificame",
+  IA_ESPERA_MS: 0, IA_PROVEEDOR: "gemini", GEMINI_API_KEY: "g-key", WHATSAPP_TOKEN: "wa-token", WHATSAPP_PHONE_ID: "123456", WHATSAPP_APP_SECRET: "app-secret", WHATSAPP_VERIFY_TOKEN: "verificame",
 };
 
 // ---------- fetch simulado: Gemini, Claude y la Graph API de WhatsApp ----------
@@ -471,5 +471,61 @@ console.log("✓ seguimiento automático: una vez por silencio, con botón, nunc
   assert.ok(sys18.includes("Fechas del viaje: 10 al 14 de marzo") && sys18.includes("Personas: 4 (2 adultos y 2 chicos)"), "la ficha va siempre en el contexto");
   assert.equal(JSON.parse((await one("SELECT datos FROM ia_chats WHERE id=?", ch.id)).datos).hotel, "Palermo", "se suma sin borrar lo anterior");
   console.log("✓ ficha del cliente: fechas, personas y más quedan guardadas aunque la charla sea larga");
+}
+{
+  // 19) Ráfaga de mensajes: responde una sola vez, con todo en el historial
+  env.IA_ESPERA_MS = 80; reset(); aiReply = "Oi Leo! O *City Tour* custa R$ 150.";
+  await Promise.all([
+    inbound(waMsg("oi", "5511777770000", "Leo")),
+    new Promise((r) => setTimeout(r, 20)).then(() => inbound(waMsg("quero info", "5511777770000", "Leo"))),
+    new Promise((r) => setTimeout(r, 40)).then(() => inbound(waMsg("do city tour", "5511777770000", "Leo"))),
+  ]);
+  env.IA_ESPERA_MS = 0;
+  assert.equal(of("generativelanguage").length, 1, "una sola llamada a la IA");
+  assert.equal(of("graph.facebook.com").filter((c) => c.body.type === "text" || c.body.type === "interactive").length, 1, "una sola respuesta");
+  const turns = of("generativelanguage")[0].body.contents.map((c) => c.parts.map((p) => p.text).join(""));
+  assert.ok(turns.join(" ").includes("oi") && turns.join(" ").includes("do city tour"), "la IA ve toda la ráfaga");
+  console.log("✓ ráfaga: 3 mensajes seguidos → 1 respuesta");
+}
+{
+  // 20) Seguimiento: no se mete si el equipo habló; puede decidir no escribir; marcas mal escritas no se filtran
+  env.IA_HORA_PRUEBA = 15;
+  reset(); aiReply = "Recomendo o *City Tour*: https://gasparottoviajes.com/paquetes/city-tour-zona-sur/";
+  await inbound(waMsg("Oi, quanto custa?", "5511444440000", "Eva"));
+  const eva = (await one("SELECT id FROM ia_chats WHERE contact='5511444440000'")).id;
+  await env.DB.prepare("INSERT INTO ia_messages (chat_id, role, text) VALUES (?,?,?)").bind(eva, "agent", "Oi Eva, sou a Ana da agência!").run();
+  await env.DB.prepare("UPDATE ia_messages SET at=datetime('now','-4 hours') WHERE chat_id=?").bind(eva).run();
+  reset(); let r = await cron();
+  assert.ok(!(r.data.detalle || []).some((d) => d.chat === eva), "última palabra del equipo: sin seguimiento");
+  // Aunque después hable Gaspi, si el equipo escribió en las últimas 24 h tampoco
+  await env.DB.prepare("INSERT INTO ia_messages (chat_id, role, text, at) VALUES (?,?,?,datetime('now','-4 hours'))").bind(eva, "assistant", "Qualquer coisa me avisa!").run();
+  reset(); r = await cron();
+  assert.ok(!(r.data.detalle || []).some((d) => d.chat === eva), "equipo en las últimas 24 h: sin seguimiento");
+  // NO_SEGUIR: Gaspi decide no escribir
+  reset(); aiReply = "Perfeito! Qualquer coisa estamos aqui.";
+  await inbound(waMsg("Obrigado, já reservei!", "5511555550000", "Rui"));
+  const rui = (await one("SELECT id FROM ia_chats WHERE contact='5511555550000'")).id;
+  await env.DB.prepare("UPDATE ia_messages SET at=datetime('now','-4 hours') WHERE chat_id=?").bind(rui).run();
+  reset(); aiReply = "[[NO_SEGUIR]]";
+  r = await cron();
+  assert.equal(of("graph.facebook.com").filter((c) => c.body.to === "5511555550000" && c.body.type).length, 0, "no le escribe");
+  assert.ok((await one("SELECT followup_at FROM ia_chats WHERE id=?", rui)).followup_at, "queda marcado para no reintentar");
+  reset(); r = await cron(); assert.equal(of("generativelanguage").length, 0, "no vuelve a consultar a la IA en este silencio");
+  // Marca mal escrita
+  reset(); aiReply = "Uma pessoa da equipe vai te ajudar. [HUMANO]";
+  await inbound(waMsg("Quero falar com alguém", "5511666660000", "Lia"));
+  const sent = of("graph.facebook.com").find((c) => c.body.type === "text");
+  assert.ok(!/HUMANO|\[/.test(sent.body.text.body), "la marca mal escrita no le llega al cliente");
+  console.log("✓ seguimiento respeta al equipo y puede no escribir; marcas internas nunca se filtran");
+}
+{
+  // 21) Mensaje sin respuesta porque el proceso se cortó (sin marca de error): el aviso programado lo responde
+  reset(); aiReply = "Oi Teo! Como posso ajudar?";
+  const ch = (await env.DB.prepare("INSERT INTO ia_chats (channel, contact, name, updated_at) VALUES ('whatsapp','5511888810000','Teo', datetime('now','-5 minutes'))").run()).meta.last_row_id;
+  await env.DB.prepare("INSERT INTO ia_messages (chat_id, role, text, at) VALUES (?,?,?,datetime('now','-5 minutes'))").bind(ch, "user", "Oi, tudo bem?").run();
+  const r = await cron();
+  assert.ok((r.data.detalle || []).some((d) => d.chat === ch && d.ok), "lo responde");
+  assert.equal((await one("SELECT role FROM ia_messages WHERE chat_id=? ORDER BY id DESC LIMIT 1", ch)).role, "assistant");
+  console.log("✓ mensajes que quedaron sin respuesta (proceso cortado) se responden en el aviso programado");
 }
 console.log("\nTodo OK: asistente IA");

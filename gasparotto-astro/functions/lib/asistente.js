@@ -11,7 +11,9 @@ import { ensureSchema } from "./schema.js";
 // Marcas que la IA agrega al final (nunca le llegan al cliente).
 export const HANDOFF = "[[HUMANO]]"; // conviene que una persona mire la charla (la IA sigue atendiendo)
 export const PAGO = "[[PAGO]]";      // el cliente dice que pagó y el pago no figura: el equipo verifica el ingreso
+export const NO_SEGUIR = "[[NO_SEGUIR]]"; // seguimiento: no conviene escribirle (ya dijo que no, ya reservó, cerró la charla)
 const HISTORY = 24;            // mensajes de contexto que se le pasan a la IA
+const ESPERA_MS = 6000;        // espera antes de responder, para juntar mensajes seguidos (IA_ESPERA_MS lo cambia; 0 = sin espera)
 const MAX_PER_HOUR = 25;       // respuestas por conversación y por hora (freno de costos y de abuso)
 const DEFAULT_DAILY = 400;     // respuestas por día en todo el sitio (IA_MAX_DIARIO lo cambia)
 export const SETTING_KEY = "ia_instrucciones";
@@ -235,6 +237,8 @@ El cliente no responde hace unas ${seguimiento} horas. Escribí UN solo mensaje 
 - Si tiene una reserva pendiente de pago, ofrecele ayuda para completar el pago con el enlace del paquete.
 - Si todavía no le recomendaste nada, retomá con una pregunta concreta para ayudarlo a elegir.
 No te presentes de nuevo, no repitas lo que ya dijiste palabra por palabra y no inventes ofertas ni urgencias.
+Escribilo en el idioma en que venía hablando el cliente.
+Si NO conviene escribirle (dijo que no le interesa, que ya reservó, se despidió, o la charla quedó cerrada), respondé solo ${NO_SEGUIR} y nada más.
 
 ` : ""}${extra ? `INDICACIONES DE LA AGENCIA (tienen prioridad sobre lo anterior, salvo las reglas firmes)\n${extra}\n\n` : ""}CATÁLOGO (lo único que podés vender)
 ${W.text || "(Todavía no hay paquetes publicados: tomá los datos del cliente y terminá con " + HANDOFF + ".)"}
@@ -278,13 +282,14 @@ async function guardarFicha(db, chatId, datos) {
 }
 
 export async function pensar(env, history, ctx = {}) {
-  if (!ctx.idioma) ctx = { ...ctx, idioma: idiomaTextos(history.filter((h) => h.role === "user" && !String(h.text).startsWith("[")).map((h) => h.text).reverse().slice(0, 6)) };
+  if (!ctx.idioma) ctx = { ...ctx, idioma: idiomaTextos(history.filter((h) => h.role === "user" && !String(h.text).startsWith("[")).map((h) => h.text).reverse().slice(0, 6)) || (ctx.seguimiento ? lang2(env) : "") };
   const raw = await askAI(env, { system: await systemPrompt(env, ctx), messages: history.slice(-HISTORY), maxTokens: 800 });
-  const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO);
+  const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO), noSeguir = raw.includes(NO_SEGUIR);
   const { texto, datos } = sacarFicha(raw);
-  const reply = pulir(texto.split(HANDOFF).join("").split(PAGO).join(""));
+  // Marcas internas mal escritas ([HUMANO], [[ PAGO ]]…) tampoco le llegan al cliente.
+  const reply = pulir(texto.split(HANDOFF).join("").split(PAGO).join("").split(NO_SEGUIR).join("").replace(/\[{1,2}\s*(HUMANO|PAGO|NO_SEGUIR)\s*\]{1,2}/gi, ""));
   if (ctx.chatId) await guardarFicha(env.DB, ctx.chatId, datos).catch(() => {});
-  return { reply, handoff, pago, datos };
+  return { reply, handoff, pago, datos, noSeguir };
 }
 
 // ---------- Conversaciones guardadas ----------
@@ -293,8 +298,9 @@ async function chatDe(db, channel, contact, name) {
   return one(db, "SELECT * FROM ia_chats WHERE channel=? AND contact=?", channel, contact);
 }
 export async function guardarMensaje(db, chatId, role, text, extId = "") {
-  await run(db, "INSERT INTO ia_messages (chat_id, role, text, ext_id) VALUES (?,?,?,?)", chatId, role, String(text).slice(0, 4000), extId || "");
+  const r = await run(db, "INSERT INTO ia_messages (chat_id, role, text, ext_id) VALUES (?,?,?,?)", chatId, role, String(text).slice(0, 4000), extId || "");
   await run(db, "UPDATE ia_chats SET updated_at=CURRENT_TIMESTAMP, msgs=msgs+1 WHERE id=?", chatId);
+  return Number(r?.meta?.last_row_id) || 0;
 }
 export async function historial(db, chatId, n = HISTORY) {
   const rows = (await db.prepare("SELECT role, text FROM ia_messages WHERE chat_id=? ORDER BY id DESC LIMIT ?").bind(chatId, n).all()).results || [];
@@ -310,7 +316,7 @@ async function entrada(env, { channel, contact, name = "", text, extId = "", ref
   await ensureSchema(db);
   if (extId && (await one(db, "SELECT 1 x FROM ia_messages WHERE ext_id=?", extId))) return { skip: "repetido" }; // Meta reintenta envíos
   let chat = await chatDe(db, channel, contact, name);
-  await guardarMensaje(db, chat.id, "user", text, extId);
+  const msgId = await guardarMensaje(db, chat.id, "user", text, extId);
   if (chat.msgs === 0 || referral || !chat.origin) {
     const origin = await origenDe(env, text, referral);
     await run(db, "UPDATE ia_chats SET origin=? WHERE id=?", origin, chat.id);
@@ -322,7 +328,7 @@ async function entrada(env, { channel, contact, name = "", text, extId = "", ref
       `${String(text).slice(0, 450)}${chat.origin ? ` [${chat.origin}]` : ""}`, channel, "ia").catch(() => {});
   }
   if (chat.paused) return { skip: "detenida en esta charla", chat };
-  return { chat };
+  return { chat, msgId };
 }
 
 // Mensaje entrante de un cliente. Devuelve { reply } si hay que contestarle, o { skip: motivo }.
@@ -330,8 +336,15 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   const db = env.DB;
   const e = await entrada(env, { channel, contact, name, text, extId, referral });
   if (e.skip) return e;
-  const { chat } = e;
+  const { chat, msgId } = e;
   if (!(await respuestasActivas(env)) || !aiConfig(env).ready) return { skip: "respuestas detenidas" };
+  // Mensajes seguidos ("oi" / "quero info" / "do tango"): se espera un momento y responde solo el último, con toda la ráfaga en el historial.
+  const espera = env.IA_ESPERA_MS !== undefined ? Number(env.IA_ESPERA_MS) || 0 : ESPERA_MS;
+  if (espera > 0 && msgId) {
+    await new Promise((r) => setTimeout(r, espera));
+    const ult = await one(db, "SELECT MAX(id) id FROM ia_messages WHERE chat_id=? AND role='user'", chat.id);
+    if (ult && Number(ult.id) > msgId) return { skip: "agrupado con el mensaje siguiente" };
+  }
   const hora = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role='assistant' AND at > datetime('now','-1 hour')", chat.id))?.n || 0;
   if (hora >= MAX_PER_HOUR) { await flag(db, chat, "Muchos mensajes en una hora: la IA espera"); return { skip: "tope por hora" }; }
   const dia = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE role='assistant' AND at > datetime('now','-1 day')"))?.n || 0;
@@ -372,7 +385,14 @@ export async function reintentos(env, { enviar, max = 10 }) {
   if (!(await respuestasActivas(env)) || !aiConfig(env).ready) return { reintentados: 0 };
   const chats = (await db.prepare(`SELECT c.*, (SELECT role FROM ia_messages m WHERE m.chat_id=c.id ORDER BY m.id DESC LIMIT 1) AS ultimo,
       (SELECT at FROM ia_messages m WHERE m.chat_id=c.id AND m.role='user' ORDER BY m.id DESC LIMIT 1) AS last_user
-    FROM ia_chats c WHERE c.handoff=1 AND c.paused=0 AND c.handoff_reason LIKE ? ORDER BY c.updated_at LIMIT ?`).bind(`${REINTENTO}%`, max).all()).results || [];
+    FROM ia_chats c WHERE c.paused=0 AND (
+      (c.handoff=1 AND c.handoff_reason LIKE ?)
+      -- Sin respuesta y sin marca: el proceso se cortó (la IA tardó demasiado). Se toma a los 2 minutos.
+      OR ((SELECT role FROM ia_messages m WHERE m.chat_id=c.id ORDER BY m.id DESC LIMIT 1)='user'
+          AND c.updated_at < datetime('now','-2 minutes') AND c.updated_at > datetime('now','-6 hours'))
+    ) ORDER BY c.updated_at LIMIT ?`).bind(`${REINTENTO}%`, max).all()).results || [];
+  const dia = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE role='assistant' AND at > datetime('now','-1 day')"))?.n || 0;
+  if (dia >= (parseInt(env.IA_MAX_DIARIO, 10) || DEFAULT_DAILY)) return { reintentados: 0, off: "tope diario" };
   const out = [];
   for (const c of chats) {
     if (c.ultimo !== "user" || !c.last_user) continue;
@@ -417,8 +437,8 @@ const TXT = {
 export function idiomaTextos(rows) {
   const t = [rows[0] || "", rows[0] || "", ...rows].join(" ").toLowerCase();
   const n = {
-    es: (t.match(/[¿¡ñ]|\b(hola|buenas|buenos|buen día|gracias|quiero|somos|cuánto|cuanto|necesito|tenés|tienen|puedo|personas|día|mañana|pagué|que|promociones|qué|cómo|como estás)\b/g) || []).length,
-    pt: (t.match(/[ãõç]|\b(oi|olá|ola|obrigad[oa]|quero|vocês|voces|pessoas|amanhã|paguei|você|não|têm|tem|bom dia|boa tarde|boa noite|tudo bem)\b/g) || []).length,
+    es: (t.match(/[¿¡ñ]|\b(hola|buenas|buenos|buen día|gracias|quiero|quisiera|somos|cuánto|cuanto|cuesta|precio|paseo|paseos|necesito|tenés|tienen|ustedes|puedo|personas|día|mañana|hoy|dónde|pagué|promociones|qué tal|cómo|también|vale)\b/g) || []).length,
+    pt: (t.match(/[ãõç]|\b(oi|olá|ola|obrigad[oa]|quero|queria|gostaria|vocês|voces|pessoas|amanhã|hoje|paguei|você|voce|não|nao|têm|tem|bom dia|boa tarde|boa noite|tudo bem|quanto|custa|valor|preço|preco|passeio|passeios|legal|onde|ingresso|também|tambem|sim|beleza|show de bola)\b/g) || []).length,
     en: (t.match(/\b(hi|hello|thanks|thank you|please|we are|how much|people|tomorrow|i paid|booking|would like|want|good morning|good afternoon)\b/g) || []).length,
   };
   const best = Object.entries(n).sort((a, b) => b[1] - a[1]);
@@ -502,7 +522,9 @@ export async function seguimientos(env, { enviar, max = 10 } = {}) {
   const out = [];
   for (const c of rows) {
     if (out.length >= max) break;
-    if (!c.last_user || c.last_role === "user") continue;
+    if (!c.last_user || c.last_role !== "assistant") continue; // la última palabra tiene que ser de Gaspi (no del cliente ni del equipo)
+    // Si alguien del equipo escribió en las últimas 24 h, la charla la lleva una persona: no se mete el seguimiento.
+    if ((await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role='agent' AND at > datetime('now','-24 hours')", c.id))?.n) continue;
     const silencio = (Date.now() - Date.parse(c.last_user.replace(" ", "T") + "Z")) / 3600e3;
     if (silencio < horas || silencio > 22) continue;
     if (c.followup_at && c.followup_at > c.last_user) continue; // ya se le escribió en este silencio
@@ -515,7 +537,11 @@ export async function seguimientos(env, { enviar, max = 10 } = {}) {
       const hist = await historial(db, c.id);
       r = await pensar(env, [...hist, { role: "user", text: "[El cliente no respondió. Escribí ahora el mensaje de seguimiento.]" }], { reservas, nombre: c.name, origen: c.origin, primera: false, seguimiento: Math.round(silencio), chatId: c.id, ficha: c.datos });
     } catch (e) { console.error("seguimiento:", e?.message); continue; }
-    if (!r.reply) continue;
+    if (!r.reply || r.noSeguir) {
+      // Gaspi decidió no escribir (el cliente ya cerró el tema): se marca igual para no volver a intentarlo en este silencio.
+      if (r.noSeguir) await run(db, "UPDATE ia_chats SET followup_at=CURRENT_TIMESTAMP WHERE id=?", c.id);
+      continue;
+    }
     try { await enviar(c.contact, r.reply, await idiomaDe(db, c.id, env)); } catch (e) { console.error("seguimiento envío:", e?.message); continue; }
     await guardarMensaje(db, c.id, "assistant", r.reply);
     await run(db, "UPDATE ia_chats SET followup_at=CURRENT_TIMESTAMP, followups = CASE WHEN followup_at > datetime('now','-7 day') THEN followups+1 ELSE 1 END WHERE id=?", c.id);

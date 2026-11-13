@@ -25,16 +25,16 @@ const env = {
 // ---------- fetch simulado: Gemini, Claude y la Graph API de WhatsApp ----------
 const calls = [];
 let aiReply = "Olá! Para 4 pessoas recomendo o *City Tour Zona Sul*: https://gasparottoviajes.com/paquetes/city-tour-zona-sur/";
-let aiFail = false, busy = 0, noButtons = false;
+let aiFail = false, busy = 0, noButtons = false, claudeFail = false;
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), body = init.body ? JSON.parse(init.body) : null;
   calls.push({ url: u, headers: init.headers || {}, body });
   if (u.includes("generativelanguage.googleapis.com")) {
     if (aiFail) return new Response(JSON.stringify({ error: { message: "quota" } }), { status: 429 });
-    if (busy > 0 && u.includes("gemini-2.5-flash:")) { busy--; return new Response(JSON.stringify({ error: { message: "This model is currently experiencing high demand" } }), { status: 503 }); }
+    if (busy > 0 && u.includes("gemini-3.5-flash:")) { busy--; return new Response(JSON.stringify({ error: { message: "This model is currently experiencing high demand" } }), { status: 503 }); }
     return Response.json({ candidates: [{ content: { parts: [{ text: aiReply }] }, finishReason: "STOP" }] });
   }
-  if (u.includes("api.anthropic.com")) return Response.json({ content: [{ type: "text", text: aiReply }] });
+  if (u.includes("api.anthropic.com")) return claudeFail ? new Response(JSON.stringify({ error: { type: "overloaded_error" } }), { status: 529 }) : Response.json({ content: [{ type: "text", text: aiReply }] });
   if (u.includes("graph.facebook.com")) {
     if (noButtons && body?.interactive?.type === "cta_url") return new Response(JSON.stringify({ error: { message: "not supported" } }), { status: 400 });
     return Response.json({ messages: [{ id: "wamid.out" }] });
@@ -79,9 +79,10 @@ await env.DB.prepare("INSERT INTO settings (key,value) VALUES ('google_places',?
 env.GOOGLE_PLACE_ID = "ChIJtest";
 
 // 1) Proveedor
-assert.deepEqual(aiConfig({ GEMINI_API_KEY: "x" }), { provider: "gemini", model: "gemini-2.5-flash", ready: true });
+assert.deepEqual(aiConfig({ GEMINI_API_KEY: "x" }), { provider: "gemini", model: "gemini-3.5-flash", ready: true });
 assert.equal(aiConfig({ GEMINI_API_KEY: "x", ANTHROPIC_API_KEY: "y" }).provider, "claude", "sin IA_PROVEEDOR, Claude tiene prioridad si tiene clave");
-assert.equal(aiConfig({ IA_PROVEEDOR: "claude", GEMINI_API_KEY: "x" }).ready, false);
+assert.deepEqual(aiConfig({ IA_PROVEEDOR: "claude", GEMINI_API_KEY: "x" }), { provider: "gemini", model: "gemini-3.5-flash", ready: true }, "si el elegido no tiene clave, usa el otro");
+assert.equal(aiConfig({ IA_PROVEEDOR: "claude" }).ready, false);
 assert.equal(aiConfig({ IA_PROVEEDOR: "gemini", GEMINI_API_KEY: "x", GEMINI_MODEL: "gemini-3-flash" }).model, "gemini-3-flash");
 assert.deepEqual(normalizeTurns([{ role: "assistant", text: "hola" }, { role: "user", text: "a" }, { role: "user", text: "b" }]), [{ role: "user", text: "a\nb" }]);
 console.log("✓ proveedor: Gemini o Claude por variable; los turnos se ordenan para ambas APIs");
@@ -108,7 +109,8 @@ assert.equal(r.status, 200);
 const gem = of("generativelanguage")[0];
 assert.ok(gem, "llama a Gemini");
 assert.equal(gem.headers["x-goog-api-key"], "g-key");
-assert.ok(gem.url.includes("/models/gemini-2.5-flash:generateContent"));
+assert.ok(gem.url.includes("/models/gemini-3.5-flash:generateContent"));
+assert.ok(!gem.body.system_instruction.parts[0].text.includes("<<<FIN_PARTE_FIJA>>>"), "Gemini no ve la marca de caché");
 const sys = gem.body.system_instruction.parts[0].text;
 assert.ok(sys.includes("City Tour Zona Sul") && sys.includes("https://gasparottoviajes.com/paquetes/city-tour-zona-sur/") && sys.includes("R$ 180") && sys.includes("09:00, 14:00"), "el catálogo va en el contexto");
 assert.ok(!sys.includes("Paquete borrador"), "lo no publicado no se ofrece");
@@ -171,11 +173,23 @@ const cl = of("api.anthropic.com")[0];
 assert.ok(cl, "llama a Claude");
 assert.equal(cl.headers["x-api-key"], "sk-ant-test"); assert.equal(cl.headers["anthropic-version"], "2023-06-01");
 assert.equal(cl.body.model, "claude-sonnet-5-5");
-assert.ok(cl.body.system.includes("City Tour Zona Sul"));
+assert.equal(cl.body.system.length, 2, "system en dos partes: fija (con caché) y de esta charla");
+assert.ok(cl.body.system[0].text.includes("City Tour Zona Sul") && cl.body.system[0].cache_control?.type === "ephemeral", "catálogo y reglas van en la parte con caché");
+assert.ok(!cl.body.system[0].text.includes("Juan") && cl.body.system[1].text.includes("Juan") && /Hoy es \d{4}-/.test(cl.body.system[1].text), "lo de cada cliente y la fecha quedan fuera de la caché");
 assert.deepEqual(cl.body.messages, [{ role: "user", content: "Hola, somos 2" }]);
 assert.equal(of("generativelanguage").length, 0);
-env.IA_PROVEEDOR = "gemini"; delete env.ANTHROPIC_API_KEY;
-console.log("✓ Claude: cambiando IA_PROVEEDOR=claude usa la API de Anthropic sin tocar código");
+// Claude caído → responde Gemini (respaldo automático)
+reset(); claudeFail = true; aiReply = "Oi! Posso ajudar?";
+await inbound(waMsg("Oi, quanto custa?", "5511987650001", "Rui"));
+assert.equal(of("api.anthropic.com").length, 1); assert.equal(of("generativelanguage").length, 1, "si Claude falla, contesta Gemini");
+assert.equal(of("graph.facebook.com").find((c) => c.body.type === "text").body.text.body, "Oi! Posso ajudar?");
+claudeFail = false;
+// IA_PROVEEDOR=claude sin clave → usa Gemini en vez de fallar
+delete env.ANTHROPIC_API_KEY; reset();
+await inbound(waMsg("Oi de novo", "5511987650001", "Rui"));
+assert.equal(of("generativelanguage").length, 1, "sin clave de Claude, usa Gemini");
+env.IA_PROVEEDOR = "gemini";
+console.log("✓ Claude: con caché, y si falla o no tiene clave responde Gemini");
 
 // 8) Error de la IA → no manda un aviso enlatado al toque: la charla queda para reintentar (ver 16)
 reset(); aiFail = true;
@@ -370,7 +384,7 @@ const gm = of("generativelanguage");
 assert.equal(gm.length, 3, "dos intentos y el respaldo");
 assert.ok(gm[2].url.includes("gemini-3.5-flash-lite:"), "usa el modelo de respaldo");
 assert.equal(of("graph.facebook.com").find((c) => c.body.type === "text").body.text.body, "Olá!", "el cliente recibe la respuesta, no el aviso");
-assert.equal(gm[0].body.generationConfig.thinkingConfig.thinkingBudget, 1024, "piensa antes de responder");
+assert.ok(gm[0].body.generationConfig.maxOutputTokens > 2048 && !gm[0].body.generationConfig.thinkingConfig, "Gemini 3: piensa solo, con margen para no cortar la respuesta");
 assert.ok(/SÍ O SÍ tiene que incluir la presentación/.test(gm[0].body.system_instruction.parts[0].text) && /PROHIBIDO usar listas/.test(gm[0].body.system_instruction.parts[0].text));
 console.log("✓ alta demanda de Gemini: reintenta y usa el modelo de respaldo; presentación obligatoria y sin listas");
 

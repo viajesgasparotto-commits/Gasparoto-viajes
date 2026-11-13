@@ -1,16 +1,22 @@
 // Proveedor de IA intercambiable: Gemini (gratis, para pruebas) o Claude (producción).
 // Se elige con la variable IA_PROVEEDOR = "gemini" | "claude". Si no está, se usa el que tenga clave (Claude primero).
-//   Gemini: GEMINI_API_KEY  (opcional GEMINI_MODEL, por defecto gemini-2.5-flash)
+//   Gemini: GEMINI_API_KEY  (opcional GEMINI_MODEL, por defecto gemini-3.5-flash)
 //   Claude: ANTHROPIC_API_KEY (opcional CLAUDE_MODEL, por defecto claude-sonnet-5-5)
 // El resto del sitio solo llama a askAI(): cambiar de proveedor no toca ningún otro archivo.
+// Respaldo: si el proveedor elegido falla (o no tiene clave) y el otro tiene clave, responde el otro. El cliente nunca queda sin respuesta.
+// Caché: el system puede traer CORTE_CACHE. Lo de antes (reglas, catálogo) es igual en todas las charlas y Claude lo cobra 20 veces más barato
+// cuando se repite; lo de después (datos de esta charla) va aparte. Gemini lo recibe todo junto.
 
-export const DEFAULT_MODELS = { gemini: "gemini-2.5-flash", claude: "claude-sonnet-5-5" };
+export const DEFAULT_MODELS = { gemini: "gemini-3.5-flash", claude: "claude-sonnet-5-5" };
+export const CORTE_CACHE = "\n\n<<<FIN_PARTE_FIJA>>>\n\n";
 const TIMEOUT_MS = 15000; // por intento: Cloudflare da ~30 s para terminar después de responderle a Meta
 
 export function aiConfig(env = {}) {
   const has = { gemini: !!String(env.GEMINI_API_KEY || "").trim(), claude: !!String(env.ANTHROPIC_API_KEY || "").trim() };
   let provider = String(env.IA_PROVEEDOR || "").trim().toLowerCase();
   if (provider !== "gemini" && provider !== "claude") provider = has.claude ? "claude" : "gemini";
+  // El elegido no tiene clave pero el otro sí: se usa el otro (así nunca se apaga por una clave faltante).
+  if (!has[provider]) { const otro = provider === "claude" ? "gemini" : "claude"; if (has[otro]) provider = otro; }
   const model = String((provider === "claude" ? env.CLAUDE_MODEL : env.GEMINI_MODEL) || "").trim() || DEFAULT_MODELS[provider];
   return { provider, model, ready: has[provider] };
 }
@@ -33,10 +39,22 @@ export function normalizeTurns(messages = []) {
 // messages: [{ role: "user" | "assistant", text }]. Devuelve el texto de la respuesta (o lanza un Error con un mensaje legible).
 export async function askAI(env, { system = "", messages = [], maxTokens = 700, temperature = 0.5 } = {}) {
   const cfg = aiConfig(env);
-  if (!cfg.ready) throw new Error(cfg.provider === "claude" ? "Falta ANTHROPIC_API_KEY" : "Falta GEMINI_API_KEY");
+  const otro = cfg.provider === "claude" ? "gemini" : "claude";
+  const cfgOtro = aiConfig({ ...env, IA_PROVEEDOR: otro });
   const turns = normalizeTurns(messages);
   if (!turns.length) throw new Error("No hay mensaje del cliente");
-  return cfg.provider === "claude" ? askClaude(env, cfg.model, system, turns, maxTokens) : askGemini(env, cfg.model, system, turns, maxTokens, temperature);
+  const [fijo, variable = ""] = String(system).split(CORTE_CACHE);
+  const usar = (c) => c.provider === "claude" ? askClaude(env, c.model, fijo, variable, turns, maxTokens) : askGemini(env, c.model, [fijo, variable].filter(Boolean).join("\n\n"), turns, maxTokens, temperature);
+  if (!cfg.ready) {
+    if (cfgOtro.ready) return usar(cfgOtro);
+    throw new Error(cfg.provider === "claude" ? "Falta ANTHROPIC_API_KEY" : "Falta GEMINI_API_KEY");
+  }
+  try { return await usar(cfg); }
+  catch (e) {
+    if (!cfgOtro.ready) throw e;
+    console.error(`IA ${cfg.provider} falló (${e?.message}); respondo con ${otro}`);
+    return usar(cfgOtro);
+  }
 }
 
 async function post(url, headers, body) {
@@ -57,11 +75,11 @@ async function post(url, headers, body) {
 }
 
 // Gemini a veces responde "alta demanda" (503) o límite (429): se reintenta y, si sigue, se usa un modelo de respaldo.
-// GEMINI_MODELO_RESPALDO (lista separada por comas; por defecto gemini-3.5-flash-lite,gemini-3.5-flash). GEMINI_PENSAR = presupuesto de "pensamiento" (por defecto 1024; 0 lo apaga):
+// GEMINI_MODELO_RESPALDO (lista separada por comas; por defecto gemini-3.5-flash-lite,gemini-2.5-flash). GEMINI_PENSAR = presupuesto de "pensamiento" (por defecto 1024; 0 lo apaga):
 // pensar un poco antes de responder hace que siga mejor las reglas (presentarse, una pregunta por mensaje, usar el catálogo).
 async function askGemini(env, model, system, turns, maxTokens, temperature) {
   // Respaldo: si el modelo principal está saturado, prueba otros (Google retira modelos viejos: por eso hay más de uno).
-  const respaldos = String(env.GEMINI_MODELO_RESPALDO || "gemini-3.5-flash-lite,gemini-3.5-flash").split(",").map((m) => m.trim()).filter((m) => m && m !== model);
+  const respaldos = String(env.GEMINI_MODELO_RESPALDO || "gemini-3.5-flash-lite,gemini-2.5-flash").split(",").map((m) => m.trim()).filter((m) => m && m !== model);
   const intentos = [model, model, ...respaldos];
   let last;
   for (let i = 0; i < intentos.length; i++) {
@@ -101,11 +119,16 @@ async function geminiOnce(env, model, system, turns, maxTokens, temperature) {
   return text;
 }
 
-async function askClaude(env, model, system, turns, maxTokens) {
+async function askClaude(env, model, fijo, variable, turns, maxTokens) {
+  // La parte fija lleva cache_control: la primera vez se guarda y las siguientes (por 5 min) se cobran al 5%.
+  const system = [
+    ...(fijo ? [{ type: "text", text: fijo, cache_control: { type: "ephemeral" } }] : []),
+    ...(variable ? [{ type: "text", text: variable }] : []),
+  ];
   const data = await post("https://api.anthropic.com/v1/messages",
     { "x-api-key": String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version": "2023-06-01" },
     // Sin temperature: algunos modelos nuevos de Claude no la aceptan y el valor por defecto ya sirve para chat.
-    { model, max_tokens: maxTokens, ...(system ? { system } : {}), messages: turns.map((t) => ({ role: t.role, content: t.text })) });
+    { model, max_tokens: maxTokens, ...(system.length ? { system } : {}), messages: turns.map((t) => ({ role: t.role, content: t.text })) });
   const text = (data?.content || []).filter((b) => b.type === "text").map((b) => b.text).join("").trim();
   if (!text) throw new Error("La IA no devolvió texto");
   return text;

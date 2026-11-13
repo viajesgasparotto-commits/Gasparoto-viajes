@@ -973,22 +973,28 @@ ta('m_gal','Galería de imágenes','(una foto por línea. Podés poner "direcci�
     ed.innerHTML=x.html;dirty=true;upd();toast('Formato aplicado')};
   // Precio de niños por edad: tramos "de X a Y años paga Z %". Se guarda como JSON en el campo oculto kids_policy (el servidor lo valida y normaliza).
   const kidsUi=()=>{const cb=$('#f-kids');if(!cb)return;
-    let KT=[];try{KT=(JSON.parse(r.kids_policy||'{}').tiers||[]).map(t=>({from:t.from,to:t.to,pct:t.pct}))}catch{}
+    // Cada tramo: mode "pct" (val = % del precio adulto) o "amt" (val = precio fijo del niño, se guarda en centavos como amt).
+    let KT=[];try{KT=(JSON.parse(r.kids_policy||'{}').tiers||[]).map(t=>t.amt!=null?{from:t.from,to:t.to,mode:'amt',val:t.amt/100}:{from:t.from,to:t.to,mode:'pct',val:t.pct})}catch{}
+    const curPre=()=>(String(($('#f-price')||{}).value||'').trim().match(/^[^\d]*/)||[''])[0].trim()||'R$';
     const box=$('#kidbox'),hid=$('#f-kids_policy'),W=$('#kttiers'),PRE=[['Gratis hasta 5 años',[[0,5,0]]],['Gratis hasta 5 · mitad de 6 a 11',[[0,5,0],[6,11,50]]],['Mitad de precio hasta 11',[[0,11,50]]],['Sin descuento',[]]];
     const money=(txt,pct)=>{const t=String(txt||'').trim(),pre=(t.match(/^[^\d]*/)||[''])[0].trim();let n=t.replace(/[^\d.,]/g,'');if(!n)return '';n=n.includes(',')?n.replace(/\./g,'').replace(',','.'):/\.\d{3}$/.test(n)?n.replace(/\./g,''):n;const v=parseFloat(n);if(!Number.isFinite(v))return '';const x=Math.round(v*pct)/100;return (pre?pre+' ':'')+x.toLocaleString('es-AR',{minimumFractionDigits:x%1?2:0,maximumFractionDigits:2})};
-    const save=()=>{hid.value=cb.checked&&KT.length?JSON.stringify({tiers:KT.map(t=>({from:+t.from,to:+t.to,pct:+t.pct}))}):'';dirty=true;if(typeof polAuto==='function')polAuto()};
+    const save=()=>{hid.value=cb.checked&&KT.length?JSON.stringify({tiers:KT.map(t=>t.mode==='amt'?{from:+t.from,to:+t.to,amt:t.val===''?'':Math.round(+t.val*100)}:{from:+t.from,to:+t.to,pct:t.val===''?'':+t.val})}):'';dirty=true;if(typeof polAuto==='function')polAuto()};
     const prev=()=>{const pr=($('#f-price')||{}).value||'',el=$('#ktprev');
       if(!KT.length){el.innerHTML='<p class="muted" style="margin:0">Sin tramos: los niños pagan lo mismo que un adulto. Elegí una opción de arriba o agregá un tramo para darles descuento o entrada gratis.</p>';return}
-      const rows=[...KT].sort((a,b)=>a.from-b.from).map(t=>{const a=+t.from,b=+t.to,pct=+t.pct,amt=money(pr,pct);return `<li><b>${a===b?a+(a===1?' año':' años'):a+' a '+b+' años'}</b><span>${pct===0?'<em class="ok">Gratis</em>':pct===100?'Precio completo':pct+'% del adulto'}${pct>0&&pct<100&&amt?` · ${esc(amt)}`:''}</span></li>`});
+      const fmt=v=>curPre()+' '+(+v).toLocaleString('es-AR',{minimumFractionDigits:v%1?2:0,maximumFractionDigits:2});
+      const rows=[...KT].sort((a,b)=>a.from-b.from).map(t=>{const a=+t.from,b=+t.to,yr=a===b?a+(a===1?' año':' años'):a+' a '+b+' años';
+        if(t.mode==='amt'){const v=+t.val;return `<li><b>${yr}</b><span>${t.val===''?'<em>Falta el precio</em>':v===0?'<em class="ok">Gratis</em>':'Precio fijo · '+esc(fmt(v))}</span></li>`}
+        const pct=+t.val,amt=money(pr,pct);return `<li><b>${yr}</b><span>${pct===0?'<em class="ok">Gratis</em>':pct===100?'Precio completo':pct+'% del adulto'}${pct>0&&pct<100&&amt?` · ${esc(amt)}`:''}</span></li>`});
       const last=Math.max(...KT.map(t=>+t.to));if(last<17)rows.push(`<li><b>Desde ${last+1} años</b><span>Precio de adulto${pr?` · ${esc(pr)}`:''}</span></li>`);
       el.innerHTML=`<p class="muted" style="margin:0 0 4px">Así lo ve el cliente al reservar:</p><ul>${rows.join('')}</ul>`};
-    const draw=()=>{W.innerHTML=KT.map((t,i)=>`<div class="kt-row" data-i="${i}"><span>De</span><input type="number" inputmode="numeric" min="0" max="17" data-kt="from" value="${esc(t.from)}" aria-label="Edad desde"><span>a</span><input type="number" inputmode="numeric" min="0" max="17" data-kt="to" value="${esc(t.to)}" aria-label="Edad hasta"><span>años paga</span><input type="number" inputmode="numeric" min="0" max="100" data-kt="pct" value="${esc(t.pct)}" aria-label="Porcentaje del precio de adulto"><span>%</span><button type="button" class="s d" data-ktdel aria-label="Quitar tramo">${ic('x')}</button></div>`).join('');
-      $$('[data-kt]',W).forEach(i=>i.oninput=()=>{const row=i.closest('.kt-row');KT[+row.dataset.i][i.dataset.kt]=i.value===''?'':Number(i.value);save();prev()});
+    const draw=()=>{W.innerHTML=KT.map((t,i)=>`<div class="kt-row" data-i="${i}"><span>De</span><input type="number" inputmode="numeric" min="0" max="17" data-kt="from" value="${esc(t.from)}" aria-label="Edad desde" style="width:64px;margin:0;flex:0 0 auto"><span>a</span><input type="number" inputmode="numeric" min="0" max="17" data-kt="to" value="${esc(t.to)}" aria-label="Edad hasta" style="width:64px;margin:0;flex:0 0 auto"><span>años paga</span><input type="number" inputmode="decimal" min="0" ${t.mode==='amt'?'step="0.01" style="width:96px;margin:0;flex:0 0 auto"':'max="100" style="width:64px;margin:0;flex:0 0 auto"'} data-kt="val" value="${esc(t.val)}" aria-label="${t.mode==='amt'?'Precio fijo del niño':'Porcentaje del precio de adulto'}"><select data-kt="mode" aria-label="Porcentaje o precio fijo" style="width:auto;margin:0;flex:0 0 auto;padding:8px"><option value="pct" ${t.mode!=='amt'?'selected':''}>% del adulto</option><option value="amt" ${t.mode==='amt'?'selected':''}>${esc(curPre())} (precio fijo)</option></select><button type="button" class="s d" data-ktdel aria-label="Quitar tramo">${ic('x')}</button></div>`).join('');
+      $$('[data-kt]',W).forEach(i=>{if(i.dataset.kt==='mode'){i.onchange=()=>{const ix=+i.closest('.kt-row').dataset.i,t=KT[ix];t.mode=i.value;t.val=i.value==='amt'?'':50;save();draw();W.querySelectorAll('[data-kt="val"]')[ix]?.focus()};return}
+        i.oninput=()=>{const row=i.closest('.kt-row');KT[+row.dataset.i][i.dataset.kt]=i.value===''?'':Number(i.value);save();prev()}});
       $$('[data-ktdel]',W).forEach(b=>b.onclick=()=>{KT.splice(+b.closest('.kt-row').dataset.i,1);save();draw()});
       $('#ktadd').hidden=KT.length>=4;prev()};
     $('#ktpre').innerHTML=PRE.map(([l],i)=>`<button type="button" class="s" data-pre="${i}">${l}</button>`).join('');
-    $$('[data-pre]').forEach(b=>b.onclick=()=>{KT=PRE[+b.dataset.pre][1].map(([from,to,pct])=>({from,to,pct}));save();draw()});
-    $('#ktadd').onclick=()=>{const last=KT.length?Math.max(...KT.map(t=>+t.to))+1:0;KT.push({from:Math.min(last,17),to:Math.min(last+5,17),pct:50});save();draw()};
+    $$('[data-pre]').forEach(b=>b.onclick=()=>{KT=PRE[+b.dataset.pre][1].map(([from,to,pct])=>({from,to,mode:'pct',val:pct}));save();draw()});
+    $('#ktadd').onclick=()=>{const last=KT.length?Math.max(...KT.map(t=>+t.to))+1:0;KT.push({from:Math.min(last,17),to:Math.min(last+5,17),mode:'pct',val:50});save();draw()};
     cb.onchange=()=>{box.hidden=!cb.checked;save()};
     const pe=$('#f-price');if(pe)pe.addEventListener('input',prev);
     draw()};
@@ -1068,17 +1074,17 @@ ta('m_gal','Galería de imágenes','(una foto por línea. Podés poner "direcci�
     $$('[data-poladd]').forEach(b=>b.disabled=POL.length>=10);polAuto()};
   // ---- Automático (misma regla que el servidor, bundle.js): políticas que no escribiste, niños de los paquetes y "Completar con los servicios" ----
   const KMAX=17,PT=Object.fromEntries(POLT),partRow=sl=>(DATA.packages||[]).find(x=>x.slug===sl);
-  const kTiers=v=>{try{return (JSON.parse(v||'{}').tiers||[]).map(t=>({from:+t.from,to:+t.to,pct:+t.pct})).sort((a,b)=>a.from-b.from)}catch{return []}};
-  const kText=T=>{const y=(a,b)=>a===b?`${a} ${a===1?'año':'años'}`:`${a} a ${b} años`,o=T.map(t=>`${y(t.from,t.to)}: ${t.pct===0?'gratis':t.pct===100?'precio de adulto':'pagan '+t.pct+'%'}`),l=T.length?T[T.length-1].to:-1;if(l<KMAX)o.push(`desde ${l+1} años: precio de adulto`);return o.join(' · ')};
-  const kPct=(T,age)=>{const t=T.find(x=>age>=x.from&&age<=x.to);return t?t.pct:100};
+  const kTiers=v=>{try{return (JSON.parse(v||'{}').tiers||[]).filter(t=>t.amt!==''&&t.pct!=='').map(t=>t.amt!=null?{from:+t.from,to:+t.to,amt:+t.amt,pct:+t.amt?100:0}:{from:+t.from,to:+t.to,pct:+t.pct}).sort((a,b)=>a.from-b.from)}catch{return []}};
+  const kText=(T,cur)=>{const y=(a,b)=>a===b?`${a} ${a===1?'año':'años'}`:`${a} a ${b} años`,o=T.map(t=>`${y(t.from,t.to)}: ${t.amt!=null&&t.amt>0?'pagan '+fmtM(cur||'',t.amt):t.pct===0?'gratis':t.pct===100?'precio de adulto':'pagan '+t.pct+'%'}`),l=T.length?T[T.length-1].to:-1;if(l<KMAX)o.push(`desde ${l+1} años: precio de adulto`);return o.join(' · ')};
+  const kPct=(T,age,unitC)=>{const t=T.find(x=>age>=x.from&&age<=x.to);if(!t)return 100;if(t.amt!=null)return unitC>0?Math.min(100,t.amt*100/unitC):100;return t.pct};
   const isBund=()=>!isP&&$('#f-m_kind')?.value==='paquete'&&IT.rows.length>0;
   function autoPols(){const have=new Set(POL.filter(p=>!p.opt&&p.text.trim()).map(p=>p.type)),out=[];
     if(isBund()){for(const [type] of POLT){if(type==='otra'||have.has(type))continue;const lines=[];
       for(const x of IT.rows){const sv=partRow(x.slug);if(!sv)continue;const sp=polsOf(sv).filter(q=>(POLT.some(t=>t[0]===q[0])?q[0]:'otra')===type&&q[1]&&!q[2]);
         if(sp.length){lines.push([sv.title,sp.map(q=>String(q[1]).replace(/\s*\n+\s*/g,' ')).join(' ')]);continue}
-        if(type==='menores'&&+sv.accepts_children===1){const t=kTiers(sv.kids_policy);if(t.length)lines.push([sv.title,kText(t)])}}
+        if(type==='menores'&&+sv.accepts_children===1){const t=kTiers(sv.kids_policy);if(t.length)lines.push([sv.title,kText(t,curP(sv.price))])}}
       if(lines.length)out.push({type,lines})}}
-    else if(!isP&&!have.has('menores')&&$('#f-kids')?.checked){const t=kTiers($('#f-kids_policy')?.value);if(t.length)out.push({type:'menores',lines:[['',kText(t)]]})}
+    else if(!isP&&!have.has('menores')&&$('#f-kids')?.checked){const t=kTiers($('#f-kids_policy')?.value);if(t.length)out.push({type:'menores',lines:[['',kText(t,curP($('#f-price')?.value))]]})}
     return out}
   function polAuto(){const W=$('#polauto');if(!W)return;const A=autoPols(),em=$('#polrows .opt-empty');if(em)em.hidden=A.length>0;
     W.innerHTML=A.length?`<p class="optnote" style="margin:0 0 8px">${ic('check')}<span><b>Se completan solas</b> ${isBund()?'con las políticas de cada servicio':'con la tabla de precios de los niños'} y se actualizan si cambiás algo. No hace falta escribirlas: tocá <b>Editar</b> solo si querés cambiar el texto.</span></p>`+A.map((a,i)=>`<div class="pol-row" style="background:transparent"><div class="pol-top"><b style="flex:1">${esc(PT[a.type])} <small class="muted" style="font-weight:400">· automática</small></b><button type="button" class="s" data-pauto="${i}">Editar</button></div><div class="muted" style="font-size:13px;line-height:1.5">${a.lines.map(([t,x])=>(t?`<b>${esc(t)}:</b> `:'')+esc(x)).join('<br>')}</div></div>`).join(''):'';
@@ -1090,10 +1096,10 @@ ta('m_gal','Galería de imágenes','(una foto por línea. Podés poner "direcci�
     if(cb.checked!==(acc.length>0)){cb.checked=acc.length>0;dirty=true}cb.disabled=true;box.hidden=true;ka.hidden=false;
     if(!acc.length){ka.innerHTML='<p class="muted" style="margin:0">Ningún servicio del paquete acepta niños: se pide solo la cantidad de personas. Si querés que acepte, marcá “Acepta niños” en algún servicio.</p>';return}
     const T=P.map(z=>+z.s.accepts_children===1?kTiers(z.s.kids_policy):[]),ok=P.every(z=>z.u),sum=P.reduce((a,z)=>a+(z.u?z.u.c:0),0),q=itQuote();
-    let tab='';if(ok&&sum){const pct=Array.from({length:KMAX+1},(_,age)=>P.reduce((a,z,k)=>a+z.u.c*kPct(T[k],age),0)/sum),G=[];
+    let tab='';if(ok&&sum){const pct=Array.from({length:KMAX+1},(_,age)=>P.reduce((a,z,k)=>a+z.u.c*kPct(T[k],age,z.u.c),0)/sum),G=[];
       pct.forEach((v,age)=>{const g=G[G.length-1];if(g&&g.v===v)g.to=age;else G.push({from:age,to:age,v})});
       tab=`<ul>${G.map(g=>`<li><b>${g.from===g.to?g.from+(g.from===1?' año':' años'):g.from+' a '+g.to+' años'}</b><span>${g.v===0?'<em class="ok">Gratis</em>':g.v===100?'Precio de adulto':Math.round(g.v)+'% del adulto'}${q.ok&&g.v>0&&g.v<100?' · '+esc(fmtM(q.cur,Math.round(q.unit*g.v/100))):''}</span></li>`).join('')}</ul>`}
-    ka.innerHTML=`<h4>Niños <small class="muted" style="font-weight:400">· automático</small></h4><p class="muted" style="margin:0 0 8px">Cada niño paga según la tabla de cada servicio. Para cambiarlo, editá el precio de los niños en el servicio.</p><p class="muted" style="margin:0 0 8px;font-size:13px;line-height:1.5">${P.map((z,k)=>`<b>${esc(z.s.title)}:</b> ${+z.s.accepts_children===1?esc(T[k].length?kText(T[k]):'precio de adulto'):'no acepta niños (pagan como adulto)'}`).join('<br>')}</p>${tab?`<div class="kt-prev"><p class="muted" style="margin:0 0 4px">Así lo ve el cliente en el paquete:</p>${tab}</div>`:''}`}
+    ka.innerHTML=`<h4>Niños <small class="muted" style="font-weight:400">· automático</small></h4><p class="muted" style="margin:0 0 8px">Cada niño paga según la tabla de cada servicio. Para cambiarlo, editá el precio de los niños en el servicio.</p><p class="muted" style="margin:0 0 8px;font-size:13px;line-height:1.5">${P.map((z,k)=>`<b>${esc(z.s.title)}:</b> ${+z.s.accepts_children===1?esc(T[k].length?kText(T[k],curP(z.u?z.u.t:z.s.price)):'precio de adulto'):'no acepta niños (pagan como adulto)'}`).join('<br>')}</p>${tab?`<div class="kt-prev"><p class="muted" style="margin:0 0 4px">Así lo ve el cliente en el paquete:</p>${tab}</div>`:''}`}
   // Completa lo vacío con los servicios. Lo que se completó solo se sigue actualizando mientras no lo edites.
   const AF={};
   function fillParts(quiet){if(!IT.rows.length){if(!quiet)toast('Marcá primero los servicios del paquete');return}

@@ -6,7 +6,7 @@ import { googleBlock, googlePhoto } from "./lib/google.js";
 import { parsePrice, priceCurrency, siteUrl, isProdHost, absUrl, clip, pageTitle, sanitizeHtml, ldScript, postLd, blogIndexLd, packageLd, packageSeo, personLd, buildSitemap, buildRobots, breadcrumbLd, orgLd, websiteLd, ymd, BRAND, LOGO, initBrand } from "./lib/seo.js";
 import { fichaHtml, compareTable, filterBar, kindOf, partsOf, timesOf, galleryOf, isVideoUrl, optionsOf, cheapestOption, policiesOf } from "./lib/ficha.js";
 import { bookingConfig, holdMinutes, kidsPolicy } from "./lib/booking.js";
-import { bundleItems, bundleKidTable, bundlePolicies, bundleQuote, isBundle, kidsText, loadParts, servicePolicies, spanOf, winOf } from "./lib/bundle.js";
+import { bundleItems, bundleKidTable, bundlePolicies, bundleQuote, curOf, fmtMoney, isBundle, kidsText, loadParts, servicePolicies, spanOf, winOf } from "./lib/bundle.js";
 import { pixEnabled } from "./lib/pix.js";
 import { STATIC_PAGES } from "./lib/static-pages.js";
 import { SITE, legacyTarget, staticRedirect } from "./lib/site.js";
@@ -222,7 +222,7 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const KP = L.lang === "es"
     ? { title: "Tarifa para niños", free: "gratis", pays: "pagan", yrs: (a, b) => (a === b ? `${a} ${a === 1 ? "año" : "años"}` : `${a} a ${b} años`), adult: (n) => `Desde ${n} años: tarifa de adulto`, ages: "Edad de cada niño" }
     : { title: "Tarifa para crianças", free: "grátis", pays: "pagam", yrs: (a, b) => (a === b ? `${a} ${a === 1 ? "ano" : "anos"}` : `${a} a ${b} anos`), adult: (n) => `A partir de ${n} anos: tarifa de adulto`, ages: "Idade de cada criança" };
-  const kidLines = kidTab ? bItems.filter((i) => Number(i.svc.accepts_children) === 1 && kidsPolicy(i.svc).tiers.length).map((i) => `${i.title}: ${kidsText(kidsPolicy(i.svc).tiers, L.lang)}`) : kidTiers.map((t) => `${KP.yrs(t.from, t.to)}: ${t.pct === 0 ? KP.free : t.pct === 100 ? (L.lang === "es" ? "precio completo" : "preço cheio") : `${KP.pays} ${t.pct}%`}`);
+  const kidLines = kidTab ? bItems.filter((i) => Number(i.svc.accepts_children) === 1 && kidsPolicy(i.svc).tiers.length).map((i) => `${i.title}: ${kidsText(kidsPolicy(i.svc).tiers, L.lang, curOf(i.txt || i.svc.price))}`) : kidTiers.map((t) => `${KP.yrs(t.from, t.to)}: ${t.amt != null && t.amt > 0 ? `${KP.pays} ${fmtMoney(curOf((cheapestOption(opts) || {}).price || p.price), t.amt)}` : t.pct === 0 ? KP.free : t.pct === 100 ? (L.lang === "es" ? "precio completo" : "preço cheio") : `${KP.pays} ${t.pct}%`}`);
   if (!kidTab && kidTiers.length && kidTiers[kidTiers.length - 1].to < 17) kidLines.push(KP.adult(kidTiers[kidTiers.length - 1].to + 1));
   const kidInfo = kidLines.length
     ? `<div data-kid-info class="rounded-lg bg-mist px-4 py-3"><p class="m-0 text-sm font-semibold text-ink">${esc(KP.title)}</p><ul class="m-0 mt-1 grid list-none gap-0.5 p-0 text-sm leading-snug text-mute">${kidLines.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`

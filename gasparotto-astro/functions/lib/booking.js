@@ -23,16 +23,22 @@ export function parseWeekdays(v) {
 
 // ---------- Política de niños por edad ----------
 // packages.kids_policy = JSON {"tiers":[{"from":0,"to":5,"pct":0},{"from":6,"to":11,"pct":50}]}: de X a Y años el niño paga pct % del precio adulto
-// (0 = gratis). Quien no entra en ningún tramo (por ejemplo 12 en adelante) paga como adulto. Sin tramos = todos pagan el precio completo (como antes).
+// (0 = gratis). O un precio fijo: {"from":6,"to":11,"amt":10000} = paga R$ 100 (amt en centavos; nunca más que un adulto).
+// Para calcular, tiersFor() pasa el precio fijo a % del precio adulto de lo que se reserva (así funciona igual con opciones y paquetes). Quien no entra en ningún tramo (por ejemplo 12 en adelante) paga como adulto. Sin tramos = todos pagan el precio completo (como antes).
 export const KID_MAX_AGE = 17;
 export function kidsPolicy(p = {}) {
   let raw = p.kids_policy;
   if (typeof raw === "string") { try { raw = JSON.parse(raw || "{}"); } catch { raw = {}; } }
   const list = Array.isArray(raw && raw.tiers) ? raw.tiers : [];
-  const tiers = list.map((t) => ({ from: num(t.from, 0, 0, KID_MAX_AGE), to: num(t.to, 0, 0, KID_MAX_AGE), pct: num(t.pct, 100, 0, 100) }))
-    .filter((t) => t.from <= t.to).sort((a, b) => a.from - b.from).slice(0, 4);
+  const tiers = list.map((t) => {
+    const r = { from: num(t.from, 0, 0, KID_MAX_AGE), to: num(t.to, 0, 0, KID_MAX_AGE), pct: num(t.pct, 100, 0, 100) };
+    if (t.amt != null && t.amt !== "" && Number.isFinite(Number(t.amt))) { r.amt = Math.max(0, Math.round(Number(t.amt))); r.pct = r.amt === 0 ? 0 : 100; }
+    return r;
+  }).filter((t) => t.from <= t.to).sort((a, b) => a.from - b.from).slice(0, 4);
   return { tiers };
 }
+// Tramos listos para calcular con un precio adulto (centavos): el precio fijo se pasa a % (con decimales) de ese precio, tope 100%.
+export const tiersFor = (tiers, unitCents) => tiers.map((t) => (t.amt == null ? t : { from: t.from, to: t.to, pct: unitCents > 0 ? Math.min(100, (t.amt * 100) / unitCents) : 100 }));
 // Valida los tramos que manda el panel: devuelve { tiers } o { error }.
 export function checkKidsPolicy(raw) {
   let r = raw; if (typeof r === "string") { try { r = JSON.parse(r || "{}"); } catch { return { error: "La política de niños no es válida." }; } }
@@ -40,9 +46,11 @@ export function checkKidsPolicy(raw) {
   if (list.length > 4) return { error: "Máximo 4 tramos de edad." };
   const tiers = [];
   for (const t of list) {
-    const from = Number(t.from), to = Number(t.to), pct = Number(t.pct);
-    if (![from, to, pct].every(Number.isFinite) || !Number.isInteger(from) || !Number.isInteger(to)) return { error: "Completá las edades y el porcentaje de cada tramo." };
+    const fixed = t.amt != null && t.amt !== "";
+    const from = Number(t.from), to = Number(t.to), pct = fixed ? 100 : Number(t.pct), amt = fixed ? Number(t.amt) : 0;
+    if (![from, to, pct, amt].every(Number.isFinite) || !Number.isInteger(from) || !Number.isInteger(to)) return { error: fixed ? "Completá las edades y el precio de cada tramo." : "Completá las edades y el porcentaje de cada tramo." };
     if (from < 0 || to > KID_MAX_AGE || from > to) return { error: `El tramo ${from}–${to} años no es válido (de 0 a ${KID_MAX_AGE}, y "desde" no puede superar a "hasta").` };
+    if (fixed) { if (amt < 0) return { error: "El precio del niño no puede ser negativo." }; tiers.push({ from, to, amt: Math.round(amt), pct: Math.round(amt) === 0 ? 0 : 100 }); continue; }
     if (pct < 0 || pct > 100) return { error: "El porcentaje va de 0 a 100." };
     tiers.push({ from, to, pct: Math.round(pct) });
   }
@@ -203,7 +211,7 @@ export async function createBooking(db, env, p, { day, time, pax, adults, childr
 
   const unit = opt ? opt.cents / 100 : Number(parsePrice(p.price)), unitC = Math.round(unit * 100);
   // centavos: adultos a precio completo + niños según su tramo de edad (sin tramos, todos pagan completo)
-  const total = Number.isFinite(unit) ? priceTotal(unitC, adults, tiers.length ? ages : Array(children).fill(99), tiers) : 0;
+  const total = Number.isFinite(unit) ? priceTotal(unitC, adults, tiers.length ? ages : Array(children).fill(99), tiersFor(tiers, unitC)) : 0;
   const currency = priceCurrency(env, opt ? opt.price : p.price), mins = holdMinutes(env);
   const token = crypto.randomUUID().replace(/-/g, "");
   const tf = cfg.byTime ? " AND (b.time=? OR b.time='')" : ""; // por horario: cuenta ese horario + las reservas viejas del día sin hora

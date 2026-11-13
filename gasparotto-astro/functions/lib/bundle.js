@@ -6,7 +6,7 @@
 // Precio (meta.auto + meta.disc): precio del paquete = suma de los servicios (la opción elegida en el itinerario o la más barata) menos el descuento %.
 // Reserva: la del paquete (lleva el total) + una fila por servicio reservable (parent_id, total 0) que ocupa el cupo de ese servicio en su día y horario.
 import { cheapestOption, optionsOf, parseMeta, planOf, policiesOf, POLICY_TYPES } from "./ficha.js";
-import { KID_MAX_AGE, OCCUPIED, addDays, bookingConfig, createBooking, isDay, kidPct, kidsPolicy, monthState } from "./booking.js";
+import { KID_MAX_AGE, OCCUPIED, addDays, bookingConfig, createBooking, isDay, kidPct, kidsPolicy, monthState, tiersFor } from "./booking.js";
 import { parsePrice } from "./seo.js";
 
 export const isBundle = (p) => parseMeta(p && p.meta).kind === "paquete" && planOf(p).length > 0;
@@ -63,17 +63,17 @@ export const winOf = (p, items) => Math.max(spanOf(items), Math.min(14, Number(p
 export function bundleKidTable(items) {
   const priced = items.filter((i) => i.unit > 0);
   if (!priced.length || priced.length !== items.length) return null;
-  const pols = priced.map((i) => (Number(i.svc.accepts_children) === 1 ? kidsPolicy(i.svc).tiers : []));
+  const pols = priced.map((i) => (Number(i.svc.accepts_children) === 1 ? tiersFor(kidsPolicy(i.svc).tiers, i.unit) : []));
   if (!pols.some((t) => t.length)) return null;
   const sum = priced.reduce((a, i) => a + i.unit, 0);
   return Array.from({ length: KID_MAX_AGE + 1 }, (_, age) =>
     Math.round((priced.reduce((a, i, k) => a + i.unit * kidPct(pols[k], age), 0) / sum) * 1e4) / 1e4);
 }
 // Texto de la política de niños de cada servicio (para la ficha del paquete): "0 a 2 años: gratis · 3 a 5 años: 50% · desde 6 años: precio de adulto".
-export function kidsText(tiers, lang = "pt") {
+export function kidsText(tiers, lang = "pt", cur = "") {
   const es = /^es/i.test(lang);
   const yrs = (a, b) => (a === b ? `${a} ${es ? (a === 1 ? "año" : "años") : a === 1 ? "ano" : "anos"}` : `${a} a ${b} ${es ? "años" : "anos"}`);
-  const out = tiers.map((t) => `${yrs(t.from, t.to)}: ${t.pct === 0 ? (es ? "gratis" : "grátis") : t.pct === 100 ? (es ? "precio de adulto" : "tarifa de adulto") : `${es ? "pagan" : "pagam"} ${t.pct}%`}`);
+  const out = tiers.map((t) => `${yrs(t.from, t.to)}: ${t.amt != null && t.amt > 0 ? `${es ? "pagan" : "pagam"} ${fmtMoney(cur, t.amt)}` : t.pct === 0 ? (es ? "gratis" : "grátis") : t.pct === 100 ? (es ? "precio de adulto" : "tarifa de adulto") : `${es ? "pagan" : "pagam"} ${t.pct}%`}`);
   const last = tiers.length ? tiers[tiers.length - 1].to : -1;
   if (last < KID_MAX_AGE) out.push(es ? `desde ${last + 1} años: precio de adulto` : `a partir de ${last + 1} anos: tarifa de adulto`);
   return out.join(" · ");
@@ -92,7 +92,7 @@ export function bundlePolicies(p, items, L = {}) {
       if (sp.length) { lines.push(`**${it.title}:** ${sp.map((x) => x.text.replace(/\s*\n+\s*/g, " ")).join(" ")}`); continue; }
       if (type === "menores" && Number(it.svc.accepts_children) === 1) {
         const t = kidsPolicy(it.svc).tiers;
-        if (t.length) lines.push(`**${it.title}:** ${kidsText(t, lang)}`);
+        if (t.length) lines.push(`**${it.title}:** ${kidsText(t, lang, curOf(it.txt || it.svc.price))}`);
       }
     }
     if (lines.length) extra.push({ type, title: T[type] || "", text: lines.join("\n"), option: "", auto: true });
@@ -105,7 +105,7 @@ export function servicePolicies(p, L = {}) {
   const own = policiesOf(p, L);
   if (Number(p.accepts_children) !== 1 || own.some((x) => x.type === "menores" && !x.option)) return own;
   const t = kidsPolicy(p).tiers;
-  return t.length ? [...own, { type: "menores", title: (L.policyTypes || {}).menores || "", text: kidsText(t, L.lang || "pt"), option: "", auto: true }] : own;
+  return t.length ? [...own, { type: "menores", title: (L.policyTypes || {}).menores || "", text: kidsText(t, L.lang || "pt", curOf((cheapestOption(optionsOf(p)) || {}).price || p.price)), option: "", auto: true }] : own;
 }
 
 // Precio automático: suma de los servicios − descuento. ok = todos tienen precio numérico y en la misma moneda.

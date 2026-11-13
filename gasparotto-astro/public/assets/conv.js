@@ -100,7 +100,14 @@
       // Paquete que combina servicios (data-kid-mode="tab"): el % sale de la política de cada servicio y se muestra por edad ("1 niño de 6 años × R$ 310").
       var kidTab = f.getAttribute("data-kid-mode") === "tab";
       var agesBox = f.querySelector("[data-ages]"), agesList = f.querySelector("[data-ages-list]"), agesErr = f.querySelector('[data-err="ages"]');
-      function kidPct(age) { for (var i = 0; i < kidTiers.length; i++) if (age >= kidTiers[i].from && age <= kidTiers[i].to) return kidTiers[i].pct; return 100; }
+      // Tramo de un niño: % del precio adulto (pct) o precio fijo en centavos (amt), que se pasa a % del precio que se está reservando (tope 100%).
+      function kidTier(age) { for (var i = 0; i < kidTiers.length; i++) if (age >= kidTiers[i].from && age <= kidTiers[i].to) return kidTiers[i]; return null; }
+      function kidPct(age) { var t = kidTier(age); if (!t) return 100; if (t.amt != null) return unit > 0 ? Math.min(100, t.amt * 100 / unit) : 100; return t.pct; }
+      // Para agrupar y rotular: "2 niños al 50%" o, con precio fijo, "2 niños × R$ 100".
+      function kInfo(age) {
+        var has = age !== null && age !== undefined, t = has ? kidTier(age) : null, pc = has ? kidPct(age) : 100, fx = !!(t && t.amt != null && t.amt > 0 && pc < 100);
+        return { k: fx ? "f" + t.amt : "p" + pc, pc: pc, fx: fx, each: Math.round(unit * pc / 100) };
+      }
       function getAges() { var out = []; if (agesList) Array.prototype.forEach.call(agesList.querySelectorAll("select"), function (s) { out.push(s.value === "" ? null : Number(s.value)); }); return out; }
       function ageOpts() { var h = '<option value="">' + KL.age + "</option>"; for (var i = 0; i <= 17; i++) h += '<option value="' + i + '">' + (i === 0 ? KL.less1 : i === 1 ? KL.one : KL.n.replace("{n}", i)) + "</option>"; return h; }
       // Un selector de edad por cada niño; conserva lo ya elegido al sumar o quitar niños.
@@ -424,8 +431,8 @@
             var by = {}, order = [], ag = getAges();
             if (kidTab) { for (var j = 0; j < c; j++) parts.push("1 " + L.childOne + (ag[j] === null || ag[j] === undefined ? "" : " (" + KL.n.replace("{n}", ag[j]) + ")")); }
             else {
-            for (var i = 0; i < c; i++) { var pc = ag[i] === null || ag[i] === undefined ? 100 : kidPct(ag[i]); if (!(pc in by)) { by[pc] = 0; order.push(pc); } by[pc]++; }
-            order.forEach(function (pc) { parts.push(by[pc] + " " + (by[pc] === 1 ? L.childOne : L.childMany) + (pc === 0 ? " " + KL.free : pc < 100 ? " " + KL.at.replace("{p}", pc) : "")); });
+            for (var i = 0; i < c; i++) { var ki = kInfo(ag[i]); if (!(ki.k in by)) { by[ki.k] = { n: 0, i: ki }; order.push(ki.k); } by[ki.k].n++; }
+            order.forEach(function (k) { var g = by[k], pc = g.i.pc; parts.push(g.n + " " + (g.n === 1 ? L.childOne : L.childMany) + (pc === 0 ? " " + KL.free : g.i.fx ? " \u00d7 " + money(g.i.each / 100, cur) : pc < 100 ? " " + KL.at.replace("{p}", pc) : "")); });
             }
           }
         }
@@ -449,10 +456,10 @@
           }
           return rows;
         }
-        for (var i = 0; i < c; i++) { var pc = kidTiers.length && ag[i] !== null && ag[i] !== undefined ? kidPct(ag[i]) : 100; if (!(pc in by)) { by[pc] = 0; order.push(pc); } by[pc]++; }
-        order.forEach(function (pc) {
-          var k = by[pc], each = Math.round(unit * pc / 100), lbl = k + " " + (k === 1 ? L.childOne : L.childMany);
-          rows.push(["p", pc === 0 ? lbl + " " + KL.free : pc < 100 ? lbl + " " + KL.at.replace("{p}", pc) + " \u00d7 " + m(each) : lbl + " \u00d7 " + m(each), m(each * k)]);
+        for (var i = 0; i < c; i++) { var ki = kInfo(kidTiers.length ? ag[i] : null); if (!(ki.k in by)) { by[ki.k] = { n: 0, i: ki }; order.push(ki.k); } by[ki.k].n++; }
+        order.forEach(function (kk) {
+          var g = by[kk], k = g.n, pc = g.i.pc, each = g.i.each, lbl = k + " " + (k === 1 ? L.childOne : L.childMany);
+          rows.push(["p", pc === 0 ? lbl + " " + KL.free : pc < 100 && !g.i.fx ? lbl + " " + KL.at.replace("{p}", pc) + " \u00d7 " + m(each) : lbl + " \u00d7 " + m(each), m(each * k)]);
         });
         return rows;
       }

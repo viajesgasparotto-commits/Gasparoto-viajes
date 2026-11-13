@@ -25,7 +25,7 @@
     "BOOKING_HOLD_MINUTES": "20",
     // Medición (vacío = no se carga nada de terceros ni se muestra el banner de cookies). Formatos: GTM-XXXXXX y solo dígitos.
     "GTM_ID": "",
-    "META_PIXEL_ID": "",
+    "META_PIXEL_ID": "24974462818838489",
     // Página de privacidad (ruta interna o https). Vacío = el banner no muestra enlace.
     "PRIVACY_URL": "/privacidade/",
     "BRAND_PRIMARY": "#0066a9",

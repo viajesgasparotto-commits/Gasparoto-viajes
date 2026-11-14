@@ -8,7 +8,6 @@ import { fichaHtml, compareTable, filterBar, kindOf, partsOf, timesOf, galleryOf
 import { bookingConfig, holdMinutes, kidsPolicy, kidsScope, kidsTiersFor } from "./lib/booking.js";
 import { bundleItems, bundleKidTable, bundlePolicies, bundleQuote, curOf, fmtMoney, isBundle, kidsText, loadParts, servicePolicies, spanOf, winOf } from "./lib/bundle.js";
 import { pixEnabled } from "./lib/pix.js";
-import { pickFlash, flashTile } from "./lib/flash.js";
 import { STATIC_PAGES } from "./lib/static-pages.js";
 import { SITE, legacyTarget, staticRedirect } from "./lib/site.js";
 import { renderPage, initLayout, stubShell, postCardHtml, waUrl, tr, stripTags, postDay, langOf } from "./lib/render.js";
@@ -636,15 +635,13 @@ async function handlePt(ctx) {
     // Favoritos: primero los que se ordenaron a mano en el panel (home_order), después por demanda. Si la columna todavía no existe, se usa solo la demanda.
     const demandSql = "SELECT p.*, (SELECT COUNT(*) FROM leads l WHERE l.package_title = p.title AND l.created_at >= date('now', '-60 days')) AS demand FROM packages p WHERE p.published=1 AND p.featured=1 ORDER BY ";
     // Paquetes favoritos y últimas notas: se guardan 60 s (misma lectura para todas las visitas).
-    const { pk, ps, fl } = await memoize("home", 60e3, async () => {
+    const { pk, ps } = await memoize("home", 60e3, async () => {
       let pk = await rows(env, demandSql + "(p.home_order = 0), p.home_order, demand DESC, p.created_at DESC, p.id DESC LIMIT 3");
       if (!pk.length) pk = await rows(env, demandSql + "demand DESC, p.created_at DESC, p.id DESC LIMIT 3");
       if (!pk.length) pk = await rows(env, "SELECT * FROM packages WHERE published=1 AND featured=1 ORDER BY created_at DESC, id DESC LIMIT 3");
       // Blog en la portada: siempre las 3 últimas notas (las destacadas van primero).
       const ps = await rows(env, `SELECT * FROM posts WHERE published=1 AND ${LIVE} ORDER BY featured DESC, COALESCE(NULLIF(publish_date,''),created_at) DESC, id DESC LIMIT 3`);
-      // Oferta relâmpago (panel del medio del tríptico): candidatos publicados; se elige en cada visita para que el reloj y el vencimiento sean exactos.
-      const fl = await rows(env, "SELECT id, slug, title, price, price_old, meta, image, image_alt FROM packages WHERE published=1");
-      return { pk, ps, fl };
+      return { pk, ps };
     }, (v) => v.pk.length > 0 || v.ps.length > 0);
     // A/B del botón principal: la variante se fija con cookie (así la misma persona siempre ve lo mismo).
     const cur = (request.headers.get("cookie") || "").match(/gv_ab=([ab])/)?.[1];
@@ -652,8 +649,7 @@ async function handlePt(ctx) {
     ctx.ab = v;
     const blogHead = `<div data-fx="up" class="mb-12 flex flex-wrap items-end justify-between gap-x-8 gap-y-3"><h2 class="m-0 font-display text-h2 font-semibold text-ink">${esc(tr(env).blog)}</h2><a href="/blog/" class="tw-link font-semibold text-primary">${esc(L.lang === "es" ? "Ver todo el blog" : "Ver todo o blog")}</a></div>`;
     const r = await staticPage(env, url, "home", 200, (b) => putPanel(putPanel(b, "featured", pk.length ? pkgSection(pk, "", wa, L, "") : `<p class="m-0 text-lg text-mute">${esc(L.empty)}</p>`), "posts", ps.length ? `<section class="tw tw-section bg-white"><div class="tw-wrap">${blogHead}<div class="${CARD_GRID}">${ps.map((p) => postCardHtml(p, catMap.get(p.category))).join("")}</div></div></section>` : "")
-      .replaceAll("{{AB_CTA}}", AB_CTA[v]).replaceAll("{{AB}}", v)
-      .replace(/<li data-flash-slot[^>]*>[\s\S]*?<\/li>/, (m) => { const f = pickFlash(fl || []); return f ? flashTile(f, L) : m; }));
+      .replaceAll("{{AB_CTA}}", AB_CTA[v]).replaceAll("{{AB}}", v));
     if (!r) return next();
     if (!cur) r.headers.append("set-cookie", `gv_ab=${v}; Path=/; Max-Age=2592000; SameSite=Lax`);
     r.headers.append("vary", "Cookie");

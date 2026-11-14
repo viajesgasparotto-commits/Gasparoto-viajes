@@ -87,9 +87,16 @@ export async function reservar(env, body, ctx = {}) {
     return { texto: `RESERVA DE PRUEBA (no se guardó nada porque es una prueba del panel): ${p.title} · ${datos.day}${datos.time ? " " + datos.time : ""} · ${datos.pax} personas${datos.option ? " · " + datos.option : ""} · titular ${nombre}. En WhatsApp real quedaría retenida y le llegaría el código Pix.` };
   }
   const phone = "+" + String(ctx.contact).replace(/\D/g, "");
-  const r = await createBooking(db, env, p, { ...datos, phone });
+  // Si el mismo cliente ya tiene esta reserva pendiente de hace un rato (un reintento después de un corte, o la IA repite la marca),
+  // se usa esa en vez de crear otra: nunca dos reservas iguales por el mismo "confirmo".
+  const PH = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'+',''),'(',''),')',''),'.','')";
+  const prev = await db.prepare(`SELECT id, token, total, currency, time, option_name, adults, children, hold_until FROM bookings WHERE ${PH}=? AND package_id=? AND day=? AND pax=? AND COALESCE(time,'')=? AND LOWER(COALESCE(option_name,''))=LOWER(?) AND status='pendiente' AND hold_until > datetime('now') AND created_at > datetime('now','-30 minutes') ORDER BY id DESC LIMIT 1`)
+    .bind(phone.replace(/\D/g, ""), p.id, datos.day, datos.pax, bookingConfig(p).byTime ? datos.time : "", optionsOf(p).length ? (optionsOf(p).find((o) => o.name.toLowerCase() === datos.option.toLowerCase())?.name || datos.option) : "").first().catch(() => null);
+  const r = prev
+    ? { ok: true, id: prev.id, token: prev.token, total: prev.total, currency: prev.currency, time: prev.time, option: prev.option_name, adults: prev.adults, children: prev.children, hold_minutes: 30, repetida: true }
+    : await createBooking(db, env, p, { ...datos, phone });
   if (!r.ok) return { texto: `RESERVA NO CREADA (${p.title}, ${datos.day}${datos.time ? " " + datos.time : ""}, ${datos.pax} personas): ${r.error}${r.left != null ? ` Quedan ${r.left} lugares.` : ""}` };
-  try {
+  if (!r.repetida) try {
     await db.prepare("INSERT INTO leads (name, phone, travel_date, pax, message, package_title, package_slug, page, source) VALUES (?,?,?,?,?,?,?,?,?)")
       .bind(nombre, phone, datos.day, datos.pax, `Reserva #${r.id} (pendiente) por WhatsApp${r.option ? ` · ${r.option}` : ""}${r.time ? ` · ${r.time} h` : ""}`, p.title, p.slug, "whatsapp", "ia").run();
   } catch {}

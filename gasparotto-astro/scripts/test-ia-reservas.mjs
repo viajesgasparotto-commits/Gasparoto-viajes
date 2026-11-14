@@ -58,6 +58,11 @@ AI = [`[[RESERVAR producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Jantar
 out = await pensar(env, [{ role: "user", text: "sim, confirmo" }], { contact: "5511999990000", nombre: "Bia" });
 assert.ok(out.reserva > 0 && out.pix === "00020126PIXCOPIAECOLA" && !/RESERVAR/.test(out.reply), JSON.stringify(out));
 console.log("✓ charla completa: consulta → resultado → reserva → código Pix aparte");
+const antes = (await DB.prepare("SELECT COUNT(*) n FROM bookings").first()).n;
+r = await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Jantar e Show | adultos: 2 | nombre: Bia Lima`, { contact: "5511999990000" });
+assert.equal((await DB.prepare("SELECT COUNT(*) n FROM bookings").first()).n, antes, "el mismo pedido repetido no crea otra reserva");
+assert.ok(r.id && r.pix === "00020126PIXCOPIAECOLA", r.texto);
+console.log("✓ un reintento o una marca repetida no duplica la reserva");
 
 AI = [`[[RESERVAR producto: tango | fecha: ${dia} | hora: 20:00 | adultos: 1 | nombre: X Y]]`];
 out = await pensar(env, [{ role: "user", text: "oi" }], { contact: "5511999990001", seguimiento: 3 });

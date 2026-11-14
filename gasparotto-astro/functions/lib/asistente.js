@@ -339,7 +339,9 @@ export async function pensar(env, history, ctx = {}) {
       if (r.id) reservada = r;
       out.push(r.texto);
     }
-    extra += `\n\nRESULTADOS DEL SISTEMA (recién consultados, en tiempo real; usalos para responderle al cliente y NO vuelvas a escribir las marcas ya resueltas)\n${out.join("\n\n")}`;
+    // Los resultados están en español: se recuerda el idioma del cliente (si no, Gemini a veces contesta en español a un brasileño).
+    const IDI = { es: "ESPAÑOL", pt: "PORTUGUÉS DE BRASIL", en: "INGLÉS" }[ctx.idioma] || "el idioma del último mensaje del cliente";
+    extra += `\n\nRESULTADOS DEL SISTEMA (recién consultados, en tiempo real; usalos para responderle al cliente y NO vuelvas a escribir las marcas ya resueltas)\n${out.join("\n\n")}\n\nIMPORTANTE: escribile al cliente en ${IDI}, aunque estos resultados estén en español.`;
   }
   const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO), noSeguir = raw.includes(NO_SEGUIR);
   const { texto, datos } = sacarFicha(raw);

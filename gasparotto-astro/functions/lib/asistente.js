@@ -421,7 +421,13 @@ export async function pensar(env, history, ctx = {}) {
   // Marcas internas mal escritas ([HUMANO], [[ PAGO ]]…) tampoco le llegan al cliente.
   const reply = pulir(texto.split(HANDOFF).join("").split(PAGO).join("").split(NO_SEGUIR).join("").replace(DISP_RE, "").replace(RES_RE, "").replace(/\[{1,2}\s*(HUMANO|PAGO|NO_SEGUIR|DISPONIBILIDAD|RESERVAR)\b[^\]]*\]{1,2}/gi, ""));
   if (ctx.chatId) await guardarFicha(env.DB, ctx.chatId, datos).catch(() => {});
-  return { reply, handoff, pago, datos, noSeguir, pix: reservada?.pix || "", reserva: reservada?.id || 0, pasos };
+  // Pix manual: el titular de la cuenta siempre va en el mensaje (el cliente lo ve al pagar y tiene que coincidir).
+  let reply2 = reply;
+  if (reservada?.pix && !/^000201/.test(reservada.pix)) {
+    const pm = await pixManual(env.DB);
+    if (pm && pm.nombre && !reply2.toLowerCase().includes(pm.nombre.toLowerCase())) reply2 += `\n\n${ctx.idioma === "es" ? "Titular de la cuenta Pix" : ctx.idioma === "en" ? "Pix account holder" : "Titular da conta Pix"}: *${pm.nombre}*`;
+  }
+  return { reply: reply2, handoff, pago, datos, noSeguir, pix: reservada?.pix || "", reserva: reservada?.id || 0, pasos };
 }
 
 // ---------- Conversaciones guardadas ----------

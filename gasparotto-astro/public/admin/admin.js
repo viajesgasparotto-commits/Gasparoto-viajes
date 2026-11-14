@@ -1422,7 +1422,7 @@ async function ia(){const v=$('#v');if(!IA_D)v.innerHTML=SK;let d;try{d=await ap
    <div class="ia-det-col" id="ia-det"><div class="ia-empty-det">${ic('chat')}<p class="muted">Elegí una conversación para verla, responder o detener la IA en esa charla.</p></div></div></section>
   <div class="grid ia-top">
    <section class="card"><h3>Probar el asistente</h3><p class="muted" style="margin-top:0">Escribí como un cliente. Usa los mismos datos y reglas que en WhatsApp, pero no se guarda ni se envía.</p>
-    <div class="ia-tools"><label class="muted" for="ia-or" style="margin:0">Llega por</label><select id="ia-or"><option value="">Contacto directo</option><option value="anuncio">Un anuncio</option><option value="promo">Una promoción</option><option value="web">La web</option></select></div>
+    <div class="ia-tools"><label class="muted" for="ia-or" style="margin:0">Llega por</label><select id="ia-or"><option value="">Contacto directo</option><option value="anuncio">Un anuncio</option><option value="promo">Una promoción</option><option value="web">La web</option></select></div><input id="ia-adt" placeholder="Título del anuncio (como en Meta), ej. Show de Tango com Jantar" style="margin-top:6px" hidden>
     <div class="ia-chat" id="ia-t">${IA_T.map(iaBub).join('')||'<p class="muted ia-empty">Ej.: “Oi! Vi a promoção no Instagram, somos 4 pessoas”</p>'}</div>
     <form id="ia-f" class="ia-send"><input id="ia-q" placeholder="Mensaje del cliente…" autocomplete="off" aria-label="Mensaje de prueba"><button class="p" id="ia-go">Enviar</button><button type="button" class="s" id="ia-rs" title="Empezar de nuevo" aria-label="Empezar de nuevo">${ic('refresh')}</button></form></section>
    <section class="card"><h3>Indicaciones para el asistente</h3><p class="muted" style="margin-top:0">Lo que tiene que saber o priorizar además de la web: qué recomendar primero, extras, promociones vigentes, horarios del equipo, tono. ${d.puedeEditar?'':'Solo un administrador puede cambiarlas.'}</p>
@@ -1449,7 +1449,7 @@ async function ia(){const v=$('#v');if(!IA_D)v.innerHTML=SK;let d;try{d=await ap
   const paintT=()=>{const t=$('#ia-t');t.innerHTML=IA_T.map(iaBub).join('');t.scrollTop=t.scrollHeight};
   $('#ia-rs').onclick=()=>{IA_T=[];paintT();$('#ia-t').innerHTML='<p class="muted ia-empty">Charla nueva.</p>'};
   $('#ia-f').onsubmit=async e=>{e.preventDefault();const q=$('#ia-q').value.trim();if(!q)return;IA_T.push({role:'user',text:q});$('#ia-q').value='';paintT();$('#ia-go').disabled=true;
-    try{const r=await api('ia/probar','POST',{messages:IA_T,origen:$('#ia-or').value});IA_T.push({role:'assistant',text:r.reply+(r.handoff?'\n\n[En WhatsApp, esta charla quedaría marcada para que la mire una persona]':'')+(r.pago?'\n\n[En WhatsApp, quedaría marcada para verificar el pago]':'')})}catch{IA_T.pop()}
+    try{const ad=$('#ia-or').value==='anuncio'&&$('#ia-adt')?.value.trim();const r=await api('ia/probar','POST',{messages:IA_T,origen:$('#ia-or').value,...(ad?{anuncio:{titulo:ad}}:{})});IA_T.push({role:'assistant',text:r.reply+(r.handoff?'\n\n[En WhatsApp, esta charla quedaría marcada para que la mire una persona]':'')+(r.pago?'\n\n[En WhatsApp, quedaría marcada para verificar el pago]':'')})}catch{IA_T.pop()}
     $('#ia-go').disabled=false;paintT();$('#ia-q').focus()};
   if($('#ia-sv'))$('#ia-sv').onclick=async()=>{try{await api('ia/config','PUT',{instrucciones:$('#ia-ins').value,pausaCelular:$('#ia-pc').checked,seguimiento:$('#ia-sg').checked?+$('#ia-sgh').value:0,pixChave:$('#ia-pixk')?.value||'',pixNombre:$('#ia-pixn')?.value||''});toast('Guardado')}catch{}};
   if(IA_OPEN)iaChat(IA_OPEN)}
@@ -1516,3 +1516,6 @@ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest
   // Con opciones: una tabla por opción, con el precio de cada una.
   const ops=(window.__gvOPT?window.__gvOPT():[]).filter(o=>o.name.trim()&&num(o.price));
   t.value=(ops.length?ops.flatMap(o=>rows((o.price.match(/^[^\d]*/)||[''])[0].trim()||cur,num(o.price),o.name.trim())):rows(cur,n,'')).join('\n');t.dispatchEvent(new Event('input',{bubbles:true}))});
+
+// Prueba de la IA: con "Un anuncio" se puede escribir el título del anuncio (así llega de Meta).
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='ia-or'){const t=$('#ia-adt');if(t)t.hidden=e.target.value!=='anuncio'}});

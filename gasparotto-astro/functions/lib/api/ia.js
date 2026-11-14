@@ -6,6 +6,7 @@
 import { aiConfig } from "../ai.js";
 import { pixManual, cleanChave, KEY_PIX_MANUAL } from "../pix-manual.js";
 import { pixEnabled } from "../pix.js";
+import { origenDe } from "../asistente.js";
 import { pensar, instrucciones, guardarMensaje, iaActiva, seguimientoHoras, SETTING_KEY, KEY_DETENIDA, KEY_PAUSA_CELULAR, KEY_SEGUIMIENTO } from "../asistente.js";
 import { enviarTexto, waMissing } from "../whatsapp.js";
 import { json } from "./http.js";
@@ -52,7 +53,9 @@ export async function manejarIA({ request, env, url, res, id, method, user }) {
     const messages = (Array.isArray(b.messages) ? b.messages : []).slice(-24).map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", text: String(m.text || "").slice(0, 2000) }));
     if (!messages.length) return json({ error: "Escribí un mensaje" }, 400);
     if (!aiConfig(env).ready) return json({ error: "Falta la clave de la IA (GEMINI_API_KEY o ANTHROPIC_API_KEY)." }, 400);
-    const origen = { anuncio: "Anuncio de Meta (prueba)", promo: "Promoción u oferta (lo menciona el cliente)", web: "Web: consulta por un paquete" }[b.origen] || "Contacto directo";
+    // Anuncio con título y texto (como llega de Meta en un "Clic a WhatsApp"): mismo armado que un mensaje real.
+    const ad = b.anuncio && typeof b.anuncio === "object" ? { source_type: "ad", headline: String(b.anuncio.titulo || "").slice(0, 200), body: String(b.anuncio.texto || "").slice(0, 300), source_url: "https://fb.me/prueba" } : null;
+    const origen = ad ? await origenDe(env, "", ad) : { anuncio: "Anuncio de Meta (prueba)", promo: "Promoción u oferta (lo menciona el cliente)", web: "Web: consulta por un paquete" }[b.origen] || "Contacto directo";
     try { return json(await pensar(env, messages, { primera: !messages.some((m) => m.role === "assistant"), nombre: "", origen })); }
     catch (e) { return json({ error: String(e?.message || "Error de la IA") }, 502); }
   }

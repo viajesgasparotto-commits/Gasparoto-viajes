@@ -2,6 +2,7 @@
 // Tres accesos como tríptico de fotos. Cada panel lleva su foto a sangre y, abajo, el rótulo de color de la marca
 // (bordó = tango, azul = ciudad, verde profundo = Delta) con título y enlace, como los carteles de la oficina.
 // En escritorio el panel con foco se ensancha. Textos y fotos: src/data/home.ts.
+// El panel con flash: true (el del medio) lo reemplaza el servidor por la "Oferta relâmpago" cuando hay una (functions/lib/flash.js).
 import { intents } from "../../data/home";
 // Clases escritas completas para que Tailwind las detecte.
 const tones: Record<string, string> = { rose: "bg-accent", blue: "bg-primary", teal: "bg-teal" };
@@ -12,7 +13,7 @@ const tones: Record<string, string> = { rose: "bg-accent", blue: "bg-primary", t
   </div>
   <ul class="m-0 flex list-none flex-col p-0 md:h-[36rem] md:flex-row">
     {intents.tiles.map((t) => (
-      <li class="group/tile relative isolate flex-1 overflow-hidden bg-night transition-[flex-grow] duration-700 ease-soft md:hover:flex-[1.5] md:focus-within:flex-[1.5]">
+      <li data-flash-slot={t.flash ? "" : undefined} class="group/tile relative isolate flex-1 overflow-hidden bg-night transition-[flex-grow] duration-700 ease-soft md:hover:flex-[1.5] md:focus-within:flex-[1.5]">
         <img
           src={t.img}
           alt={t.alt}

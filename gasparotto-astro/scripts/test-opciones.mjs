@@ -7,6 +7,7 @@ import { onRequest } from "../functions/api/[[path]].js";
 import { onRequest as site } from "../functions/_middleware.js";
 import { normMeta, optionsOf, cheapestOption, precio } from "../functions/lib/ficha.js";
 import { kidsScope, kidsTiersFor, priceTotal, tiersFor } from "../functions/lib/booking.js";
+import { pickFlash, flashTile } from "../functions/lib/flash.js";
 import { addDays, todayBA } from "../functions/lib/booking.js";
 
 function d1() {
@@ -189,5 +190,17 @@ assert.equal(priceTotal(47500, 2, [99, 99], tiersFor(kidsTiersFor(tangoK, "Janta
 const general = { ...tangoK, meta: JSON.stringify({ policies: [["menores", "x", "", ""], ["menores", "y", "Somente Show", ""]] }) };
 assert.deepEqual(kidsScope(general), []); assert.equal(kidsTiersFor(general, "Jantar e Show Platea").length, 2, "con una política general, valen en todas");
 console.log("✓ tarifa de niños solo en la opción de la política de menores");
+
+// Oferta relâmpago de la portada: la activa que termina antes (con reloj); si no hay, el mayor descuento real (sin reloj); vencidas no cuentan.
+const fNow = Date.parse("2026-11-14T21:50:00Z");
+const fRows = [{ slug: "a", title: "A", price: "R$ 210", price_old: "R$ 250", image: "/a.webp", meta: "{}" },
+  { slug: "b", title: "B", price: "R$ 440", price_old: "R$ 490", image: "/b.webp", meta: JSON.stringify({ flash: "2026-11-16T23:59" }) },
+  { slug: "c", title: "C", price: "R$ 100", price_old: "", image: "/c.webp", meta: JSON.stringify({ flash: "2026-11-10T23:59" }) }];
+let fl = pickFlash(fRows, fNow); assert.equal(fl.p.slug, "b"); assert.equal(new Date(fl.end).toISOString(), "2026-11-17T02:59:00.000Z", "hora de Buenos Aires");
+assert.ok(flashTile(fl, { lang: "pt" }).includes("data-flash-end") && flashTile(fl, { lang: "pt" }).includes("-10%"));
+fl = pickFlash(fRows.filter((r) => r.slug !== "b"), fNow); assert.equal(fl.p.slug, "a"); assert.equal(fl.end, 0); assert.ok(!flashTile(fl, { lang: "pt" }).includes("data-flash-end"), "sin fecha no hay reloj");
+assert.equal(pickFlash([fRows[2]], fNow), null, "sin oferta ni descuento: queda el panel de siempre");
+assert.equal(JSON.parse(normMeta(JSON.stringify({ flash: "2026-11-20T23:59" }))).flash, "2026-11-20T23:59"); assert.equal(JSON.parse(normMeta(JSON.stringify({ flash: "mañana" }))).flash, "");
+console.log("✓ oferta relâmpago: reloj real hasta la hora del panel; si no, mayor descuento sin reloj");
 
 console.log("\nTodo OK");

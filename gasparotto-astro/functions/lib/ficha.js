@@ -51,6 +51,8 @@ export function normMeta(raw) {
     // Mejor precio del mercado (se marca en el panel): sello en la ficha, en la tarjeta del listado y argumento para la IA.
     // box = cuánto cuesta lo mismo comprado directo en el lugar (boletería), opcional.
     best: m.best === 1 || m.best === true || m.best === "1" ? 1 : 0,
+    // Oferta relámpago en la portada hasta (hora de Buenos Aires, "AAAA-MM-DDTHH:MM"); vacío = no.
+    flash: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(m.flash || "")) ? String(m.flash) : "",
     box: precio(txt(m.box, 40)),
     options: arr(m.options, 12).map((r) => [txt(r?.[0], 60), precio(txt(r?.[1], 40)), precio(txt(r?.[2], 40)), txt(r?.[3], 140)])
       .filter((r, i, all) => r[0] && r[1] && /\d/.test(r[1]) && all.findIndex((x) => x[0].toLowerCase() === r[0].toLowerCase()) === i),

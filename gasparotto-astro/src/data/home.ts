@@ -16,7 +16,7 @@ export const intents = {
   title: "O que você quer viver?",
   tiles: [
     { icon: "tango", title: "Quero tango", text: "Jantar show e espetáculos em teatros históricos.", cta: "Ver shows", tone: "rose", img: "/assets/tango.webp", alt: "Casal dançando tango em um salão com cortinas de veludo e orquestra ao vivo", pos: "74% 50%", href: "/paquetes/categoria/show-de-tango/" },
-    { icon: "city", title: "Quero conhecer a cidade", text: "Roteiros guiados pelos bairros e pontos principais.", cta: "Ver city tour", tone: "blue", img: "/assets/city-tour.webp", alt: "Puerto Madero, o Obelisco e La Boca ao entardecer", pos: "62% 50%", href: "/paquetes/categoria/city-tour/" },
+    { flash: true, icon: "city", title: "Quero conhecer a cidade", text: "Roteiros guiados pelos bairros e pontos principais.", cta: "Ver city tour", tone: "blue", img: "/assets/city-tour.webp", alt: "Puerto Madero, o Obelisco e La Boca ao entardecer", pos: "62% 50%", href: "/paquetes/categoria/city-tour/" },
     { icon: "delta", title: "Descubra Nossos Passeios", text: "Delta do Tigre, vinícolas e passeios de um dia.", cta: "Ver passeios", tone: "teal", img: "/assets/delta.webp", alt: "Lancha de madeira navegando pelo Delta do Tigre ao entardecer", pos: "72% 50%", href: "/paquetes/categoria/paseos/" },
   ],
 };

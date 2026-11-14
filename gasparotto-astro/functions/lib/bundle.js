@@ -105,7 +105,7 @@ export function bundlePolicies(p, items, L = {}) {
 // Servicio suelto: si acepta niños, tiene tabla de edades y no escribió una política de menores, la de menores se arma sola con la tabla.
 export function servicePolicies(p, L = {}) {
   const own = policiesOf(p, L);
-  if (Number(p.accepts_children) !== 1 || own.some((x) => x.type === "menores" && !x.option)) return own;
+  if (Number(p.accepts_children) !== 1 || own.some((x) => x.type === "menores")) return own; // si escribieron una de menores (aunque sea de una opción), se respeta la suya
   const t = kidsPolicy(p).tiers;
   return t.length ? [...own, { type: "menores", title: (L.policyTypes || {}).menores || "", text: kidsText(t, L.lang || "pt", curOf((cheapestOption(optionsOf(p)) || {}).price || p.price)), option: "", auto: true }] : own;
 }

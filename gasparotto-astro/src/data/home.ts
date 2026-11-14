@@ -8,8 +8,8 @@ export const meta = {
 export const hero = {
   lines: ["Buenos Aires,", "sob medida."],
   sub: "Shows de tango, city tour e passeios montados de acordo com as suas datas e o seu jeito de viajar.",
-  secondary: { label: "Ver experiências", href: "#paquetes" },
-  proof: "Respondemos pelo WhatsApp. Agência em Buenos Aires desde 2006.",
+  secondary: { label: "Ver passeios", href: "#paquetes" },
+  proof: "Reserva online com Pix ou pelo WhatsApp. Agência em Buenos Aires desde 2006.",
 };
 
 export const intents = {
@@ -17,7 +17,7 @@ export const intents = {
   tiles: [
     { icon: "tango", title: "Quero tango", text: "Jantar show e espetáculos em teatros históricos.", cta: "Ver shows", tone: "rose", img: "/assets/tango.webp", alt: "Casal dançando tango em um salão com cortinas de veludo e orquestra ao vivo", pos: "74% 50%", href: "/paquetes/categoria/show-de-tango/" },
     { icon: "city", title: "Quero conhecer a cidade", text: "Roteiros guiados pelos bairros e pontos principais.", cta: "Ver city tour", tone: "blue", img: "/assets/city-tour.webp", alt: "Puerto Madero, o Obelisco e La Boca ao entardecer", pos: "62% 50%", href: "/paquetes/categoria/city-tour/" },
-    { icon: "delta", title: "Descubra Nossos Passeios", text: "Delta do Tigre, vinícolas e passeios de um dia.", cta: "Ver passeios", tone: "teal", img: "/assets/delta.webp", alt: "Lancha de madeira navegando pelo Delta do Tigre ao entardecer", pos: "72% 50%", href: "/paquetes/categoria/paseos/" },
+    { icon: "delta", title: "Quero passear", text: "Delta do Tigre, vinícolas e passeios de um dia.", cta: "Ver passeios", tone: "teal", img: "/assets/delta.webp", alt: "Lancha de madeira navegando pelo Delta do Tigre ao entardecer", pos: "72% 50%", href: "/paquetes/categoria/paseos/" },
   ],
 };
 
@@ -41,24 +41,27 @@ export const mix = {
 
 export const featured = {
   title: "Os mais procurados",
-  lead: "Consulte a disponibilidade para as suas datas; o preço final é confirmado pelo WhatsApp.",
+  all: { label: "Ver todos os passeios e pacotes", href: "/paquetes/" },
+  lead: "Escolha a data e reserve online em poucos minutos. Se preferir, tire as dúvidas pelo WhatsApp.",
 };
 
 export const how = {
   title: "Como reservar",
   steps: [
-    { n: "1", title: "Escolha", text: "Veja as experiências e fique com a que combina melhor com a sua viagem." },
-    { n: "2", title: "Consulte", text: "Informe a data e quantas pessoas viajam. Respondemos pelo WhatsApp." },
-    { n: "3", title: "Confirme", text: "Enviamos a disponibilidade e o preço final. Se estiver tudo certo, deixamos reservado." },
+    { n: "1", title: "Escolha", text: "Veja os passeios e pacotes e fique com o que combina com a sua viagem." },
+    { n: "2", title: "Reserve", text: "Escolha a data, o horário e quantas pessoas viajam. Você vê o preço total na hora." },
+    { n: "3", title: "Pague e pronto", text: "Pague com Pix e receba a confirmação. Qualquer dúvida, respondemos pelo WhatsApp." },
   ],
 };
 
 export const faq = {
   title: "Perguntas frequentes",
   items: [
-    { q: "Como reservo um passeio ou um show?", a: "Escolha a experiência e fale com a gente pelo WhatsApp informando a data e quantas pessoas viajam. Confirmamos a disponibilidade e o preço antes de reservar." },
+    { q: "Como reservo um passeio ou um show?", a: "Abra o passeio, toque em Reservar e escolha a data, o horário e quantas pessoas viajam. Você paga com Pix e recebe a confirmação. Se preferir, fale com a gente pelo WhatsApp." },
     { q: "Vocês buscam no hotel?", a: "Os tours pela cidade e pelo Delta do Tigre saem do seu hotel. Nos shows de tango, o traslado depende do setor escolhido." },
-    { q: "Os preços do site são finais?", a: "Os preços publicados são por pessoa e servem como referência. Podem variar conforme a data, o setor escolhido e o número de viajantes, por isso confirmamos o valor final pelo WhatsApp antes de reservar." },
+    { q: "Os preços do site são finais?", a: "Os preços são por pessoa. Ao reservar online, você vê o valor total (com a opção escolhida e os menores, se houver) antes de pagar." },
+    { q: "Qual é a diferença entre passeio e pacote?", a: "Um passeio (ou serviço) é uma única experiência: um show, um city tour, um traslado. Um pacote junta vários deles em uma só reserva, com preço melhor do que comprando separado." },
+    { q: "Como pago?", a: "Na reserva online, com Pix. Para outras formas de pagamento, fale com a gente pelo WhatsApp." },
     { q: "Onde vocês ficam?", a: "Florida 537, Local 356, C1005 Cidade Autônoma de Buenos Aires. Telefone +54 11 6419-9083." },
   ],
 };
@@ -75,5 +78,5 @@ export const trust = [
   { icon: "calendar", k: "Desde 2006", v: "20 anos montando viagens em Buenos Aires.", badge: "" },
   { icon: "pin", k: "No coração do centro", v: "Visite-nos na Calle Florida 537, Local 356.", badge: "" },
   { icon: "people", k: "Atendimento pessoal", v: "Mais de 100.000 clientes já viajaram com a gente. Respondemos pelo WhatsApp, do começo ao fim.", badge: "+100.000 clientes" },
-  { icon: "tag", k: "Preço final claro", v: "Confirmamos o valor total antes de você reservar. Sem surpresas.", badge: "" },
+  { icon: "tag", k: "Preço claro", v: "Você vê o valor total antes de pagar. Sem surpresas.", badge: "" },
 ];

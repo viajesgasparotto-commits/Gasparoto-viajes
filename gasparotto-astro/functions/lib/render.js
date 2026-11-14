@@ -30,9 +30,9 @@ export const langOf = (env = E) => String(env.SITE_LANG || "es").trim();
 export const stubShell = (env = E) => `<html lang="${esc(langOf(env))}">`;
 
 const T = {
-  es: { pk: "Paquetes", sv: "Servicios", blog: "Blog", about: "Nosotros", book: "Ver paquetes", skip: "Ir al contenido", menu: "Menú", terms: "Términos y condiciones", how: "Cómo reservar", nav: "Principal", foot: "Pie", contact: "Contacto", explore: "Explorá", follow: "Seguinos", addr: "Florida 537, Local 356, C1005 Ciudad Autónoma de Buenos Aires" },
-  en: { pk: "Packages", sv: "Services", blog: "Blog", about: "About us", book: "View packages", skip: "Skip to content", menu: "Menu", terms: "Terms and conditions", how: "How to book", nav: "Main", foot: "Footer", contact: "Contact", explore: "Explore", tr: "Transfers", follow: "Follow us", addr: "Florida 537, Local 356, C1005 Autonomous City of Buenos Aires" },
-  "pt-BR": { pk: "Pacotes", sv: "Serviços", blog: "Blog", about: "Sobre nós", book: "Ver pacotes", skip: "Ir para o conteúdo", menu: "Menu", terms: "Termos e condições", how: "Como reservar", nav: "Principal", foot: "Rodapé", contact: "Contato", explore: "Explore", tr: "Traslados", follow: "Siga-nos", addr: "Florida 537, Local 356, C1005 Cidade Autônoma de Buenos Aires" },
+  es: { pk: "Paquetes", sv: "Servicios", all: "Paseos y paquetes", nav1: "Paseos", blog: "Blog", about: "Nosotros", book: "Reservar", skip: "Ir al contenido", menu: "Menú", terms: "Términos y condiciones", how: "Cómo reservar", nav: "Principal", foot: "Pie", contact: "Contacto", explore: "Explorá", follow: "Seguinos", addr: "Florida 537, Local 356, C1005 Ciudad Autónoma de Buenos Aires" },
+  en: { pk: "Packages", sv: "Services", all: "Tours and packages", nav1: "Tours", blog: "Blog", about: "About us", book: "Book now", skip: "Skip to content", menu: "Menu", terms: "Terms and conditions", how: "How to book", nav: "Main", foot: "Footer", contact: "Contact", explore: "Explore", tr: "Transfers", follow: "Follow us", addr: "Florida 537, Local 356, C1005 Autonomous City of Buenos Aires" },
+  "pt-BR": { pk: "Pacotes", sv: "Serviços", all: "Passeios e pacotes", nav1: "Passeios", blog: "Blog", about: "Sobre nós", book: "Reservar", skip: "Ir para o conteúdo", menu: "Menu", terms: "Termos e condições", how: "Como reservar", nav: "Principal", foot: "Rodapé", contact: "Contato", explore: "Explore", tr: "Traslados", follow: "Siga-nos", addr: "Florida 537, Local 356, C1005 Cidade Autônoma de Buenos Aires" },
 };
 export const tr = (env = E) => T[langOf(env)] || T.es;
 
@@ -53,7 +53,7 @@ const CTA = (href, label, extra = "") =>
   `<a href="${href}" class="tw-btn tw-btn--primary min-h-11 px-5 ${extra}"><span>${label}</span></a>`;
 
 function siteHeader(t) {
-  const links = [["/paquetes/", t.pk], ["/servicios/", t.sv], ["/blog/", t.blog], ["/nosotros/", t.about], ["/contacto/", t.contact]];
+  const links = [["/paquetes/", t.nav1 || t.pk], ["/paquetes/?tipo=paquete", t.pk], ["/blog/", t.blog], ["/nosotros/", t.about], ["/contacto/", t.contact]];
   return `<header data-site-header class="tw-header sticky top-0 z-50 border-b transition-[background-color,box-shadow,color] duration-300 data-[stuck]:shadow-soft">
 <div class="tw-wrap flex h-18 items-center justify-between gap-4">
 <a href="/" aria-label="${esc(BRAND)}" class="shrink-0 no-underline"><span class="block">${wordmark("text-[1.65rem]")}</span></a>
@@ -72,7 +72,7 @@ function siteFooter(t) {
   return `<footer class="bg-night text-white">
 <div class="tw-wrap grid gap-14 py-16 sm:py-24 md:grid-cols-[1.6fr_1fr_1fr]">
 <div><a href="/" aria-label="${esc(BRAND)}" class="block no-underline"><span class="block text-white">${wordmark("text-[clamp(2.75rem,6vw,4.75rem)] !tracking-[-0.03em]", "text-celeste")}</span></a><p class="m-0 mt-8 max-w-xs leading-relaxed text-white/75">${t.addr}</p><a href="tel:+541164199083" class="mt-3 inline-block no-underline"><span class="font-semibold text-white">+54 11 6419-9083</span></a></div>
-${col(t.explore, [["/paquetes/", t.pk], ["/servicios/", t.sv], ["/traslados/", t.tr || "Traslados"], ["/nosotros/", t.about], ["/contacto/", t.contact], ["/blog/", t.blog]])}
+${col(t.explore, [["/paquetes/", t.nav1 || t.pk], ["/paquetes/?tipo=paquete", t.pk], ["/servicios/", t.sv], ["/traslados/", t.tr || "Traslados"], ["/nosotros/", t.about], ["/contacto/", t.contact], ["/blog/", t.blog]])}
 ${col(t.follow, [["https://www.instagram.com/gasparottoviajes/", "Instagram", 1], ["https://www.facebook.com/profile.php?id=61578579680087", "Facebook", 1], ["https://www.tiktok.com/@gasparotto.viajes", "TikTok", 1]])}
 </div>
 <div class="border-t border-white/15"><p class="tw-wrap m-0 py-5 text-sm text-white/60">© ${new Date().getFullYear()} ${esc(BRAND)}</p></div>

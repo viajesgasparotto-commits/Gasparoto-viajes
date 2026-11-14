@@ -185,11 +185,11 @@ export const kindText = (lang) => (lang === "es"
   ? { paquete: "Paquete", servicio: "Servicio", includesN: (n) => (n === 1 ? "Incluye 1 servicio" : `Incluye ${n} servicios`),
       bundleH: "Qué incluye este paquete", bundleP: "Podés reservar todo junto o elegir solo lo que necesitás: cada servicio también se vende por separado.",
       detail: "Ver detalle", ask: "Consultar solo este", apart: "Por separado", together: "En el paquete", save: "Ahorrás", inH: "También forma parte de estos paquetes", inP: "Si lo combinás con otros servicios, el precio mejora.",
-      all: "Todo", kinds: "Tipo de producto", kindsP: "Paquetes", kindsS: "Servicios" }
+      all: "Todo", kinds: "Tipo de producto", kindsP: "Paquetes", kindsS: "Servicios", book: "Reservar", pkgN: (n) => `Paquete · ${n} servicios` }
   : { paquete: "Pacote", servicio: "Serviço", includesN: (n) => (n === 1 ? "Inclui 1 serviço" : `Inclui ${n} serviços`),
       bundleH: "O que inclui este pacote", bundleP: "Você pode reservar tudo junto ou escolher só o que precisa: cada serviço também é vendido separadamente.",
       detail: "Ver detalhe", ask: "Consultar só este", apart: "Separadamente", together: "No pacote", save: "Você economiza", inH: "Também faz parte destes pacotes", inP: "Combinando com outros serviços, o preço melhora.",
-      all: "Tudo", kinds: "Tipo de produto", kindsP: "Pacotes", kindsS: "Serviços" });
+      all: "Tudo", kinds: "Tipo de produto", kindsP: "Pacotes", kindsS: "Serviços", book: "Reservar", pkgN: (n) => `Pacote · ${n} serviços` });
 
 const CLOCK = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 const STACK = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>';
@@ -202,20 +202,25 @@ export function pkgCard(p, wa, L, i = 0) {
   const href = `/paquetes/${esc(p.slug)}/`, K = kindText(L.lang);
   const pct = discountPct(p.price_old, p.price), kind = kindOf(p), n = partsOf(p).length;
   const pill = "rounded-full bg-white/95 px-3 py-1.5 text-[0.75rem] font-bold uppercase leading-none tracking-[0.08em] text-night shadow-sm";
-  const kindTag = kind ? `<span class="${pill}">${esc(K[kind])}</span>` : p.featured ? `<span class="${pill}">${esc(L.featured)}</span>` : "";
+  // Etiqueta solo en los paquetes ("Pacote · 3 serviços"): lo normal es el servicio suelto, y poner "Serviço" en todas confundía.
+  const kindTag = kind === "paquete" ? `<span class="${pill}">${esc(n > 1 ? K.pkgN(n) : K.paquete)}</span>` : "";
   const sale = pct ? `<span class="rounded-full bg-accent px-3 py-1.5 text-[0.8125rem] font-bold leading-none text-white shadow-sm">-${pct}%</span>` : "";
   const img = p.image
     ? `<div class="tw-pkg-img relative overflow-hidden rounded-xl bg-mist"><img loading="lazy" alt="${esc(p.image_alt || p.title)}" src="${esc(p.image)}" class="block aspect-[4/3] w-full object-cover transition duration-700 ease-soft group-hover:scale-[1.04]"><div class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">${kindTag}${sale}</div></div>`
     : "";
   const facts = cardFacts(p);
   const dur = (() => { const r = (parseMeta(p.meta).facts || []).find((x) => /duraci/i.test(x[0])); return r ? `<span class="inline-flex items-center gap-1.5">${CLOCK}<span>${esc(r[1])}</span></span>` : ""; })();
-  const incl = n ? `<span class="inline-flex items-center gap-1.5 font-semibold text-primary">${STACK}<span>${esc(K.includesN(n))}</span></span>` : "";
+  const incl = n && !img ? `<span class="inline-flex items-center gap-1.5 font-semibold text-primary">${STACK}<span>${esc(K.includesN(n))}</span></span>` : "";
   // Horarios de salida (máx. 3 en la tarjeta; el resto se ve en la ficha)
   const tm = timesOf(p);
   const hor = tm.length ? `<span><span>${esc(L.timesShort || "Horarios")}</span> <span class="font-semibold text-ink">${esc(tm.slice(0, 3).map((r) => r[0]).join(" · ") + (tm.length > 3 ? " …" : ""))}</span></span>` : "";
   const meta = dur || incl || hor ? `<p class="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-mute">${dur}${hor}${incl}</p>` : facts;
+  // Con reserva online, el botón lleva al formulario de la ficha; si no, consulta por WhatsApp.
+  const cta = Number(p.booking_enabled) === 1
+    ? `<a href="${href}#pedir" class="tw-btn tw-btn--sm tw-btn--primary relative z-10 shrink-0"><span>${esc(K.book)}</span></a>`
+    : `<a data-gv-wa="${esc(p.title)}" href="${esc(wa)}" target="_blank" rel="noopener" class="tw-btn tw-btn--sm tw-btn--wa-line relative z-10 shrink-0">${WA_ICON}<span>${esc(L.ask)}</span></a>`;
   const ex = p.excerpt ? `<p class="m-0 line-clamp-2 text-[0.95rem] leading-relaxed text-mute">${esc(p.excerpt)}</p>` : "";
-  return `<article data-dur="${hoursOf(p)}" data-kind="${esc(kind)}" data-fx="up" data-fx-delay="${(i % 3) * 0.08}" class="tw-pkg group relative flex flex-col [&[hidden]]:hidden">${img}<div class="flex flex-1 flex-col gap-2.5 pt-4">${meta}<h3 class="m-0 font-display text-[1.3125rem] font-semibold leading-tight text-ink"><a href="${href}" class="tw-card-title no-underline after:absolute after:inset-0 after:content-[''] focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-primary"><span>${esc(p.title)}</span></a></h3>${ex}<div class="mt-auto flex items-end justify-between gap-3 pt-3">${priceHtml(p, L)}<a data-gv-wa="${esc(p.title)}" href="${esc(wa)}" target="_blank" rel="noopener" class="tw-btn tw-btn--sm tw-btn--wa-line relative z-10 shrink-0">${WA_ICON}<span>${esc(L.ask)}</span></a></div></div></article>`;
+  return `<article data-dur="${hoursOf(p)}" data-kind="${esc(kind)}" data-fx="up" data-fx-delay="${(i % 3) * 0.08}" class="tw-pkg group relative flex flex-col [&[hidden]]:hidden">${img}<div class="flex flex-1 flex-col gap-2.5 pt-4">${meta}<h3 class="m-0 font-display text-[1.3125rem] font-semibold leading-tight text-ink"><a href="${href}" class="tw-card-title no-underline after:absolute after:inset-0 after:content-[''] focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-primary"><span>${esc(p.title)}</span></a></h3>${ex}<div class="mt-auto flex items-end justify-between gap-3 pt-3">${priceHtml(p, L)}${cta}</div></div></article>`;
 }
 
 // Ahorro real de un paquete: solo si TODOS sus servicios tienen precio en la misma moneda y la suma supera el precio del paquete.

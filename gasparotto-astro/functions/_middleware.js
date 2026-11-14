@@ -18,9 +18,14 @@ import { ensureSchema } from "./lib/schema.js";
 import { PT, ES, EN, splitLang, langPathOf, itemPath, alternateLinks, addToHead, localizeUrls } from "./lib/i18n.js";
 import { itemForLang, liveTranslations } from "./lib/translations.js";
 
+// Traducción de los ítems rápidos de "Qué incluye" del panel (admin.js · DET).
+const INCL_PT = { "traslado incluido": "Traslado incluído", "desayuno": "Café da manhã", "almuerzo": "Almoço", "cena": "Jantar", "open bar": "Open bar", "guía en portugués": "Guia em português", "guía en español": "Guia em espanhol", "entradas incluidas": "Ingressos incluídos", "impuestos incluidos": "Impostos incluídos" };
+const INCL_EN = { "traslado incluido": "Hotel transfer included", "desayuno": "Breakfast", "almuerzo": "Lunch", "cena": "Dinner", "open bar": "Open bar", "guía en portugués": "Portuguese-speaking guide", "guía en español": "Spanish-speaking guide", "entradas incluidas": "Tickets included", "impuestos incluidos": "Taxes included" };
+
+
 const NO_CACHE = "no-cache, must-revalidate";
 // Texto del botón principal de la portada por variante (sin urgencia falsa: solo cambia la invitación).
-const AB_CTA = { a: "Consultar pelo WhatsApp", b: "Montar a minha viagem pelo WhatsApp" };
+const AB_CTA = { a: "Falar pelo WhatsApp", b: "Montar a minha viagem pelo WhatsApp" };
 // Notas por página en el índice del blog (la primera página muestra 1 destacada + 9 en grilla).
 const BLOG_PER_PAGE = 10;
 // /blog/buscar/ es el buscador, no una nota: no cuenta como visita a una ficha.
@@ -155,7 +160,9 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   // Imágenes para compartir (WhatsApp, Facebook, etc.): la portada y las fotos de la galería, sin videos; hasta 4.
   const shareImgs = [...new Set([image, ...galleryOf(p).filter((g) => !isVideoUrl(g.src)).map((g) => absUrl(env, g.src))].filter(Boolean))].slice(0, 4);
   const pct = discountPct(p.price_old, p.price);
-  const details = (p.details || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  // Los botones rápidos del panel ("Traslado incluido", "Cena"…) se guardan en español: en la web se muestran en el idioma de la página.
+  const INCL = /^pt/i.test(L.lang) ? INCL_PT : L.lang === "en" ? INCL_EN : null;
+  const details = (p.details || "").split("\n").map((x) => x.trim()).filter(Boolean).map((x) => (INCL && INCL[x.toLowerCase()]) || x);
   // Paquete que combina servicios: las políticas que el paquete no tenga escritas se arman solas con las de cada servicio.
   // Servicio suelto: la de menores sale sola de la tabla de precios de niños si no la escribieron.
   const bPols = extra.items && extra.items.length ? bundlePolicies(p, extra.items, L) : servicePolicies(p, L);
@@ -447,6 +454,8 @@ async function staticPage(env, url, name, status = 200, extra = (b) => b) {
   src = dropMarks(extra(m ? src.slice(m[0].length) : src));
   // Reseñas de Google (API de Places): el bloque reemplaza el marcador <div data-panel="google"> de portada y contacto.
   if (src.includes('data-panel="google"')) src = putPanel(src, "google", await googleBlock(env, (src.match(/data-panel="google"[^>]*data-v="(\w+)"/) || [])[1]));
+  // Sin reseñas, la sección que las envuelve quedaba vacía y dejaba un hueco grande bajo la portada: se quita.
+  src = src.replace(/<section[^>]*data-gsec[^>]*>\s*<div class="tw-wrap">\s*<\/div>\s*<\/section>/, "");
   const path = new URL(url).pathname;
   const home = path === "/";
   const crumbName = String(meta.title || "").split("|")[0].trim();
@@ -555,9 +564,10 @@ async function handlePt(ctx) {
     const demandSql = "SELECT p.*, (SELECT COUNT(*) FROM leads l WHERE l.package_title = p.title AND l.created_at >= date('now', '-60 days')) AS demand FROM packages p WHERE p.published=1 AND p.featured=1 ORDER BY ";
     // Paquetes favoritos y últimas notas: se guardan 60 s (misma lectura para todas las visitas).
     const { pk, ps } = await memoize("home", 60e3, async () => {
-      let pk = await rows(env, demandSql + "(p.home_order = 0), p.home_order, demand DESC, p.created_at DESC, p.id DESC LIMIT 3");
-      if (!pk.length) pk = await rows(env, demandSql + "demand DESC, p.created_at DESC, p.id DESC LIMIT 3");
-      if (!pk.length) pk = await rows(env, "SELECT * FROM packages WHERE published=1 AND featured=1 ORDER BY created_at DESC, id DESC LIMIT 3");
+      let pk = await rows(env, demandSql + "(p.home_order = 0), p.home_order, demand DESC, p.created_at DESC, p.id DESC LIMIT 6");
+      if (!pk.length) pk = await rows(env, demandSql + "demand DESC, p.created_at DESC, p.id DESC LIMIT 6");
+      // Si hay menos de 6 destacados, se completa con los últimos publicados (la sección quedaba corta con 3).
+      if (pk.length < 6) { const have = new Set(pk.map((x) => x.id)); pk = pk.concat((await rows(env, "SELECT * FROM packages WHERE published=1 ORDER BY featured DESC, created_at DESC, id DESC LIMIT 12")).filter((x) => !have.has(x.id)).slice(0, 6 - pk.length)); }
       // Blog en la portada: siempre las 3 últimas notas (las destacadas van primero).
       const ps = await rows(env, `SELECT * FROM posts WHERE published=1 AND ${LIVE} ORDER BY featured DESC, COALESCE(NULLIF(publish_date,''),created_at) DESC, id DESC LIMIT 3`);
       return { pk, ps };
@@ -595,7 +605,7 @@ async function handlePt(ctx) {
       const want = url.searchParams.get("categoria") || "", active = svcCats.some((c) => c.slug === want) ? want : "";
       const list = active ? all.filter((x) => x.category === active) : all;
       const chips = chipsRow([{ label: L.all, path: "/servicios/" }, ...svcCats.map((c) => ({ label: c.label, path: `/servicios/?categoria=${c.slug}` }))], active ? `/servicios/?categoria=${active}` : "/servicios/");
-      const lead = es ? "Cada servicio se reserva por separado, con su precio y su consulta propios. ¿Preferís todo resuelto? Mirá los paquetes." : "Cada serviço é reservado separadamente, com preço e consulta próprios. Prefere tudo resolvido? Veja os pacotes.";
+      const lead = es ? "Cada servicio se reserva por separado, con su propio precio. ¿Preferís todo resuelto? Mirá los paquetes." : "Cada serviço é reservado separadamente, com preço próprio. Prefere tudo resolvido? Veja os pacotes.";
       const banner = hasBundles
         ? `<aside class="mt-16 flex flex-wrap items-center justify-between gap-5 rounded-xl bg-mist p-6 sm:p-8"><div><p class="m-0 font-display text-xl font-semibold text-ink">${es ? "¿Preferís todo resuelto?" : "Prefere tudo resolvido?"}</p><p class="m-0 mt-1 text-mute">${es ? "Los paquetes combinan varios servicios en una sola reserva." : "Os pacotes combinam vários serviços em uma só reserva."}</p></div><a href="/paquetes/?tipo=paquete" class="tw-btn tw-btn--primary"><span>${esc(es ? "Ver paquetes" : "Ver pacotes")}</span></a></aside>`
         : "";
@@ -623,7 +633,8 @@ async function handlePt(ctx) {
       const byKind = tipo ? every.filter((x) => (tipo === "paquete" ? kindOf(x) === "paquete" : kindOf(x) !== "paquete")) : every;
       const list = subOn ? byKind.filter((x) => x.subcategory === subOn) : byKind;
       const kinds = new Set(every.map((x) => (kindOf(x) === "paquete" ? "paquete" : "servicio")));
-      const label = c ? c.label : tr(env).pk;
+      // Sin categoría: "Passeios e pacotes" (lista todo); con ?tipo=paquete, "Pacotes". Antes decía "Pacotes" y mostraba servicios sueltos.
+      const label = c ? c.label : tipo === "paquete" ? tr(env).pk : tr(env).all || tr(env).pk;
       return listPage(env, label, c?.description || `${label} | ${BRAND}`, path, listShell(label, c?.description, `${kindSwitch(path, kinds, tipo, L)}${pkgSection(list, pkgChips(c?.slug || "", path) + subChips + filterBar(list.length, L.lang), wa, L, "")}${c && !tipo ? compareTable(list, L) : ""}`));
     }
     // Buscador del blog: /blog/buscar/?q=… (no se indexa y no entra al caché de páginas, que no distingue el ?q=).

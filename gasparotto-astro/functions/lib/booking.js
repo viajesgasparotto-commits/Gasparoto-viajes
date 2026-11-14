@@ -225,7 +225,7 @@ export async function createBooking(db, env, p, { day, time, pax, adults, childr
   // centavos: adultos a precio completo + niños según su tramo de edad (sin tramos, todos pagan completo)
   let total = Number.isFinite(unit) ? priceTotal(unitC, adults, tiers.length ? ages : Array(children).fill(99), tiersFor(tiers, unitC)) : 0;
   // Precio por cantidad (panel, ej. 2x1): el total es el de la tabla para esa cantidad de personas (adultos y niños cuentan igual).
-  const qt = qtyTable(p);
+  const qt = qtyTable(p, opt ? opt.name : "");
   if (qt) { const row = qt.get(pax); if (!row) return { code: "pax", error: `Para ${pax} personas consultanos por WhatsApp.`, status: 400 }; total = row.cents; }
   const currency = priceCurrency(env, opt ? opt.price : p.price), mins = holdMinutes(env);
   const token = crypto.randomUUID().replace(/-/g, "");

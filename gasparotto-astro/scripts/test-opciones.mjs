@@ -8,6 +8,7 @@ import { onRequest as site } from "../functions/_middleware.js";
 import { normMeta, optionsOf, cheapestOption, precio, qtyTable } from "../functions/lib/ficha.js";
 import { kidsScope, kidsTiersFor, priceTotal, tiersFor } from "../functions/lib/booking.js";
 import { pickFlash, flashTile } from "../functions/lib/flash.js";
+import { restoreExpired } from "../functions/lib/ofertas.js";
 import { addDays, todayBA } from "../functions/lib/booking.js";
 
 function d1() {
@@ -208,7 +209,7 @@ r = await call("POST", "packages", { title: "Señor Tango 2x1", category: tango.
   meta: JSON.stringify({ qty: [[1, "R 400"], [2, "R$ 400"], [3, "R$ 800"], [4, "R$ 800"], [0, "x"], [5, "nada"]], unit_lbl: "por 2 pessoas" }) }, admin);
 assert.equal(r.status, 200, JSON.stringify(r.data));
 const s2x1 = await one("SELECT * FROM packages WHERE slug='senor-tango-2x1'");
-assert.deepEqual(JSON.parse(s2x1.meta).qty, [[1, "R$ 400"], [2, "R$ 400"], [3, "R$ 800"], [4, "R$ 800"]], "se guardan solo filas válidas, con R$");
+assert.deepEqual(JSON.parse(s2x1.meta).qty, [[1, "R$ 400", ""], [2, "R$ 400", ""], [3, "R$ 800", ""], [4, "R$ 800", ""]], "se guardan solo filas válidas, con R$");
 assert.equal(qtyTable(s2x1).get(3).cents, 80000);
 await env.DB.prepare("UPDATE packages SET booking_enabled=1, min_pax=1, max_pax=8, daily_capacity=10, weekdays='0,1,2,3,4,5,6', min_advance_days=1, horizon_days=60 WHERE id=?").bind(s2x1.id).run();
 const bk2 = (pax) => call("POST", "book", { slug: "senor-tango-2x1", date: day, pax, name: "Cliente " + pax, phone: "+55 31 9" + pax + "777-000" + pax });
@@ -218,5 +219,30 @@ r = await bk2(5); assert.equal(r.status, 400); assert.ok(/consultanos/.test(r.da
 const pg2 = await (await site({ request: new Request("https://x.test/paquetes/senor-tango-2x1/"), env, next: async () => new Response("", { status: 404 }), waitUntil: () => {} })).text();
 assert.ok(pg2.includes('data-qty-table="') && pg2.includes("por 2 pessoas"), "la ficha lleva la tabla y el texto del precio");
 console.log("✓ precio por cantidad (2x1): cobra la tabla del panel, no multiplica; cantidad sin precio pide consultar");
+
+// Oferta con vencimiento: al activarla se guarda la foto de los precios de antes; al vencer (o al borrar la fecha) vuelven solos.
+r = await call("POST", "packages", { title: "Tigre Oferta", category: tango.slug, price: "R$ 280", price_old: "", published: 1, content: "<p>x</p>", meta: JSON.stringify({ qty: [[2, "R$ 500"]] }) }, admin);
+const tg = await one("SELECT * FROM packages WHERE slug='tigre-oferta'");
+const fut = new Date(Date.now() + 3 * 864e5 - 3 * 3600e3).toISOString().slice(0, 16), put = (body) => call("PUT", "packages/" + tg.id, { title: "Tigre Oferta", category: tango.slug, published: 1, content: "<p>x</p>", ...body }, admin);
+r = await put({ price: "R$ 200", price_old: "R$ 280", meta: JSON.stringify({ flash: fut }) }); assert.equal(r.status, 200, JSON.stringify(r.data));
+let tgm = JSON.parse((await one("SELECT meta FROM packages WHERE id=?", tg.id)).meta);
+assert.equal((await one("SELECT price FROM packages WHERE id=?", tg.id)).price, "R$ 200", "durante la oferta se cobra el precio de oferta");
+assert.deepEqual([tgm.snap.price, tgm.snap.price_old, tgm.snap.qty], ["R$ 280", "", [[2, "R$ 500", ""]]], "foto de los precios de antes");
+r = await put({ title: "Tigre Oferta", price: "R$ 190", price_old: "R$ 280", meta: JSON.stringify({ flash: fut }) });
+assert.equal(JSON.parse((await one("SELECT meta FROM packages WHERE id=?", tg.id)).meta).snap.price, "R$ 280", "editar durante la oferta no pisa la foto");
+assert.deepEqual(await restoreExpired(env.DB), [], "todavía no venció");
+assert.deepEqual(await restoreExpired(env.DB, Date.now() + 4 * 864e5), ["/paquetes/tigre-oferta/"]);
+let back = await one("SELECT price, price_old, meta FROM packages WHERE id=?", tg.id); tgm = JSON.parse(back.meta);
+assert.deepEqual([back.price, back.price_old, tgm.flash, tgm.snap, tgm.qty], ["R$ 280", "", "", undefined, [[2, "R$ 500", ""]]], "al vencer vuelve todo como estaba");
+r = await put({ price: "R$ 150", price_old: "R$ 280", meta: JSON.stringify({ flash: fut }) });
+r = await put({ price: "R$ 150", price_old: "R$ 280", meta: JSON.stringify({ flash: "" }) });
+back = await one("SELECT price, price_old FROM packages WHERE id=?", tg.id); assert.deepEqual([back.price, back.price_old], ["R$ 280", ""], "borrar la fecha termina la oferta ya");
+console.log("✓ oferta con vencimiento: guarda los precios de antes y los repone al vencer o al borrar la fecha");
+
+// Tabla por opción: "Somente Show | 3 = R$ 800" vale solo para esa opción; las líneas sin opción, para las demás.
+const optQ = { meta: normMeta(JSON.stringify({ options: [["Jantar", "R$ 475", "", ""], ["Somente Show", "R$ 210", "", ""]], qty: [[3, "R$ 800", "Somente Show"], [2, "R$ 400", "Somente Show"], [2, "R$ 900", ""]] })) };
+assert.equal(qtyTable(optQ, "Somente Show").get(3).cents, 80000); assert.equal(qtyTable(optQ, "somente show").get(2).cents, 40000);
+assert.equal(qtyTable(optQ, "Jantar").get(2).cents, 90000, "sin tabla propia usa la general"); assert.equal(qtyTable(optQ, "Jantar").get(3), undefined);
+console.log("✓ precio por cantidad por opción");
 
 console.log("\nTodo OK");

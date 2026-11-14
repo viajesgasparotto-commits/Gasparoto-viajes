@@ -23,10 +23,13 @@ export function normTimes(raw) {
 // Precio escrito a mano: "R 150", "R$150", "r$ 150" → "R$ 150" (la moneda de Brasil lleva "$"; sin él el cliente lee mal el precio).
 export const precio = (s) => String(s ?? "").trim().replace(/^R\s*\$?\s*(?=\d)/i, "R$ ");
 
-// Tabla de precio por cantidad de personas (solo productos sin opciones): Map personas → { cents, txt }. null si no hay.
-export function qtyTable(p) {
-  const m = parseMeta(p && p.meta), rows = Array.isArray(m.qty) ? m.qty : [];
-  if (!rows.length || optionsOf(p).length) return null;
+// Tabla de precio por cantidad de personas (panel, ej. 2x1): Map personas → { cents, txt }, o null si no hay.
+// Con opciones: la tabla de esa opción; si no tiene, la general (filas sin opción). Sin opciones: la general.
+export function qtyTable(p, option = "") {
+  const m = parseMeta(p && p.meta), all = Array.isArray(m.qty) ? m.qty : [];
+  const o = String(option || "").trim().toLowerCase(), own = o ? all.filter((r) => String((r && r[2]) || "").trim().toLowerCase() === o) : [];
+  const rows = own.length ? own : all.filter((r) => !String((r && r[2]) || "").trim());
+  if (!rows.length) return null;
   const t = new Map();
   for (const r of rows) { const n = Math.round(Number(r && r[0])), c = Math.round((Number(String((r && r[1]) || "").replace(/[^\d,.]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) || 0) * 100); if (n >= 1 && c > 0) t.set(n, { cents: c, txt: String(r[1]) }); }
   return t.size ? t : null;
@@ -61,7 +64,9 @@ export function normMeta(raw) {
     // box = cuánto cuesta lo mismo comprado directo en el lugar (boletería), opcional.
     best: m.best === 1 || m.best === true || m.best === "1" ? 1 : 0,
     // Precio según la cantidad de personas (ej. 2x1): [[personas, "R$ total"]], lo carga el panel; vacío = precio por persona normal.
-    qty: [...new Map(arr(m.qty, 40).map((r) => [Math.round(Number(Array.isArray(r) ? r[0] : NaN)), precio(txt(Array.isArray(r) ? r[1] : "", 40))]).filter((r) => r[0] >= 1 && r[0] <= 99 && /\d/.test(r[1]))).entries()].sort((a, b) => a[0] - b[0]),
+    // Cada fila: [personas, "R$ total", opción]. Opción vacía = vale para el producto sin opciones o para todas las que no tengan tabla propia.
+    qty: [...new Map(arr(m.qty, 120).map((r) => { const o = txt(Array.isArray(r) ? r[2] : "", 60), n = Math.round(Number(Array.isArray(r) ? r[0] : NaN)); return [o.toLowerCase() + "|" + n, [n, precio(txt(Array.isArray(r) ? r[1] : "", 40)), o]]; })
+      .filter(([, r]) => r[0] >= 1 && r[0] <= 99 && /\d/.test(r[1]))).values()].sort((a, b) => a[2].localeCompare(b[2]) || a[0] - b[0]),
     // Texto junto al precio en la web (ej. "por 2 pessoas"); vacío = "por pessoa".
     unit_lbl: txt(m.unit_lbl, 40),
     // Oferta relámpago en la portada hasta (hora de Buenos Aires, "AAAA-MM-DDTHH:MM"); vacío = no.

@@ -14,7 +14,8 @@ import { SITE, legacyTarget, staticRedirect } from "./lib/site.js";
 import { renderPage, initLayout, stubShell, postCardHtml, waUrl, tr, stripTags, postDay, langOf } from "./lib/render.js";
 import { blogText, blogIndexBody, postBody, authorBody, rssXml, catIn, searchBody } from "./lib/blog.js";
 import { peopleFor, authorBySlug } from "./lib/autores.js";
-import { memoize, edgeGet, edgePut, EDGE_RE } from "./lib/edge.js";
+import { memoize, edgeGet, edgePut, EDGE_RE, purge } from "./lib/edge.js";
+import { restoreExpired } from "./lib/ofertas.js";
 import { ensureSchema } from "./lib/schema.js";
 import { PT, ES, EN, splitLang, langPathOf, itemPath, alternateLinks, addToHead, localizeUrls } from "./lib/i18n.js";
 import { itemForLang, liveTranslations } from "./lib/translations.js";
@@ -230,7 +231,10 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   // Si la política de menores es solo de algunas opciones, los tramos valen solo ahí (data-kid-scope: índices de esas opciones; vacío = todas).
   const kidScope = !kidTab && kidTiers.length && opts.length ? (() => { const sc = kidsScope(p); return sc.length ? opts.filter((o) => sc.includes(o.name.toLowerCase())).map((o) => String(o.i)) : []; })() : [];
   // Precio por cantidad (panel, ej. 2x1): {personas: centavos}; el formulario y la tarjeta muestran ese total (el servidor cobra lo mismo).
-  const qtT = qtyTable(p), qtyAttr = qtT ? ` data-qty-table="${esc(JSON.stringify(Object.fromEntries([...qtT].map(([n, r]) => [n, r.cents]))))}"` : "";
+  // Con opciones, una tabla por opción (clave = índice de la opción); "" = sin opciones.
+  const qtObj = (t) => (t ? Object.fromEntries([...t].map(([n, r]) => [n, r.cents])) : null);
+  const qtMap = opts.length ? Object.fromEntries(opts.map((o) => [String(o.i), qtObj(qtyTable(p, o.name))]).filter((x) => x[1])) : (qtyTable(p) ? { "": qtObj(qtyTable(p)) } : {});
+  const qtyAttr = Object.keys(qtMap).length ? ` data-qty-table="${esc(JSON.stringify(qtMap))}"` : "";
   const scopeAttr = kidScope.length ? ` data-kid-scope="${esc(JSON.stringify(kidScope))}"` : "";
   const KP = L.lang === "es"
     ? { full: "En esta opción, los niños pagan tarifa de adulto.", title: "Tarifa para niños", free: "gratis", pays: "pagan", yrs: (a, b) => (a === b ? `${a} ${a === 1 ? "año" : "años"}` : `${a} a ${b} años`), adult: (n) => `Desde ${n} años: tarifa de adulto`, ages: "Edad de cada niño" }
@@ -421,7 +425,7 @@ ${F.st}${bundle}${opts.length ? "" : F.tb}${F.pl}${F.fq}${inB}
 </div>
 ${rel}
 ${bar}
-<script src="/assets/ficha.js?v=4" defer></script>
+<script src="/assets/ficha.js?v=5" defer></script>
 </div>`;
   return renderPage(shellHtml, { env,
     title: pageTitle(SEO.title),
@@ -834,10 +838,19 @@ async function notFound(env, url) {
   return (await staticPage(env, url, "404", 404)) || new Response("Not found", { status: 404 });
 }
 
+// Ofertas vencidas: como mucho una vez por minuto (por instancia) se reponen los precios de antes y se limpia la caché de esas páginas.
+let offersAt = 0;
+async function offersTick(env, origin) {
+  if (Date.now() - offersAt < 60e3) return;
+  offersAt = Date.now();
+  try { const paths = await restoreExpired(env.DB); if (paths.length) await purge(origin, ["/", "/paquetes/", "/servicios/", ...paths]); } catch { /* sin base todavía */ }
+}
+
 export async function onRequest(ctx) {
   initBrand(ctx.env, new URL(ctx.request.url).origin);
   initLayout(ctx.env);
   const url0 = new URL(ctx.request.url);
+  await offersTick(ctx.env, url0.origin);
   // Páginas públicas de contenido: si hay copia reciente (60 s) se sirve sin tocar D1; si no, se arma y se guarda.
   // El caché se arma por ruta e ignora el ?query: las páginas con query (buscador, ?categoria=, ?tipo=) se arman siempre.
   const edge = ctx.request.method === "GET" && EDGE_RE.test(url0.pathname) && !url0.search;

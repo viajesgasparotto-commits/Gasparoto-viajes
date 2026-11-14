@@ -89,6 +89,7 @@
     for (var i = 0; i < k; i++) kids += Math.round(u * kidPct(ages[i] === undefined ? null : ages[i], u, tiers) / 100);
     // Precio por cantidad de personas (panel, ej. 2x1): el total de la tabla para adultos + niños.
     var qt = null; try { qt = JSON.parse(t.getAttribute("data-qty-table") || "null"); } catch (e) { qt = null; }
+    if (qt) qt = qt[o ? o.value : ""] || null; // tabla de la opción marcada
     var cents = qt && qt[n + k] != null ? qt[n + k] : u * n + kids;
     t.querySelector("b").textContent = (t.getAttribute("data-cur") + " " + Math.round(cents / 100).toLocaleString("es-AR")).trim();
     var bs = Q.querySelectorAll("[data-q-pax]"); bs[0].disabled = n <= mn || n + k <= mn; bs[1].disabled = n + k >= mx;

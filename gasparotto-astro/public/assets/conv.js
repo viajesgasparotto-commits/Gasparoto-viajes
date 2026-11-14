@@ -468,9 +468,11 @@
       function clearMsgs() { Array.prototype.forEach.call(msgs, function (m) { m.className = "gv-lead-msg"; m.textContent = ""; }); }
       // Total en centavos: adultos a precio completo + cada niño según su tramo de edad (redondeo igual al del servidor, que es quien manda).
       // Precio por cantidad de personas (data-qty-table, panel: ej. 2x1): el total sale de la tabla.
-      var qtyTab = null; try { qtyTab = JSON.parse(f.getAttribute("data-qty-table") || "null"); } catch (e) { qtyTab = null; }
+      // Una tabla por opción (clave = índice de la opción; "" = producto sin opciones).
+      var qtyAll = null; try { qtyAll = JSON.parse(f.getAttribute("data-qty-table") || "null"); } catch (e) { qtyAll = null; }
+      function qtyNow() { if (!qtyAll) return null; var o = f.querySelector('input[name="option"]:checked'); return qtyAll[o ? o.value : ""] || null; }
       function calcTotal() {
-        var n = Math.round(Number(paxEl.value)) || 0;
+        var n = Math.round(Number(paxEl.value)) || 0, qtyTab = qtyNow();
         if (qtyTab && qtyTab[n] != null) return qtyTab[n];
         if (!kidsOn) return unit * n;
         var a = Math.round(Number(adEl.value)) || 0, c = Math.round(Number(chEl.value)) || 0, t = unit * a, ag = getAges();
@@ -479,7 +481,7 @@
       }
       // "R$ 100 × 2 adultos + 1 niño gratis + 1 niño al 50%"
       function sumLine(n) {
-        if (qtyTab && qtyTab[n] != null) return n + " " + (n === 1 ? L.person : L.people);
+        var qtyTab = qtyNow(); if (qtyTab && qtyTab[n] != null) return n + " " + (n === 1 ? L.person : L.people);
         if (!kidsOn) return money(unit / 100, cur) + " × " + n + " " + (n === 1 ? L.person : L.people);
         var a = Math.round(Number(adEl.value)) || 0, c = Math.round(Number(chEl.value)) || 0, parts = [money(unit / 100, cur) + " × " + a + " " + (a === 1 ? L.adultOne : L.adultMany)];
         if (c > 0) {

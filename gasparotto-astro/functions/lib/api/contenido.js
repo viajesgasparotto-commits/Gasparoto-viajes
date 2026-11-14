@@ -8,6 +8,7 @@ import { SITE } from "../site.js";
 // Categorías fijas de la portada: no se borran ni cambian de dirección (sí de nombre).
 const isFixed = (c) => c.kind === "packages" && (SITE.fixedCategories || []).some((f) => f.slug === c.slug);
 import { cheapestOption, normMeta, optionsOf, parseMeta, precio } from "../ficha.js";
+import { offerOnSave } from "../ofertas.js";
 import { bundleItems, bundleQuote, loadParts, refreshBundlesWith } from "../bundle.js";
 import { applyTokens, esc, findPriceWidgets, slugify } from "../html.js";
 import { clip, sanitizeHtml, stripTags } from "../seo.js";
@@ -243,6 +244,13 @@ export async function manejarContenido({ ctx, request, env, url, res, id, method
       }
       if (res === "packages") {
         d.meta = normMeta(d.meta);
+        // Oferta con vencimiento: foto de los precios de antes (o, si la oferta terminó, se reponen). Ver ofertas.js.
+        {
+          const oldRow = method === "PUT" ? await env.DB.prepare("SELECT price, price_old, meta FROM packages WHERE id=?").bind(rid).first() : null;
+          const om = parseMeta(d.meta);
+          offerOnSave(d, om, oldRow);
+          d.meta = JSON.stringify(om);
+        }
         // Opciones con precio: el precio "a partir de" del producto es el de la opción más barata (no se carga dos veces).
         const best = cheapestOption(optionsOf({ meta: d.meta }));
         if (best) { d.price = best.price; d.price_old = best.old; }

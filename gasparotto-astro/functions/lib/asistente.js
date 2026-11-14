@@ -84,7 +84,7 @@ async function web(env) {
       p.price ? `  Precio: ${opts ? "desde " : ""}${precio(p.price)}${p.price_old ? ` (antes ${precio(p.price_old)})` : ""}${opts ? " (es la opción más barata; cada opción tiene su precio)" : ""}` : "  Precio: a consultar",
       m.best === 1 && `  MEJOR PRECIO DEL MERCADO${m.box ? ` (en la boletería del lugar cuesta ${precio(m.box)})` : ""}: usalo como argumento de venta`,
       opts && `  Opciones (cada una con su precio): ${opts}`,
-      qtyTable(p) && `  PRECIO TOTAL SEGÚN LA CANTIDAD DE PERSONAS (usá este, no multipliques): ${[...qtyTable(p)].map(([n, r]) => `${n} ${n === 1 ? "persona" : "personas"}: ${r.txt}`).join("; ")}`,
+      ...(optionsOf(p).length ? optionsOf(p).map((o) => [o.name, qtyTable(p, o.name)]) : [["", qtyTable(p)]]).filter((x) => x[1]).map(([o, t]) => `  PRECIO TOTAL SEGÚN LA CANTIDAD DE PERSONAS${o ? ` (opción ${o})` : ""} (usá este, no multipliques): ${[...t].map(([n, r]) => `${n} ${n === 1 ? "persona" : "personas"}: ${r.txt}`).join("; ")}`),
       times && `  Horarios: ${times}`,
       facts && `  Datos: ${clip(facts, 400)}`,
       p.excerpt && `  Resumen: ${clip(p.excerpt, 300)}`,

@@ -111,7 +111,7 @@ export async function reservar(env, body, ctx = {}) {
   const unitC = opt ? opt.cents : Math.round((Number(String(p.price).replace(/[^\d,.]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) || 0) * 100);
   const tiers = kidsTiersFor(p, opt ? opt.name : "");
   let totalC = priceTotal(unitC, adultos, ninos && tiers.length ? edades : Array(ninos).fill(99), tiersFor(tiers, unitC));
-  const qt = qtyTable(p);
+  const qt = qtyTable(p, opt ? opt.name : "");
   if (qt) { const row = qt.get(datos.pax); if (!row) return { texto: `RESERVA NO CREADA: ${p.title} tiene precio por cantidad y no hay precio para ${datos.pax} personas. Cantidades con precio: ${[...qt.keys()].join(", ")}.` }; totalC = row.cents; }
   const cur = String((opt ? opt.price : p.price) || "").match(/^[^\d]*/)[0].trim() || "R$";
   const resumen = `${p.title}${datos.option ? ` (${datos.option})` : ""} · ${datos.day} (${DIAS[new Date(datos.day + "T00:00:00Z").getUTCDay()]})${datos.time ? " " + datos.time : ""} · ${adultos} adulto(s)${ninos ? ` y ${ninos} niño(s)${edades.length ? ` de ${edades.join(", ")} años` : ""}` : ""} · titular ${nombre} · total ${cur} ${(totalC / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;

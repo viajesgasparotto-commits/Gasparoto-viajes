@@ -6,7 +6,7 @@ export const partial = true;
 
 import Hero from "../../components/home/Hero.astro";
 import Trust from "../../components/home/Trust.astro";
-import GuideTeaser from "../../components/home/GuideTeaser.astro";
+import Intents from "../../components/home/Intents.astro";
 import How from "../../components/home/How.astro";
 import Mix from "../../components/home/Mix.astro";
 import Founder from "../../components/home/Founder.astro";
@@ -20,7 +20,7 @@ const head = "<!--" + JSON.stringify(meta) + "-->\n";
 <Fragment set:html={head} /><Hero />
 <Trust />
 <section data-gsec class="tw tw-section bg-white"><div class="tw-wrap"><Fragment set:html={'<div data-panel="google" hidden></div>'} /></div></section>
-<GuideTeaser />
+<Intents />
 
 <section id="paquetes" class="tw tw-section bg-white">
   <div class="tw-wrap">

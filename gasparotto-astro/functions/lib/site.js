@@ -23,7 +23,6 @@ export const SITE = {
     "/contacto/": "contacto",
     "/reservas/": "reservas",
     "/traslados/": "traslados",
-    "/guia-buenos-aires/": "guia",
   },
 
   // Datos del negocio para el schema (Organization + TravelAgency) de la portada.

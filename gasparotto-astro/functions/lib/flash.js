@@ -37,7 +37,7 @@ export function flashTile(f, L) {
   const p = f.p;
   const timer = f.end ? `<span class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-white/90"><span>${esc(T.ends)}</span><span data-flash-end="${new Date(f.end).toISOString()}" data-over="${esc(T.over)}" data-d="${esc(T.d)}" class="rounded-md bg-white/15 px-2 py-1 font-mono text-base tabular-nums tracking-wide text-white" aria-live="off"></span></span>` : "";
   const top = `<span class="absolute left-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-sm font-bold text-white shadow-lg sm:left-6 sm:top-6">${BOLT}${esc(f.end ? T.flash : T.best)}${f.pct ? ` · -${f.pct}%` : ""}</span>`;
-  const body = `<span class="block text-sm font-semibold uppercase tracking-[0.14em] text-accent">${esc(f.end ? T.flash : T.best)}</span>`
+  const body = `<span class="block text-sm font-semibold uppercase tracking-[0.14em] text-celeste">${esc(f.end ? T.flash : T.best)}</span>`
     + `<span class="mt-1.5 block font-display text-[clamp(1.6rem,2.5vw,2.25rem)] font-semibold leading-[1.1] tracking-tight">${esc(p.title)}</span>`
     + `<span class="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">${f.old ? `<s class="text-white/70">${esc(f.old)}</s>` : ""}<span class="font-display text-3xl font-semibold text-white">${esc(f.price)}</span><span class="text-sm text-white/80">${esc(T.per)}</span></span>`
     + timer

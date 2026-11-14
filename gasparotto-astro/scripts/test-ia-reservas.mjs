@@ -21,54 +21,87 @@ assert.ok(t.includes(`${dia} (`) && t.includes("20:00 quedan 6"), "lista el día
 assert.ok((await disponibilidad(env, "no-existe")).includes("no encontré"));
 console.log("✓ disponibilidad en tiempo real (días, horarios y lugares)");
 
-// Prueba del panel (sin contacto): no se guarda nada
-let r = await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 2 | nombre: Ana Souza`, {});
-assert.ok(r.texto.includes("PRUEBA") && !r.id);
-assert.equal((await DB.prepare("SELECT COUNT(*) n FROM bookings").first()).n, 0);
-console.log("✓ en la prueba del panel no se crea ninguna reserva");
+// Charlas (la propuesta de reserva se guarda en la charla)
+await DB.prepare("INSERT INTO ia_chats (channel, contact, name) VALUES ('whatsapp','5511988887777','Ana')").run();
+await DB.prepare("INSERT INTO ia_chats (channel, contact, name) VALUES ('whatsapp','5511999990000','Bia')").run();
+const C1 = 1, C2 = 2;
+const RES = `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 2 | nombre: Ana Souza`;
+const contar = async () => (await DB.prepare("SELECT COUNT(*) n FROM bookings").first()).n;
 
-// Mercado Pago simulado para el Pix
-const calls = [];
+// Prueba del panel (sin contacto): propone y, si el cliente confirma después del resumen, simula la reserva sin guardar nada
+let r = await reservar(env, RES, { ultimo: "quero reservar", previo: "" });
+assert.ok(r.texto.startsWith("PROPUESTA") && r.texto.includes("R$ 420"), r.texto);
+r = await reservar(env, RES, { ultimo: "sim", previo: "Resumo: total R$ 420. Confirma?" });
+assert.ok(r.texto.includes("#PRUEBA") && (await contar()) === 0, r.texto);
+console.log("✓ prueba del panel: propone con el total y simula la reserva sin guardar nada");
+
+// Mercado Pago y Gemini simulados
 globalThis.fetch = async (url, init = {}) => {
-  const u = String(url); calls.push(u);
+  const u = String(url);
   if (u.includes("mercadopago")) return Response.json({ id: 987, point_of_interaction: { transaction_data: { qr_code: "00020126PIXCOPIAECOLA", qr_code_base64: "" } } });
   if (u.includes("generativelanguage")) { const text = AI.shift() || "ok"; return Response.json({ candidates: [{ content: { parts: [{ text }] }, finishReason: "STOP" }] }); }
   return new Response("{}", { status: 404 });
 };
 let AI = [];
-r = await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 2 | nombre: Ana Souza`, { contact: "5511988887777" });
+
+// Paso 1: la primera marca NO reserva (solo propone y guarda la propuesta)
+r = await reservar(env, RES, { contact: "5511988887777", chatId: C1, ultimo: "pode reservar", inicio: Date.now() });
+assert.ok(r.texto.startsWith("PROPUESTA") && !r.id && (await contar()) === 0, r.texto);
+// En el mismo mensaje no se puede confirmar (la propuesta tiene que ser de un mensaje anterior)
+r = await reservar(env, RES, { contact: "5511988887777", chatId: C1, ultimo: "pode reservar", inicio: Date.now() - 60e3 });
+assert.ok(!r.id && (await contar()) === 0, "una propuesta del mismo mensaje no cuenta como confirmada");
+await new Promise((x) => setTimeout(x, 5));
+// Paso 2: el cliente dice que sí en un mensaje posterior → se crea
+r = await reservar(env, RES, { contact: "5511988887777", chatId: C1, ultimo: "sim, confirmo", inicio: Date.now() });
 assert.ok(r.id && r.pix === "00020126PIXCOPIAECOLA", r.texto);
 const b = await DB.prepare("SELECT * FROM bookings WHERE id=?").bind(r.id).first();
 assert.equal(b.status, "pendiente"); assert.equal(b.pax, 2); assert.equal(b.total, 42000); assert.equal(b.option_name, "Somente Show"); assert.equal(b.phone, "+5511988887777");
-assert.ok(r.texto.includes("R$ 420"), r.texto);
 t = await disponibilidad(env, `tango | desde ${dia}`);
 assert.ok(t.includes("20:00 quedan 4"), "la reserva descuenta el cupo: " + t);
-console.log("✓ reserva creada desde el chat (cupo retenido, total y código Pix)");
+console.log("✓ confirmación en dos pasos: propone, el cliente dice sí y recién ahí reserva (cupo, total, Pix)");
 
-r = await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 7 | nombre: Ana Souza`, { contact: "5511988887777" });
+// Un "no" no reserva
+await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 1 | nombre: Ana Souza`, { contact: "5511988887777", chatId: C1, ultimo: "quero", inicio: Date.now() });
+await new Promise((x) => setTimeout(x, 5));
+r = await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 1 | nombre: Ana Souza`, { contact: "5511988887777", chatId: C1, ultimo: "não, espera", inicio: Date.now() });
+assert.ok(!r.id, "si el cliente dice que no, no se reserva");
+console.log("✓ si el cliente no confirma, no se reserva");
+
+r = await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 7 | nombre: Ana Souza`, { contact: "5511988887777", chatId: C1, ultimo: "sim", inicio: Date.now() });
 assert.ok(!r.id && r.texto.includes("NO CREADA"), r.texto);
-console.log("✓ sin lugar suficiente: no reserva y explica el motivo");
+console.log("✓ sin lugar suficiente: no propone ni reserva");
 
-// Vuelta completa: la IA pide disponibilidad, recibe el resultado y responde; después reserva y el Pix sale aparte.
-AI = [`[[DISPONIBILIDAD tango | desde ${dia}]]`, "Temos lugar no dia às *20:00*. Reservo para vocês?"];
-let out = await pensar(env, [{ role: "user", text: "tem lugar para sábado?" }], { contact: "5511999990000", nombre: "Bia" });
-assert.equal(out.reply, "Temos lugar no dia às *20:00*. Reservo para vocês?");
-assert.ok(!/\[\[/.test(out.reply));
-AI = [`[[RESERVAR producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Jantar e Show | adultos: 2 | nombre: Bia Lima]]`, "Prontinho, Bia! Sua vaga ficou reservada. O código Pix chega na próxima mensagem."];
-out = await pensar(env, [{ role: "user", text: "sim, confirmo" }], { contact: "5511999990000", nombre: "Bia" });
+// Charla completa con pensar(): consulta → propuesta → confirmación → reserva + Pix aparte
+AI = [`[[DISPONIBILIDAD tango | desde ${dia}]]`, "Temos lugar às *20:00*. Reservo para vocês?"];
+let out = await pensar(env, [{ role: "user", text: "Oi, tem lugar para sábado?" }], { contact: "5511999990000", chatId: C2, nombre: "Bia" });
+assert.equal(out.reply, "Temos lugar às *20:00*. Reservo para vocês?");
+const M = `[[RESERVAR producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Jantar e Show | adultos: 2 | nombre: Bia Lima]]`;
+AI = [M, "Resumo: *Tango Porteño* (Jantar e Show), 2 adultos, total *R$ 950*. Confirma?"];
+out = await pensar(env, [{ role: "user", text: "Oi, tem lugar para sábado?" }, { role: "assistant", text: "Temos lugar às 20:00. Reservo?" }, { role: "user", text: "Pode reservar, jantar e show, 2 adultos, Bia Lima" }], { contact: "5511999990000", chatId: C2, nombre: "Bia" });
+assert.ok(!out.reserva && (await contar()) === 1, "primero solo propone");
+await new Promise((x) => setTimeout(x, 5));
+AI = [M, "Prontinho, Bia! Sua vaga ficou reservada. O código Pix chega na próxima mensagem."];
+out = await pensar(env, [{ role: "user", text: "Pode reservar, jantar e show, 2 adultos, Bia Lima" }, { role: "assistant", text: "Resumo: total R$ 950. Confirma?" }, { role: "user", text: "Sim, confirmo" }], { contact: "5511999990000", chatId: C2, nombre: "Bia" });
 assert.ok(out.reserva > 0 && out.pix === "00020126PIXCOPIAECOLA" && !/RESERVAR/.test(out.reply), JSON.stringify(out));
-console.log("✓ charla completa: consulta → resultado → reserva → código Pix aparte");
-const antes = (await DB.prepare("SELECT COUNT(*) n FROM bookings").first()).n;
-r = await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Jantar e Show | adultos: 2 | nombre: Bia Lima`, { contact: "5511999990000" });
-assert.equal((await DB.prepare("SELECT COUNT(*) n FROM bookings").first()).n, antes, "el mismo pedido repetido no crea otra reserva");
-assert.ok(r.id && r.pix === "00020126PIXCOPIAECOLA", r.texto);
+assert.equal((await DB.prepare("SELECT total FROM bookings WHERE id=?").bind(out.reserva).first()).total, 95000);
+console.log("✓ charla completa: consulta → propuesta → sí → reserva → código Pix aparte");
+
+// Reintento después de un corte: el mismo pedido no duplica
+const antes = await contar();
+r = await reservar(env, M.slice(11, -2), { contact: "5511999990000", chatId: C2, ultimo: "Sim, confirmo", inicio: Date.now() });
+assert.equal(await contar(), antes, "el mismo pedido repetido no crea otra reserva");
 console.log("✓ un reintento o una marca repetida no duplica la reserva");
 
 AI = [1, 2, 3, 4].map(() => `[[DISPONIBILIDAD tango | desde ${dia}]]`).concat(["Temos lugar às *20:00*."]);
 out = await pensar(env, [{ role: "user", text: "tem lugar?" }], { contact: "5511999990002" });
 assert.equal(out.reply, "Temos lugar às *20:00*.", "si la IA insiste con marcas, igual termina con un mensaje para el cliente");
-assert.equal(out.pasos.length, 3);
-console.log("✓ nunca queda una respuesta vacía (la IA que insiste con consultas igual responde)");
+console.log("✓ nunca queda una respuesta vacía");
+
+// Idioma: si sale en español para un cliente brasileño, se reescribe
+AI = ["Perfecto, Carla. ¿Me confirmás la reserva para mañana?", "Perfeito, Carla. Confirma a reserva para amanhã?"];
+out = await pensar(env, [{ role: "user", text: "Oi! Pode reservar, meu nome é Carla" }], { contact: "5511999990003" });
+assert.equal(out.reply, "Perfeito, Carla. Confirma a reserva para amanhã?");
+console.log("✓ responde en el idioma del cliente (si sale en otro, se reescribe)");
 
 AI = [`[[RESERVAR producto: tango | fecha: ${dia} | hora: 20:00 | adultos: 1 | nombre: X Y]]`];
 out = await pensar(env, [{ role: "user", text: "oi" }], { contact: "5511999990001", seguimiento: 3 });

@@ -347,7 +347,7 @@ assert.equal(cl2.paused, 0, "por defecto la IA sigue respondiendo");
 assert.equal((await one("SELECT role FROM ia_messages WHERE chat_id=? ORDER BY id DESC LIMIT 1", cl2.id)).role, "agent");
 reset();
 await inbound(waMsg("Dale, gracias!", "5491155556666", "Lucía"));
-assert.equal(of("generativelanguage").length, 1);
+assert.ok(of("generativelanguage").length >= 1, "la IA responde (puede haber una segunda llamada si reescribe el idioma)");
 // Con la opción activada, responder desde el celular detiene la IA en esa charla
 await call("PUT", "ia/config", { pausaCelular: true }, { cookie: admin });
 await inbound(eco("5491155556666", "Te llamo ahora"));

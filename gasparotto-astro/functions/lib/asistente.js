@@ -186,7 +186,7 @@ DISPONIBILIDAD Y RESERVAS POR WHATSAPP (herramientas del sistema)
 - Para saber qué días y horarios tienen lugar, respondé SOLO con la marca [[DISPONIBILIDAD slug | desde AAAA-MM-DD]] (sin ningún otro texto). El slug es la última parte del enlace del catálogo (/paquetes/<slug>/). El sistema te devuelve los lugares en tiempo real y recién ahí le escribís al cliente. Nunca afirmes que hay o no hay lugar sin consultarlo; si te dio una fecha, consultá desde esa fecha.
 - Ofrecé solo días y horarios que figuren con lugar. Si la fecha que quiere no tiene, ofrecé la más cercana que sí tenga.
 - Para reservar acá necesitás: servicio, fecha, horario (si el servicio tiene horarios), opción (si tiene opciones), cuántos adultos y cuántos niños con sus edades (si hay niños) y el nombre y apellido del titular. Pedí lo que falte, una cosa por mensaje, sin volver a preguntar lo que ya sabés.
-- Antes de reservar, mandá un resumen corto (servicio, opción, fecha, horario, personas y total) y preguntá si confirma. Solo cuando el cliente confirma claramente ("sí", "confirmo", "pode reservar"), respondé SOLO con la marca:
+- Cuando tengas todos los datos, respondé SOLO con la marca de abajo. El sistema NO reserva todavía: te devuelve una PROPUESTA con el total exacto; mandale ese resumen al cliente y preguntale si confirma. Cuando el cliente confirma ("sim", "confirmo", "pode reservar"), volvé a escribir la MISMA marca y ahí se crea la reserva:
   [[RESERVAR producto: slug | fecha: AAAA-MM-DD | hora: HH:MM | opcion: nombre exacto de la opción | adultos: N | ninos: N | edades: 5,8 | nombre: Nombre Apellido]]
   (omití hora, opcion o edades si no corresponden). Una sola reserva por mensaje.
 - El sistema crea la reserva, retiene el lugar y te devuelve el resultado. Con eso, contale al cliente en 2 o 3 frases que su lugar quedó reservado, el total y que el código Pix (copia e cola) le llega en el mensaje siguiente; al pagar recibe la confirmación. Si el resultado dice que no se pudo, explicá el motivo en una frase y ofrecé otra fecha u horario.
@@ -323,6 +323,9 @@ async function guardarFicha(db, chatId, datos) {
 export async function pensar(env, history, ctx = {}) {
   if (!ctx.idioma) ctx = { ...ctx, idioma: idiomaTextos(history.filter((h) => h.role === "user" && !String(h.text).startsWith("[")).map((h) => h.text).reverse().slice(0, 6)) || (ctx.seguimiento ? lang2(env) : "") };
   const system = await systemPrompt(env, ctx), messages = history.slice(-HISTORY);
+  // Para la confirmación de reservas: último mensaje del cliente y el último de Gaspi antes de él.
+  const ult = [...messages].reverse().find((m) => m.role === "user"), iu = messages.lastIndexOf(ult);
+  ctx = { ...ctx, inicio: Date.now(), ultimo: ult ? String(ult.text) : "", previo: String([...messages.slice(0, Math.max(0, iu))].reverse().find((m) => m.role === "assistant")?.text || "") };
   // Herramientas: si la IA pide disponibilidad o una reserva (marcas), el sistema las resuelve y le vuelve a preguntar con los resultados.
   // Hasta 3 vueltas por mensaje y una sola reserva. En los seguimientos automáticos no se usan.
   let raw = "", extra = "", reservada = null;
@@ -349,6 +352,14 @@ export async function pensar(env, history, ctx = {}) {
   // Si después de las consultas la IA igual devolvió solo marcas (respuesta vacía), se le pide una vez más el texto para el cliente.
   if (!ctx.seguimiento && !raw.replace(DISP_RE, "").replace(RES_RE, "").replace(/\[\[[^\]]*\]\]/g, "").trim()) {
     raw = await askAI(env, { system: system + extra + CIERRE, messages, maxTokens: 800 }).catch(() => raw);
+  }
+  // Red de seguridad del idioma: si la respuesta salió en otro idioma que el del cliente, se pide reescribirla (mismo contenido).
+  if (ctx.idioma && !ctx.seguimiento) {
+    const sale = idiomaTextos([raw.replace(/https?:\/\/\S+/g, "")]);
+    if (sale && sale !== ctx.idioma) {
+      const IDI = { es: "español", pt: "portugués de Brasil", en: "inglés" }[ctx.idioma];
+      raw = await askAI(env, { system: `Reescribí el mensaje del usuario en ${IDI}, con el mismo contenido, el mismo formato de WhatsApp (*negritas*, párrafos y enlaces en su propia línea) y las mismas marcas [[...]] si las hay. Respondé solo con el mensaje reescrito.`, messages: [{ role: "user", text: raw }], maxTokens: 800 }).catch(() => raw);
+    }
   }
   const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO), noSeguir = raw.includes(NO_SEGUIR);
   const { texto, datos } = sacarFicha(raw);
@@ -506,8 +517,8 @@ const TXT = {
 export function idiomaTextos(rows) {
   const t = [rows[0] || "", rows[0] || "", ...rows].join(" ").toLowerCase();
   const n = {
-    es: (t.match(/[¿¡ñ]|\b(hola|buenas|buenos|buen día|gracias|quiero|quisiera|somos|cuánto|cuanto|cuesta|precio|paseo|paseos|necesito|tenés|tienen|ustedes|puedo|personas|día|mañana|hoy|dónde|pagué|promociones|qué tal|cómo|también|vale)\b/g) || []).length,
-    pt: (t.match(/[ãõç]|\b(oi|olá|ola|obrigad[oa]|quero|queria|gostaria|vocês|voces|pessoas|amanhã|hoje|paguei|você|voce|não|nao|têm|tem|bom dia|boa tarde|boa noite|tudo bem|quanto|custa|valor|preço|preco|passeio|passeios|legal|onde|ingresso|também|tambem|sim|beleza|show de bola)\b/g) || []).length,
+    es: (t.match(/[¿¡ñ]|\b(hola|buenas|buenos|buen día|gracias|quiero|quisiera|cuánto|me llamo|mi nombre|nosotros|podés|podrías|querés|vos|cuanto|cuesta|precio|paseo|paseos|necesito|tenés|tienen|ustedes|puedo|personas|día|mañana|hoy|dónde|pagué|promociones|qué tal|cómo|también|vale)\b/g) || []).length,
+    pt: (t.match(/[ãõç]|\b(oi|olá|ola|obrigad[oa]|quero|queria|gostaria|vocês|voces|pessoas|amanhã|hoje|paguei|você|voce|não|nao|têm|tem|bom dia|boa tarde|boa noite|tudo bem|quanto|custa|valor|preço|preco|passeio|passeios|legal|onde|ingresso|também|tambem|sim|beleza|show de bola|pode|posso|podemos|meu|minha|meus|nós|gente|está|estou|vamos ser|obrigado|eu|reservar pra|pra|uma|duas|crianças|criança)\b/g) || []).length,
     en: (t.match(/\b(hi|hello|thanks|thank you|please|we are|how much|people|tomorrow|i paid|booking|would like|want|good morning|good afternoon)\b/g) || []).length,
   };
   const best = Object.entries(n).sort((a, b) => b[1] - a[1]);

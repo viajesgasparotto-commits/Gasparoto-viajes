@@ -4,7 +4,7 @@
 //   [[RESERVAR producto: slug | fecha: AAAA-MM-DD | hora: HH:MM | opcion: … | adultos: N | ninos: N | edades: 5,8 | nombre: …]]
 //      → crea la reserva pendiente (retiene el cupo, igual que la web) y, si el producto cobra con Pix, genera el código copia e cola.
 // asistente.js › pensar() corre las marcas, le devuelve los resultados a la IA y ella le escribe al cliente.
-import { addDays, bookingConfig, createBooking, isDay, monthState, todayBA } from "./booking.js";
+import { addDays, bookingConfig, createBooking, isDay, kidsPolicy, monthState, priceTotal, tiersFor, todayBA } from "./booking.js";
 import { optionsOf, normTime } from "./ficha.js";
 import { isBundle } from "./bundle.js";
 import { canPayPix, createPix } from "./pix.js";
@@ -70,6 +70,24 @@ export async function disponibilidad(env, body) {
 ${lineas.length ? lineas.join("\n") : "(sin días con lugar en ese rango: ofrecé consultar otras fechas)"}${cerrados.length ? `\nSin lugar / cerrados: ${cerrados.join(" · ")}` : ""}`;
 }
 
+// Confirmación en dos pasos (la controla el sistema, no la IA): la primera marca RESERVAR solo guarda una PROPUESTA con el total
+// calculado acá; recién cuando el cliente responde que sí y la IA repite la misma marca, se crea la reserva.
+export const AFIRMA = /\b(sim|s[ií]|si|confirmo|confirmado|confirmada|pode|podes|podés|pod[eé] reservar|dale|ok|okay|okey|yes|yep|claro|isso|perfeito|perfecto|fechado|bora|vamos|reserva|reservar|reservá|reserve|de acuerdo|combinado|certo|beleza|👍)\b|👍/i;
+const NIEGA = /\b(n[aã]o|no|nope|todav[ií]a no|ainda n[aã]o|espera|aguarda|mejor no|melhor n[aã]o|cancel)/i;
+async function propuesta(db, chatId) {
+  if (!chatId) return null;
+  try { const o = JSON.parse((await db.prepare("SELECT datos FROM ia_chats WHERE id=?").bind(chatId).first())?.datos || "{}"); return o && o._propuesta || null; } catch { return null; }
+}
+async function guardarPropuesta(db, chatId, val) {
+  if (!chatId) return;
+  try {
+    const row = await db.prepare("SELECT datos FROM ia_chats WHERE id=?").bind(chatId).first();
+    let o = {}; try { o = JSON.parse(row?.datos || "{}") || {}; } catch { o = {}; }
+    if (val) o._propuesta = val; else delete o._propuesta;
+    await db.prepare("UPDATE ia_chats SET datos=? WHERE id=?").bind(JSON.stringify(o).slice(0, 2000), chatId).run();
+  } catch {}
+}
+
 // Crea la reserva desde el chat. ctx.contact = teléfono de WhatsApp del cliente (sin él, es una prueba del panel y no se guarda nada).
 export async function reservar(env, body, ctx = {}) {
   const a = args(body), db = env.DB;
@@ -82,9 +100,34 @@ export async function reservar(env, body, ctx = {}) {
   const nombre = String(a.nombre || ctx.nombre || "").trim().slice(0, 80);
   if (!nombre) return { texto: "RESERVA NO CREADA: falta el nombre y apellido del titular. Pedíselo al cliente." };
   const datos = { day: String(a.fecha || "").trim(), time: normTime(a.hora || a.horario || ""), pax: adultos + ninos, adults: adultos, children: ninos, ages: edades, name: nombre, option: String(a.opcion || "").trim(), message: "Reserva por WhatsApp (Gaspi)" };
+  // Total real (lo mismo que cobra la web) y verificación de lugar, para el resumen de la propuesta.
+  const cfg = bookingConfig(p), opts = optionsOf(p);
+  const opt = opts.length ? opts.find((o) => o.name.toLowerCase() === datos.option.toLowerCase()) || (/^\d+$/.test(datos.option) ? opts[Number(datos.option)] : null) : null;
+  if (opts.length && !opt) return { texto: `RESERVA NO CREADA: falta elegir la opción. Opciones de ${p.title}: ${opts.map((o) => `${o.name} (${o.price})`).join("; ")}.` };
+  if (opt) datos.option = opt.name;
+  if (cfg.byTime && !cfg.times.includes(datos.time)) return { texto: `RESERVA NO CREADA: falta el horario. Horarios de ${p.title}: ${cfg.times.join(", ")}.` };
+  if (!isDay(datos.day)) return { texto: "RESERVA NO CREADA: falta la fecha (AAAA-MM-DD)." };
+  if (datos.pax < cfg.min_pax || datos.pax > cfg.max_pax) return { texto: `RESERVA NO CREADA: se reserva para ${cfg.min_pax} a ${cfg.max_pax} personas.` };
+  const unitC = opt ? opt.cents : Math.round((Number(String(p.price).replace(/[^\d,.]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) || 0) * 100);
+  const tiers = kidsPolicy(p).tiers;
+  const totalC = priceTotal(unitC, adultos, ninos && tiers.length ? edades : Array(ninos).fill(99), tiersFor(tiers, unitC));
+  const cur = String((opt ? opt.price : p.price) || "").match(/^[^\d]*/)[0].trim() || "R$";
+  const resumen = `${p.title}${datos.option ? ` (${datos.option})` : ""} · ${datos.day}${datos.time ? " " + datos.time : ""} · ${adultos} adulto(s)${ninos ? ` y ${ninos} niño(s)${edades.length ? ` de ${edades.join(", ")} años` : ""}` : ""} · titular ${nombre} · total ${cur} ${(totalC / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+  const clave = [p.slug, datos.day, datos.time, datos.option, adultos, ninos, edades.join(","), sinTildes(nombre)].join("|");
+  const prop = ctx.contact ? await propuesta(db, ctx.chatId) : (ctx.previo && /\d/.test(ctx.previo) && /\?/.test(ctx.previo) ? { k: clave, at: 1 } : null);
+  const confirma = prop && prop.k === clave && (prop.at || 0) < (ctx.inicio || Date.now()) && (prop.at === 1 || Date.now() - (prop.at || 0) < 30 * 60e3) && AFIRMA.test(ctx.ultimo || "") && !NIEGA.test(ctx.ultimo || "");
+  if (!confirma) {
+    // Primer paso: se verifica el lugar y se guarda la propuesta. No se reserva nada.
+    const st = await monthState(db, p, datos.day.slice(0, 7));
+    const d = st.days.find((x) => x.day === datos.day), slot = d && cfg.byTime ? d.slots.find((x) => x.t === datos.time) : null;
+    const libre = !d || d.st !== "open" ? 0 : slot ? (slot.st === "open" ? slot.left : 0) : d.left;
+    if (libre < datos.pax) return { texto: `RESERVA NO CREADA: ${p.title} no tiene lugar para ${datos.pax} personas el ${datos.day}${datos.time ? " a las " + datos.time : ""}. Consultá la disponibilidad y ofrecé otra fecha u horario.` };
+    if (ctx.contact) await guardarPropuesta(db, ctx.chatId, { k: clave, at: Date.now() });
+    return { texto: `PROPUESTA (TODAVÍA NO ESTÁ RESERVADA): ${resumen}. Hay lugar. Mandale al cliente este resumen en 2 o 3 frases y preguntale si confirma la reserva. NO digas que está reservada. Cuando el cliente responda que sí, escribí exactamente la misma marca RESERVAR y ahí se crea.` };
+  }
   if (!ctx.contact) {
-    // Prueba desde el panel: se valida igual pero no se reserva.
-    return { texto: `RESERVA DE PRUEBA (no se guardó nada porque es una prueba del panel): ${p.title} · ${datos.day}${datos.time ? " " + datos.time : ""} · ${datos.pax} personas${datos.option ? " · " + datos.option : ""} · titular ${nombre}. En WhatsApp real quedaría retenida y le llegaría el código Pix.` };
+    // Prueba desde el panel: se comporta igual que una reserva creada, pero no se guarda nada.
+    return { id: "prueba", pix: "", texto: `RESERVA CREADA #PRUEBA: ${resumen} · estado pendiente de pago. Se generó el código Pix (copia e cola); el sistema se lo manda al cliente en un mensaje aparte, justo después del tuyo. (Es una prueba del panel: no se guardó nada.)` };
   }
   const phone = "+" + String(ctx.contact).replace(/\D/g, "");
   // Si el mismo cliente ya tiene esta reserva pendiente de hace un rato (un reintento después de un corte, o la IA repite la marca),
@@ -95,6 +138,7 @@ export async function reservar(env, body, ctx = {}) {
   const r = prev
     ? { ok: true, id: prev.id, token: prev.token, total: prev.total, currency: prev.currency, time: prev.time, option: prev.option_name, adults: prev.adults, children: prev.children, hold_minutes: 30, repetida: true }
     : await createBooking(db, env, p, { ...datos, phone });
+  await guardarPropuesta(db, ctx.chatId, null);
   if (!r.ok) return { texto: `RESERVA NO CREADA (${p.title}, ${datos.day}${datos.time ? " " + datos.time : ""}, ${datos.pax} personas): ${r.error}${r.left != null ? ` Quedan ${r.left} lugares.` : ""}` };
   if (!r.repetida) try {
     await db.prepare("INSERT INTO leads (name, phone, travel_date, pax, message, package_title, package_slug, page, source) VALUES (?,?,?,?,?,?,?,?,?)")

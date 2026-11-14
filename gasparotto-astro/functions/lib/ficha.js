@@ -45,6 +45,10 @@ export function normMeta(raw) {
     disc: Math.min(90, Math.max(0, Math.round(Number(m.disc) || 0))),
     // Opciones con precio del mismo producto (ej. tango: Solo show · Jantar show · Platea VIP): [nombre, precio, precio anterior, detalle].
     // Comparten fecha, horario y cupo; solo cambia el precio. Se descartan las que no tienen nombre o precio, y los nombres repetidos.
+    // Mejor precio del mercado (se marca en el panel): sello en la ficha, en la tarjeta del listado y argumento para la IA.
+    // box = cuánto cuesta lo mismo comprado directo en el lugar (boletería), opcional.
+    best: m.best === 1 || m.best === true || m.best === "1" ? 1 : 0,
+    box: txt(m.box, 40),
     options: arr(m.options, 12).map((r) => [txt(r?.[0], 60), txt(r?.[1], 40), txt(r?.[2], 40), txt(r?.[3], 140)])
       .filter((r, i, all) => r[0] && r[1] && /\d/.test(r[1]) && all.findIndex((x) => x[0].toLowerCase() === r[0].toLowerCase()) === i),
   };
@@ -129,13 +133,32 @@ const faqLd = (faq) => faq.length ? { "@context": "https://schema.org", "@type":
 const H2 = "m-0 mb-6 font-display text-h3 font-semibold text-ink";
 const SCROLLER = "overflow-x-auto rounded-lg border border-ink/15 focus-visible:outline-3 focus-visible:outline-primary";
 
+// Ícono de cada dato según la etiqueta cargada en el panel (Duración, Ubicación, Bebidas…). Trazo simple, hereda el color.
+const ICONS = {
+  pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  food: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1.5-3 4-3 7h3v11"/>',
+  drink: '<path d="M7 3h10l-1 8a4 4 0 0 1-8 0L7 3zM12 15v6M8 21h8"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  bus: '<rect x="4" y="4" width="16" height="13" rx="2"/><path d="M4 11h16M8 21v-4M16 21v-4"/>',
+  seat: '<path d="M6 4h12v9H6zM4 13h16v4H4zM6 17v4M18 17v4"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+  people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+};
+const ICON_RULES = [[/ubica|locali|regi|zona|endere|direcc|ponto|punto/i, "pin"], [/dura[cç]|horari|hora|inicio|saída|salida/i, "clock"], [/gastro|jantar|cena|almo|comida|men[uú]/i, "food"], [/bebida|drink|vinho|vino/i, "drink"], [/transp|trasl|busca/i, "bus"], [/setor|sector|mesa|asiento|assento/i, "seat"], [/idioma|gu[ií]a|l[ií]ngua/i, "chat"], [/grupo|pessoas|personas|cupo|vagas/i, "people"], [/experi|espet|espect|show|atrac/i, "star"]];
+const factIcon = (label) => { const k = (ICON_RULES.find(([re]) => re.test(label)) || [0, "check"])[1]; return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>`; };
+
 // Bloques de la ficha. incl = líneas de "Qué incluye" (columna details).
 export function fichaHtml(p, incl, L, polsIn = null) {
-  const m = parseMeta(p.meta), facts = arr(m.facts), exc = arr(m.exc), stops = arr(m.stops), faq = arr(m.faq), table = arr(m.table), gal = galleryOf(p);
+  const m = parseMeta(p.meta), facts = arr(m.facts), exc = arr(m.exc), stops = arr(m.stops), faq = arr(m.faq), table = arr(m.table);
+  // Galería de arriba: la foto principal primero y después las de la galería (sin repetir).
+  const g0 = galleryOf(p), main = /^(\/media\/|\/assets\/|https:\/\/)/.test(String(p.image || "")) ? [{ src: p.image, alt: p.image_alt || p.title }] : [];
+  const gal = main.concat(g0.filter((g) => !main.length || g.src !== main[0].src));
 
-  // Datos rápidos: ficha técnica con una línea sobre cada dato
+  // Lo más destacado: los datos del panel en una grilla compacta con ícono (antes eran títulos grandes que repetían la descripción).
   const top = facts.length
-    ? `<dl data-fx="hero" class="m-0 mt-10 grid grid-cols-2 gap-x-8 sm:grid-cols-3">${facts.map(([a, b]) => `<div class="border-t border-ink/20 pb-5 pt-4"><dt class="m-0 text-sm text-mute">${esc(a)}</dt><dd class="m-0 mt-1 font-display text-lg font-semibold leading-snug text-ink">${esc(b)}</dd></div>`).join("")}</dl>`
+    ? `<section data-fx="up" class="gvf"><h2 class="gvf-h">${esc(L.highlights || "Destaques")}</h2><dl class="gvf-l">${facts.map(([a, b]) => `<div class="gvf-i"><span class="gvf-ic" aria-hidden="true">${factIcon(a)}</span><div><dt>${esc(a)}</dt><dd>${esc(b)}</dd></div></div>`).join("")}</dl></section>`
     : "";
 
   // Horarios de salida: una casilla por horario (con su nota, si la tiene), justo debajo de los datos clave
@@ -168,13 +191,13 @@ export function fichaHtml(p, incl, L, polsIn = null) {
     const u = g.src, last = i === MAXV - 1 && extra > 0, hid = i >= MAXV;
     const inner = isVideo(u)
       ? `<video muted playsinline preload="metadata" tabindex="-1" aria-hidden="true" src="${esc(u)}#t=0.1"></video><span class="gvg-play" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></span>`
-      : `<img src="${esc(u)}" alt="${esc(g.alt || `${p.title} · foto ${i + 1} de ${gal.length}`)}" loading="${i < 2 ? "eager" : "lazy"}" decoding="async">`;
+      : `<img src="${esc(u)}" alt="${esc(g.alt || `${p.title} · foto ${i + 1} de ${gal.length}`)}" loading="${i < 2 ? "eager" : "lazy"}"${i === 0 ? ' fetchpriority="high"' : ""} decoding="async">`;
     const ic = hid || isVideo(u) ? "" : `<span class="gvg-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span>`;
     const more = last ? `<span class="gvg-more" aria-hidden="true">+${extra}<small>${esc(L.gallery)}</small></span>` : "";
     return `<a href="${esc(u)}" data-gvi${isVideo(u) ? " data-video" : ""}${hid ? " hidden" : ""} class="gvg-t" aria-label="${esc(p.title)} · ${i + 1}/${gal.length}${last ? ` (+${extra})` : ""}">${inner}${ic}${more}</a>`;
   };
   const ga = gal.length
-    ? `<section data-fx="up" class="mt-16"><h2 class="${H2}">${esc(L.gallery)}</h2><div class="gvg gvg-n${vis}" data-gvg data-title="${esc(p.title)}">${gal.map(tile).join("")}</div><link rel="stylesheet" href="/assets/gallery.css?v=1"><script src="/assets/gallery.js?v=1" defer></script></section>`
+    ? `<div data-fx="hero" class="gvg-hero"><div class="gvg gvg-n${vis}" data-gvg data-title="${esc(p.title)}">${gal.map(tile).join("")}</div>${vis > 1 ? `<button type="button" data-gvg-all class="gvg-all">${esc(L.lang === "es" ? "Ver todas las fotos" : "Ver todas as fotos")} (${gal.length})</button>` : ""}</div><link rel="stylesheet" href="/assets/gallery.css?v=2"><script src="/assets/gallery.js?v=2" defer></script>`
     : "";
 
   // Preguntas frecuentes

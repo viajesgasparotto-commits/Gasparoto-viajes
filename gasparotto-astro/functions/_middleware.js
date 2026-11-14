@@ -271,7 +271,7 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const lead = `${opts.length || pols.length || bItems.length || bk.enabled ? '<link rel="stylesheet" href="/assets/options.css?v=4">' : ""}<form id="pedir" class="tw-lead relative scroll-mt-24" data-gv-lead data-package="${esc(p.title)}" data-slug="${esc(p.slug)}"${kids ? ' data-kids="1"' : ""}${kidTiers.length ? ` data-kid-tiers="${esc(JSON.stringify(kidTiers))}"` : ""}${kidTab ? ' data-kid-mode="tab"' : ""}${bk.enabled ? ` data-min-pax="${bk.min_pax}" data-max-pax="${bk.max_pax}" data-hold-min="${holdMinutes(env)}"${unitC ? ` data-unit="${unitC}" data-cur="${priceCurrency(env, best ? best.price : p.price)}"` : ""}${payPix ? ' data-paymode="pix"' : ""}` : ""}${bundleOn ? ` data-bundle="${esc(bundleData)}"` : ""} novalidate>
 <div data-fields>
 <h3 class="m-0 font-display text-[1.65rem] font-semibold leading-tight text-ink">${esc(L.formTitle)}</h3>
-<p class="m-0 mt-1.5 text-[0.95rem] leading-snug text-mute">${esc(L.formSub)}</p>
+<p class="m-0 mt-1.5 text-[0.95rem] leading-snug text-mute">${esc(bk.enabled ? (L.lang === "es" ? "Elegí la opción, la fecha y cuántos viajan. Ves el total antes de confirmar." : "Escolha a opção, a data e quantas pessoas viajam. Você vê o total antes de confirmar.") : L.formSub)}</p>
 <ol data-steps aria-label="${esc(ST.aria)}" class="tw-steps"><li data-stepi="1" data-s="now" aria-current="step"><span data-sdot class="tw-steps-dot">1</span><span>${esc(ST.s1)}</span></li><li data-stepi="2" data-s="todo"><span data-sdot class="tw-steps-dot">2</span><span>${esc(ST.s2)}</span></li></ol>
 <div data-step="1" tabindex="-1" aria-labelledby="gv-st1" class="mt-6 outline-none">
 <h4 id="gv-st1" class="${stepH}">${esc(bundleOn ? (L.lang === "es" ? "Inicio, itinerario y personas" : "Início, roteiro e pessoas") : opts.length ? (L.lang === "es" ? "Opción, fecha y personas" : "Opção, data e pessoas") : ST.h1)}</h4>
@@ -332,25 +332,81 @@ ${phoneField}
     ? `<section data-fx="up" class="border-t border-ink/10 bg-mist tw-section"><div class="tw-wrap"><h2 class="m-0 font-display text-h2 font-semibold text-ink">${esc(L.related)}</h2><div class="${CARD_GRID} mt-10">${related.map((x) => pkgCard(x, waLink(env, x.title, L.waTitle), L)).join("")}</div></div></section>`
     : "";
 
+  // Cabecera: título, resumen y una línea con lo clave (horario, duración, lugar). Debajo, la galería en mosaico (la foto principal primero).
+  const es = L.lang === "es";
+  const FX = parseMetaSafe(p.meta).facts || [], tms = timesOf(p);
+  const quick = [
+    tms.length ? [L.timesShort || "Horários", tms.slice(0, 3).map((r) => r[0]).join(" · ")] : null,
+    FX.find((r) => /dura[cç]/i.test(r[0])), FX.find((r) => /ubica|locali|regi/i.test(r[0])),
+  ].filter(Boolean).slice(0, 3);
+  const CLK = '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  const PIN = '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
+  const quickRow = quick.length ? `<ul class="gvh-q">${quick.map(([k, v]) => `<li>${/ubica|locali|regi/i.test(k) ? PIN : CLK}<span>${esc(v)}</span></li>`).join("")}</ul>` : "";
+  // Tarjeta de la derecha (fija al bajar): precio, botón que abre la reserva y lo que da confianza. El formulario va en una ventana aparte.
+  const MB = parseMetaSafe(p.meta), isBest = MB.best === 1 || MB.best === true, boxP = String(MB.box || "").trim();
+  const TR = es
+    ? { book: bk.enabled ? "Ver fechas disponibles" : "Consultar disponibilidad", pix: "Pago seguro con Pix", inst: "Confirmación al instante", nopay: "Elegís la fecha y recién después pagás", lang: "Atención en español y portugués", ask: "¿Dudas? Escribinos por WhatsApp", close: "Cerrar",
+        best: "Mejor precio del mercado", bestP: "Más barato que comprar directo en el lugar", box: "En la boletería", save: "Ahorrás", per: "por persona", pax: "Personas", adults: "Adultos", total: "Total", choose: "Elegí tu opción", proof: "Más de 100.000 viajeros desde 2006", less: "Menos personas", more: "Más personas" }
+    : { book: bk.enabled ? "Ver datas disponíveis" : "Consultar disponibilidade", pix: "Pagamento seguro com Pix", inst: "Confirmação na hora", nopay: "Você escolhe a data e só depois paga", lang: "Atendimento em português", ask: "Dúvidas? Fale no WhatsApp", close: "Fechar",
+        best: "Melhor preço do mercado", bestP: "Mais barato que comprar direto no local", box: "Na bilheteria", save: "Você economiza", per: "por pessoa", pax: "Pessoas", adults: "Adultos", total: "Total", choose: "Escolha sua opção", proof: "Mais de 100.000 viajantes desde 2006", less: "Menos pessoas", more: "Mais pessoas" };
+  const TICK = '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const ticks = [payPix && TR.pix, bk.enabled && TR.inst, bk.enabled && TR.nopay, TR.lang].filter(Boolean);
+  // Ahorro: contra el precio anterior y, si el panel lo tiene, contra la boletería del lugar (misma moneda).
+  const numP = (x) => Number(parsePrice(x)) || 0, curP = (x) => String(x || "").match(/^[^\d]*/)[0].trim();
+  const baseP = best ? best.price : p.price, baseOld = best ? best.old : p.price_old;
+  const saveOld = numP(baseOld) > numP(baseP) && numP(baseP) > 0 ? numP(baseOld) - numP(baseP) : 0;
+  // Con varias opciones no se sabe a cuál corresponde la boletería: ahí no se calcula ahorro (el panel lo explica).
+  const saveBox = opts.length <= 1 && boxP && numP(boxP) > numP(baseP) && numP(baseP) > 0 && curP(boxP) === curP(baseP) ? numP(boxP) - numP(baseP) : 0;
+  const money = (n) => `${curP(baseP)} ${Math.round(n).toLocaleString("es-AR")}`.trim();
+  const ribbon = isBest ? `<div class="gvs-best"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg><span><b>${esc(TR.best)}</b><small>${esc(TR.bestP)}</small></span></div>` : "";
+  const saveLine = saveBox ? `<p class="gvs-save"><span>${esc(TR.box)}: <s>${esc(boxP)}</s></span><b>${esc(TR.save)} ${esc(money(saveBox))}</b></p>`
+    : saveOld ? `<p class="gvs-save"><b>${esc(TR.save)} ${esc(money(saveOld))} ${esc(TR.per)}</b></p>` : "";
+  // Selección rápida en la tarjeta (opción y personas): ficha.js la pasa al formulario al abrir la reserva (compromiso pequeño antes del calendario).
+  const kidsForm = kids;
+  const qOpts = opts.length > 1 ? `<fieldset class="gvs-o"><legend>${esc(TR.choose)}</legend>${opts.map((o) => `<label><input type="radio" name="q-opt" value="${o.i}" data-unit="${o.cents}"${best && o.i === best.i ? " checked" : ""}><span class="gvs-on">${esc(o.name)}</span><span class="gvs-op">${o.old ? `<s>${esc(o.old)}</s>` : ""}<b>${esc(o.price)}</b></span></label>`).join("")}</fieldset>` : "";
+  const qPax = `<div class="gvs-x"><span>${esc(kidsForm ? TR.adults : TR.pax)}</span><div><button type="button" data-q-pax="-1" aria-label="${esc(TR.less)}">−</button><output data-q-n>${paxVal}</output><button type="button" data-q-pax="1" aria-label="${esc(TR.more)}">+</button></div></div>`;
+  const qTotal = unitC ? `<p class="gvs-tot" data-q-total data-cur="${esc(curP(baseP))}" data-unit="${unitC}" data-min="${bk.enabled ? bk.min_pax : 1}" data-max="${bk.enabled ? bk.max_pax : 20}"><span>${esc(TR.total)}</span><b></b></p>` : "";
+  const card = `<div class="gvs" data-q>${ribbon}<div class="gvs-in"><div class="gvs-p">${priceHtml(p, L, true)}${pct ? `<span class="gvs-off">-${pct}%</span>` : ""}</div>${saveLine}${qOpts}${qPax}${qTotal}<a href="#pedir" data-bk-open class="tw-btn tw-btn--primary gvs-cta"><span>${esc(TR.book)}</span><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><ul class="gvs-t">${ticks.map((t) => `<li>${TICK}<span>${esc(t)}</span></li>`).join("")}</ul><p class="gvs-proof">${esc(TR.proof)}</p><a href="${esc(waFor(p))}" data-gv-wa="${esc(p.title)}" target="_blank" rel="noopener" class="gvs-wa">${esc(TR.ask)}</a></div></div>`;
+  // Franja de beneficios debajo de la galería: lo que nos diferencia, bien visible antes de leer la ficha.
+  const BI = { star: '<path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/>', shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>', bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
+  const benef = [
+    isBest && ["star", TR.best, saveBox ? `${TR.box}: ${boxP} · ${TR.save} ${money(saveBox)}` : TR.bestP, true],
+    payPix && ["shield", TR.pix, es ? "Pagás en reales, sin sorpresas" : "Você paga em reais, sem surpresas"],
+    bk.enabled && ["bolt", TR.inst, es ? "Tu lugar queda reservado al momento" : "Sua vaga fica garantida na hora"],
+    ["chat", TR.lang, TR.proof],
+  ].filter(Boolean);
+  const benefits = `<ul class="gvben">${benef.map(([ic, t, d, hi]) => `<li${hi ? ' class="is-hi"' : ""}><span class="gvben-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="${ic === "star" ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${BI[ic]}</svg></span><span><b>${esc(t)}</b><small>${esc(d)}</small></span></li>`).join("")}</ul>`;
+  // Ventana de reserva: en PC se abre centrada sobre la ficha; en el celular, como hoja a pantalla completa (public/assets/ficha.js).
+  // Sin JavaScript queda como bloque normal debajo de la tarjeta.
+  const modal = `<div data-bk class="gvbk"><div class="gvbk-back" data-bk-close></div><div class="gvbk-panel" role="dialog" aria-modal="true" aria-labelledby="gvbk-t"><div class="gvbk-top"><div class="min-w-0"><p class="gvbk-k">${esc(L.formTitle)}</p><p id="gvbk-t" class="gvbk-t">${esc(p.title)}</p></div><button type="button" data-bk-close class="gvbk-x" aria-label="${esc(TR.close)}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="gvbk-body">${lead}</div></div></div>`;
+
   const body = `<div class="tw tw-page bg-white">
+<link rel="stylesheet" href="/assets/ficha.css?v=1">
 <div class="tw-wrap">
 ${crumb}
-<div class="grid gap-12 pb-20 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start lg:gap-16">
+<header class="gvh">
+${kindOf(p) === "paquete" ? `<p data-fx="hero" class="gvh-k">${esc(K.paquete)}${partsOf(p).length ? ` · ${esc(K.includesN(extra.parts.length || partsOf(p).length))}` : ""}</p>` : ""}
+<h1 data-fx="hero" class="gvh-t">${esc(p.title)}</h1>
+${p.excerpt ? `<p data-fx="hero" class="gvh-e">${esc(p.excerpt)}</p>` : ""}
+${quickRow}
+</header>
+${F.ga}
+${benefits}
+<div class="gvcols">
 <article class="min-w-0">
-${kindOf(p) ? `<p data-fx="hero" class="m-0 mb-4 inline-block rounded-full bg-mist px-3 py-1.5 text-[0.75rem] font-bold uppercase leading-none tracking-[0.08em] text-primary">${esc(K[kindOf(p)])}${partsOf(p).length ? ` · ${esc(K.includesN(extra.parts.length || partsOf(p).length))}` : ""}</p>` : ""}
-<h1 data-fx="hero" class="m-0 font-display text-title font-semibold text-ink">${esc(p.title)}</h1>
-${p.excerpt ? `<p data-fx="hero" class="m-0 mt-5 max-w-2xl text-lead text-mute">${esc(p.excerpt)}</p>` : ""}
-${p.image ? `<div data-fx="hero" class="relative mt-10 overflow-hidden rounded-lg"><img src="${esc(p.image)}" alt="${esc(p.image_alt || p.title)}" fetchpriority="high" class="block aspect-[16/10] w-full object-cover">${pct ? `<span class="tw-tag tw-tag--sale">-${pct}%</span>` : ""}</div>` : ""}
-${videoBlock(p, "mt-6")}
 ${F.top}
-${p.content ? `<section data-fx="up" class="mt-14"><div class="tw-prose">${sanitizeHtml(p.content)}</div></section>` : ""}
-${optSection}${F.pl}${bundle}${F.inc}${F.tb}${F.st}${F.ga}${F.fq}${inB}
+${videoBlock(p, "mt-10")}
+${optSection}
+${F.inc}
+${p.content ? `<section data-fx="up" class="mt-16"><h2 class="m-0 mb-6 font-display text-h3 font-semibold text-ink">${esc(L.about)}</h2><div data-more data-more-l="${es ? "Leer más" : "Ler mais"}" data-less-l="${es ? "Leer menos" : "Ler menos"}" class="tw-prose">${sanitizeHtml(p.content)}</div></section>` : ""}
+${F.st}${bundle}${opts.length ? "" : F.tb}${F.pl}${F.fq}${inB}
 </article>
-<aside class="gv-aside lg:sticky lg:top-24"><div class="overflow-hidden rounded-lg border border-ink/20 bg-white"><div class="bg-night p-6">${priceHtml(p, L, true, true)}<p class="m-0 mt-2 text-sm text-white/70">${esc(L.payNote)}</p></div><div class="p-6">${lead}</div></div></aside>
+<aside class="gv-aside lg:sticky lg:top-24">${card}${modal}</aside>
 </div>
 </div>
 ${rel}
 ${bar}
+<script src="/assets/ficha.js?v=1" defer></script>
 </div>`;
   return renderPage(shellHtml, { env,
     title: pageTitle(SEO.title),

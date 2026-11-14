@@ -1,0 +1,128 @@
+/* Ficha de servicio/paquete: cabecera, galería de arriba, destacados, tarjeta de precio y ventana de reserva.
+   Usa los colores del sitio (tw.css). Sin dependencias del build de Tailwind. */
+.gvh { padding: .25rem 0 1.75rem; max-width: 52rem; }
+.gvh-k { display: inline-block; margin: 0 0 .9rem; padding: .4rem .75rem; border-radius: 999px; background: var(--color-mist); color: var(--color-primary); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; line-height: 1; }
+.gvh-t { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.08; letter-spacing: -.015em; color: var(--color-ink); }
+.gvh-e { margin: .9rem 0 0; font-size: 1.125rem; line-height: 1.55; color: var(--color-mute); max-width: 46rem; }
+.gvh-q { margin: 1.1rem 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; color: var(--color-ink); font-weight: 600; font-size: .9688rem; }
+.gvh-q li { display: inline-flex; align-items: center; gap: .45rem; }
+.gvh-q svg { color: var(--color-primary); flex-shrink: 0; }
+
+/* Galería de arriba: mosaico de altura fija en PC (como los sitios de experiencias) */
+.gvg-hero { position: relative; }
+@media (min-width: 640px) {
+  .gvg-hero .gvg { height: clamp(20rem, 40vw, 29rem); grid-auto-rows: 1fr; }
+  .gvg-hero .gvg .gvg-t { aspect-ratio: auto; min-height: 0; height: 100%; }
+  .gvg-hero .gvg-n2 { grid-template-columns: 1.6fr 1fr; }
+  .gvg-hero .gvg-n3 { grid-template-rows: 1fr 1fr; }
+  .gvg-hero .gvg-n4 { grid-template-rows: repeat(3, 1fr); }
+  .gvg-hero .gvg-n5 { grid-template-rows: 1fr 1fr; }
+}
+@media (max-width: 639px) {
+  .gvg-hero { margin-inline: -1.25rem; }
+  .gvg-hero .gvg { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: .5rem; padding-inline: 1.25rem; scrollbar-width: none; }
+  .gvg-hero .gvg::-webkit-scrollbar { display: none; }
+  .gvg-hero .gvg .gvg-t { flex: 0 0 86%; aspect-ratio: 4/3; scroll-snap-align: center; }
+  .gvg-hero .gvg .gvg-t[hidden] { display: block; }
+  .gvg-hero .gvg-more { display: none; }
+}
+.gvg-all { position: absolute; right: 1rem; bottom: 1rem; z-index: 4; display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 1rem; border: 0; border-radius: 999px; background: #fff; color: var(--color-ink); font: inherit; font-size: .875rem; font-weight: 700; box-shadow: 0 4px 18px rgba(7, 26, 51, .25); cursor: pointer; }
+.gvg-all:hover { background: var(--color-mist); }
+@media (max-width: 639px) { .gvg-all { right: 1.75rem; bottom: .6rem; min-height: 2.25rem; font-size: .8125rem; } }
+
+/* Destacados */
+.gvf-h { margin: 0 0 1.25rem; font-family: var(--font-display); font-weight: 600; font-size: clamp(1.5rem, 2.4vw, 2rem); line-height: 1.15; color: var(--color-ink); }
+.gvf-l { margin: 0; display: grid; gap: 1.1rem 2rem; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+.gvf-i { display: flex; gap: .85rem; align-items: flex-start; }
+.gvf-ic { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; flex-shrink: 0; border-radius: .7rem; background: var(--color-mist); color: var(--color-primary); }
+.gvf-i dt { margin: 0; font-size: .8125rem; color: var(--color-mute); }
+.gvf-i dd { margin: .1rem 0 0; font-weight: 600; line-height: 1.35; color: var(--color-ink); }
+
+/* Tarjeta de precio (columna derecha) */
+.gvs { border: 1px solid color-mix(in srgb, var(--color-ink) 14%, transparent); border-radius: 1rem; padding: 1.5rem; background: #fff; box-shadow: 0 10px 40px rgba(7, 26, 51, .08); }
+.gvs-p { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.gvs-off { flex-shrink: 0; border-radius: 999px; background: var(--color-accent); color: #fff; padding: .35rem .6rem; font-size: .8125rem; font-weight: 700; line-height: 1; }
+.gvs-n { margin: .4rem 0 0; font-size: .875rem; color: var(--color-mute); }
+.gvs-cta { width: 100%; min-height: 3.5rem; margin-top: 1.25rem; font-size: 1.0625rem; }
+.gvs-t { margin: 1.25rem 0 0; padding: 1.1rem 0 0; list-style: none; display: grid; gap: .6rem; border-top: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); font-size: .9375rem; color: var(--color-ink); }
+.gvs-t li { display: flex; gap: .55rem; align-items: flex-start; line-height: 1.35; }
+.gvs-t svg { color: var(--color-ok); flex-shrink: 0; margin-top: .05rem; }
+.gvs-wa { display: block; margin-top: 1.1rem; text-align: center; font-size: .9375rem; font-weight: 600; color: var(--color-primary); }
+@media (max-width: 1023px) { .gv-aside .gvs { display: none; } }
+
+/* "Leer más" de la descripción larga */
+[data-more].is-c { max-height: 17rem; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.gv-more { margin-top: .75rem; border: 0; background: none; padding: .5rem 0; font: inherit; font-weight: 700; color: var(--color-primary); cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
+
+/* Ventana de reserva: solo con JavaScript (ficha.js agrega .is-m y la lleva al final de <body>) */
+.gvbk { margin-top: 1.5rem; }
+.gvbk-back, .gvbk-top { display: none; }
+.gvbk.is-m { position: fixed; inset: 0; z-index: 70; margin: 0; display: none; }
+.gvbk.is-m.is-open { display: block; }
+.gvbk.is-m .gvbk-back { display: block; position: absolute; inset: 0; background: rgba(7, 26, 51, .55); backdrop-filter: blur(3px); animation: gvbk-f .25s ease; }
+.gvbk.is-m .gvbk-panel { position: absolute; left: 50%; top: 50%; width: min(34rem, calc(100% - 2rem)); max-height: min(92vh, 56rem); transform: translate(-50%, -50%); display: flex; flex-direction: column; background: #fff; border-radius: 1.1rem; box-shadow: 0 30px 80px rgba(7, 26, 51, .35); overflow: hidden; animation: gvbk-in .3s cubic-bezier(.2, .8, .2, 1); }
+.gvbk.is-m .gvbk-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1rem 1rem 1.5rem; border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
+.gvbk-k { margin: 0; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-primary); }
+.gvbk-t { margin: .15rem 0 0; font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; line-height: 1.2; color: var(--color-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gvbk-x { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; flex-shrink: 0; border: 0; border-radius: 999px; background: var(--color-mist); color: var(--color-ink); cursor: pointer; }
+.gvbk-x:hover { background: color-mix(in srgb, var(--color-ink) 12%, var(--color-mist)); }
+.gvbk.is-m .gvbk-body { overflow-y: auto; overscroll-behavior: contain; padding: 1.25rem 1.5rem 1.75rem; }
+.gvbk.is-m [data-fields] > h3 { display: none; }
+.gvbk.is-m [data-fields] > h3 + p { margin-top: 0; }
+@media (max-width: 639px) {
+  .gvbk.is-m .gvbk-panel { left: 0; right: 0; top: auto; bottom: 0; width: 100%; height: calc(100dvh - .75rem); max-height: none; transform: none; border-radius: 1.1rem 1.1rem 0 0; animation: gvbk-up .32s cubic-bezier(.2, .8, .2, 1); }
+  .gvbk.is-m .gvbk-body { padding: 1rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
+}
+html.gvbk-lock, html.gvbk-lock body { overflow: hidden; }
+@keyframes gvbk-f { from { opacity: 0; } }
+@keyframes gvbk-in { from { opacity: 0; transform: translate(-50%, -46%); } }
+@keyframes gvbk-up { from { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) { .gvbk.is-m .gvbk-panel, .gvbk.is-m .gvbk-back { animation: none; } }
+
+/* Columnas: contenido + tarjeta de precio fija a la derecha (desde 1024 px) */
+.gvcols { display: grid; gap: 3rem; padding: 2.5rem 0 5rem; }
+@media (min-width: 1024px) { .gvcols { grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; gap: 4rem; } .gvcols > .gv-aside { position: sticky; top: 6rem; } }
+.gvg-hero .gvg-more { display: none; }
+
+/* Tarjeta de reserva (CRO): sello de mejor precio, ahorro, selección rápida y total */
+.gvs { padding: 0; overflow: hidden; }
+.gvs-in { padding: 1.4rem 1.5rem 1.5rem; }
+.gvs-best { display: flex; gap: .7rem; align-items: center; padding: .85rem 1.5rem; background: var(--color-ok); color: #fff; }
+.gvs-best span { display: grid; line-height: 1.2; }
+.gvs-best b { font-size: .9375rem; letter-spacing: .01em; }
+.gvs-best small { font-size: .8125rem; opacity: .92; }
+.gvs-save { margin: .6rem 0 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .75rem; padding: .55rem .75rem; border-radius: .6rem; background: color-mix(in srgb, var(--color-ok) 10%, #fff); font-size: .875rem; color: var(--color-mute); }
+.gvs-save b { color: var(--color-ok); }
+.gvs-o { margin: 1.1rem 0 0; padding: 0; border: 0; display: grid; gap: .45rem; }
+.gvs-o legend { padding: 0; margin-bottom: .45rem; font-size: .8125rem; font-weight: 700; color: var(--color-ink); }
+.gvs-o label { position: relative; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .85rem; border: 1.5px solid color-mix(in srgb, var(--color-ink) 16%, transparent); border-radius: .65rem; cursor: pointer; transition: border-color .2s, background .2s; }
+.gvs-o label:has(input:checked) { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, #fff); }
+.gvs-o input { position: absolute; opacity: 0; pointer-events: none; }
+.gvs-o input:focus-visible + .gvs-on { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.gvs-on { font-size: .9063rem; font-weight: 600; line-height: 1.25; color: var(--color-ink); }
+.gvs-op { display: grid; justify-items: end; flex-shrink: 0; line-height: 1.1; }
+.gvs-op s { font-size: .75rem; color: var(--color-mute); }
+.gvs-op b { font-size: .9375rem; color: var(--color-primary); }
+.gvs-x { margin-top: .75rem; display: flex; align-items: center; justify-content: space-between; padding: .35rem .4rem .35rem .85rem; border: 1.5px solid color-mix(in srgb, var(--color-ink) 16%, transparent); border-radius: .65rem; font-size: .9063rem; font-weight: 600; color: var(--color-ink); }
+.gvs-x div { display: flex; align-items: center; gap: .25rem; }
+.gvs-x button { width: 2.4rem; height: 2.4rem; border: 0; border-radius: .5rem; background: var(--color-mist); color: var(--color-ink); font-size: 1.25rem; line-height: 1; cursor: pointer; }
+.gvs-x button:disabled { opacity: .4; cursor: default; }
+.gvs-x output { min-width: 2rem; text-align: center; font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; }
+.gvs-tot { margin: .85rem 0 0; display: flex; align-items: baseline; justify-content: space-between; font-size: .9375rem; color: var(--color-mute); }
+.gvs-tot b { font-family: var(--font-display); font-size: 1.5rem; color: var(--color-ink); }
+.gvs-cta { gap: .5rem; }
+.gvs-cta svg { transition: transform .2s; }
+.gvs-cta:hover svg { transform: translateX(3px); }
+.gvs-proof { margin: .9rem 0 0; text-align: center; font-size: .8125rem; color: var(--color-mute); }
+
+/* Franja de beneficios */
+.gvben { margin: 1.5rem 0 0; padding: 0; list-style: none; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.gvben li { display: flex; gap: .8rem; align-items: center; padding: .9rem 1rem; border-radius: .85rem; background: var(--color-mist); }
+.gvben li.is-hi { background: var(--color-ok); color: #fff; }
+.gvben-ic { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; flex-shrink: 0; border-radius: 999px; background: #fff; color: var(--color-primary); }
+.gvben li.is-hi .gvben-ic { background: rgba(255, 255, 255, .18); color: #fff; }
+.gvben span:last-child { display: grid; line-height: 1.25; }
+.gvben b { font-size: .9375rem; color: var(--color-ink); }
+.gvben small { margin-top: .15rem; font-size: .8125rem; color: var(--color-mute); }
+.gvben li.is-hi b, .gvben li.is-hi small { color: #fff; }
+@media (max-width: 639px) { .gvben { grid-template-columns: 1fr 1fr; gap: .5rem; } .gvben li { flex-direction: column; align-items: flex-start; gap: .5rem; padding: .8rem; } .gvben li.is-hi { grid-column: 1 / -1; flex-direction: row; align-items: center; } }

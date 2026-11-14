@@ -79,6 +79,7 @@ async function web(env) {
     return [
       `• ${p.title} [${cats.get(p.category) || p.category}]`,
       p.price ? `  Precio: ${p.price}${p.price_old ? ` (antes ${p.price_old})` : ""}` : "  Precio: a consultar",
+      m.best === 1 && `  MEJOR PRECIO DEL MERCADO${m.box ? ` (en la boletería del lugar cuesta ${m.box})` : ""}: usalo como argumento de venta`,
       opts && `  Opciones: ${opts}`,
       times && `  Horarios: ${times}`,
       facts && `  Datos: ${clip(facts, 400)}`,

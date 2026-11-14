@@ -204,9 +204,11 @@ export function pkgCard(p, wa, L, i = 0) {
   const pill = "rounded-full bg-white/95 px-3 py-1.5 text-[0.75rem] font-bold uppercase leading-none tracking-[0.08em] text-night shadow-sm";
   // Etiqueta solo en los paquetes ("Pacote · 3 serviços"): lo normal es el servicio suelto, y poner "Serviço" en todas confundía.
   const kindTag = kind === "paquete" ? `<span class="${pill}">${esc(n > 1 ? K.pkgN(n) : K.paquete)}</span>` : "";
+  // Sello "Mejor precio" (se marca en el panel): va arriba a la izquierda, antes que el tipo.
+  const best = parseMeta(p.meta).best ? `<span class="inline-flex items-center gap-1 rounded-full bg-ok px-3 py-1.5 text-[0.75rem] font-bold uppercase leading-none tracking-[0.06em] text-white shadow-sm">★ ${esc(L.lang === "es" ? "Mejor precio" : "Melhor preço")}</span>` : "";
   const sale = pct ? `<span class="rounded-full bg-accent px-3 py-1.5 text-[0.8125rem] font-bold leading-none text-white shadow-sm">-${pct}%</span>` : "";
   const img = p.image
-    ? `<div class="tw-pkg-img relative overflow-hidden rounded-xl bg-mist"><img loading="lazy" alt="${esc(p.image_alt || p.title)}" src="${esc(p.image)}" class="block aspect-[4/3] w-full object-cover transition duration-700 ease-soft group-hover:scale-[1.04]"><div class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">${kindTag}${sale}</div></div>`
+    ? `<div class="tw-pkg-img relative overflow-hidden rounded-xl bg-mist"><img loading="lazy" alt="${esc(p.image_alt || p.title)}" src="${esc(p.image)}" class="block aspect-[4/3] w-full object-cover transition duration-700 ease-soft group-hover:scale-[1.04]"><div class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2"><span class="flex flex-wrap gap-1.5">${best}${kindTag}</span>${sale}</div></div>`
     : "";
   const facts = cardFacts(p);
   const dur = (() => { const r = (parseMeta(p.meta).facts || []).find((x) => /duraci/i.test(x[0])); return r ? `<span class="inline-flex items-center gap-1.5">${CLOCK}<span>${esc(r[1])}</span></span>` : ""; })();

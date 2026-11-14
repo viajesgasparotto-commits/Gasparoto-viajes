@@ -9,7 +9,6 @@ import Trust from "../../components/home/Trust.astro";
 import Intents from "../../components/home/Intents.astro";
 import How from "../../components/home/How.astro";
 import Mix from "../../components/home/Mix.astro";
-import Founder from "../../components/home/Founder.astro";
 import Faq from "../../components/home/Faq.astro";
 import FinalCta from "../../components/home/FinalCta.astro";
 import { meta, featured } from "../../data/home";
@@ -19,7 +18,7 @@ const head = "<!--" + JSON.stringify(meta) + "-->\n";
 ---
 <Fragment set:html={head} /><Hero />
 <Trust />
-<section data-gsec class="tw tw-section bg-white"><div class="tw-wrap"><Fragment set:html={'<div data-panel="google" hidden></div>'} /></div></section>
+<section class="tw tw-section bg-white"><div class="tw-wrap"><Fragment set:html={'<div data-panel="google" hidden></div>'} /></div></section>
 <Intents />
 
 <section id="paquetes" class="tw tw-section bg-white">
@@ -30,13 +29,11 @@ const head = "<!--" + JSON.stringify(meta) + "-->\n";
     </div>
     {/* El motor reemplaza este marcador por las tarjetas de paquetes destacados. Es un <div hidden>: si no se reemplaza, no se ve. */}
     <Fragment set:html={'<div data-panel="featured" hidden></div>'} />
-    <p class="m-0 mt-14 text-center"><a href={featured.all.href} class="tw-btn tw-btn--line"><span>{featured.all.label}</span></a></p>
   </div>
 </section>
 
 <Mix />
 <How />
-<Founder />
 <Fragment set:html={'<div data-panel="posts" hidden></div>'} />
 <Faq />
 <FinalCta />

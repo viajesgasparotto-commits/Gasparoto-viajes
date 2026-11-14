@@ -25,7 +25,7 @@ const INCL_EN = { "traslado incluido": "Hotel transfer included", "desayuno": "B
 
 const NO_CACHE = "no-cache, must-revalidate";
 // Texto del botón principal de la portada por variante (sin urgencia falsa: solo cambia la invitación).
-const AB_CTA = { a: "Falar pelo WhatsApp", b: "Montar a minha viagem pelo WhatsApp" };
+const AB_CTA = { a: "Consultar pelo WhatsApp", b: "Montar a minha viagem pelo WhatsApp" };
 // Notas por página en el índice del blog (la primera página muestra 1 destacada + 9 en grilla).
 const BLOG_PER_PAGE = 10;
 // /blog/buscar/ es el buscador, no una nota: no cuenta como visita a una ficha.
@@ -454,8 +454,6 @@ async function staticPage(env, url, name, status = 200, extra = (b) => b) {
   src = dropMarks(extra(m ? src.slice(m[0].length) : src));
   // Reseñas de Google (API de Places): el bloque reemplaza el marcador <div data-panel="google"> de portada y contacto.
   if (src.includes('data-panel="google"')) src = putPanel(src, "google", await googleBlock(env, (src.match(/data-panel="google"[^>]*data-v="(\w+)"/) || [])[1]));
-  // Sin reseñas, la sección que las envuelve quedaba vacía y dejaba un hueco grande bajo la portada: se quita.
-  src = src.replace(/<section[^>]*data-gsec[^>]*>\s*<div class="tw-wrap">\s*<\/div>\s*<\/section>/, "");
   const path = new URL(url).pathname;
   const home = path === "/";
   const crumbName = String(meta.title || "").split("|")[0].trim();
@@ -564,10 +562,9 @@ async function handlePt(ctx) {
     const demandSql = "SELECT p.*, (SELECT COUNT(*) FROM leads l WHERE l.package_title = p.title AND l.created_at >= date('now', '-60 days')) AS demand FROM packages p WHERE p.published=1 AND p.featured=1 ORDER BY ";
     // Paquetes favoritos y últimas notas: se guardan 60 s (misma lectura para todas las visitas).
     const { pk, ps } = await memoize("home", 60e3, async () => {
-      let pk = await rows(env, demandSql + "(p.home_order = 0), p.home_order, demand DESC, p.created_at DESC, p.id DESC LIMIT 6");
-      if (!pk.length) pk = await rows(env, demandSql + "demand DESC, p.created_at DESC, p.id DESC LIMIT 6");
-      // Si hay menos de 6 destacados, se completa con los últimos publicados (la sección quedaba corta con 3).
-      if (pk.length < 6) { const have = new Set(pk.map((x) => x.id)); pk = pk.concat((await rows(env, "SELECT * FROM packages WHERE published=1 ORDER BY featured DESC, created_at DESC, id DESC LIMIT 12")).filter((x) => !have.has(x.id)).slice(0, 6 - pk.length)); }
+      let pk = await rows(env, demandSql + "(p.home_order = 0), p.home_order, demand DESC, p.created_at DESC, p.id DESC LIMIT 3");
+      if (!pk.length) pk = await rows(env, demandSql + "demand DESC, p.created_at DESC, p.id DESC LIMIT 3");
+      if (!pk.length) pk = await rows(env, "SELECT * FROM packages WHERE published=1 AND featured=1 ORDER BY created_at DESC, id DESC LIMIT 3");
       // Blog en la portada: siempre las 3 últimas notas (las destacadas van primero).
       const ps = await rows(env, `SELECT * FROM posts WHERE published=1 AND ${LIVE} ORDER BY featured DESC, COALESCE(NULLIF(publish_date,''),created_at) DESC, id DESC LIMIT 3`);
       return { pk, ps };

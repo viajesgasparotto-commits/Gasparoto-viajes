@@ -108,6 +108,14 @@ html.gvbk-lock, html.gvbk-lock body { overflow: hidden; }
 .gvs-x button { width: 2.4rem; height: 2.4rem; border: 0; border-radius: .5rem; background: var(--color-mist); color: var(--color-ink); font-size: 1.25rem; line-height: 1; cursor: pointer; }
 .gvs-x button:disabled { opacity: .4; cursor: default; }
 .gvs-x output { min-width: 2rem; text-align: center; font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; }
+.gvs-x > span { min-width: 0; }
+.gvs-x small { display: block; margin-top: .1rem; font-size: .75rem; font-weight: 500; line-height: 1.3; color: var(--color-mute); }
+.gvs-ages { margin-top: .5rem; display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.gvs-ages[hidden] { display: none; }
+.gvs-ages label { display: grid; gap: .2rem; font-size: .75rem; font-weight: 600; color: var(--color-mute); }
+.gvs-ages select { width: 100%; height: 2.4rem; padding: 0 .5rem; border: 1.5px solid color-mix(in srgb, var(--color-ink) 16%, transparent); border-radius: .5rem; background: #fff; font: inherit; font-size: .875rem; color: var(--color-ink); }
+.gvs-ages select:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.gvs-ages p { grid-column: 1 / -1; margin: 0; font-size: .75rem; color: var(--color-primary); font-weight: 600; }
 .gvs-tot { margin: .85rem 0 0; display: flex; align-items: baseline; justify-content: space-between; font-size: .9375rem; color: var(--color-mute); }
 .gvs-tot b { font-family: var(--font-display); font-size: 1.5rem; color: var(--color-ink); }
 .gvs-cta { gap: .5rem; }

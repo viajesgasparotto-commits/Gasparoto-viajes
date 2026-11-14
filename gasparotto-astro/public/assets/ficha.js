@@ -50,21 +50,52 @@
   var Q = doc.querySelector("[data-q]"), form = doc.getElementById("pedir");
   function qN() { var o = Q && Q.querySelector("[data-q-n]"); return o ? Number(o.textContent) || 1 : 0; }
   function qOpt() { var r = Q && Q.querySelector('input[name="q-opt"]:checked'); return r || null; }
+  // Niños: cantidad y edad de cada uno. Precio por edad con los mismos tramos que el formulario (% del adulto o precio fijo);
+  // sin edad elegida, el niño se cuenta como adulto (el total nunca promete menos de lo que se cobra) y se pide la edad.
+  function qK() { var o = Q && Q.querySelector("[data-q-k]"); return o ? Number(o.textContent) || 0 : 0; }
+  var AG = Q && Q.querySelector("[data-q-ages]"), AL = {}; try { AL = AG ? JSON.parse(AG.getAttribute("data-l")) : {}; } catch (e) { AL = {}; }
+  function qTiers() { var t = Q && Q.querySelector("[data-q-total]"); try { return JSON.parse((t && t.getAttribute("data-kid-tiers")) || "[]") || []; } catch (e) { return []; } }
+  function qAges() { return AG ? [].map.call(AG.querySelectorAll("select"), function (s) { return s.value === "" ? null : Number(s.value); }) : []; }
+  function kidPct(age, unit, tiers) {
+    if (age === null) return 100;
+    for (var i = 0; i < tiers.length; i++) if (age >= tiers[i].from && age <= tiers[i].to) return tiers[i].amt != null ? (unit > 0 ? Math.min(100, tiers[i].amt * 100 / unit) : 100) : tiers[i].pct;
+    return 100;
+  }
+  function renderAges() {
+    if (!AG) return;
+    var c = qK(), had = qAges();
+    AG.hidden = c < 1;
+    var h = "";
+    for (var i = 0; i < c; i++) {
+      h += '<label>' + (AL.child || "").replace("{n}", i + 1) + '<select data-q-age><option value="">' + AL.age + "</option>";
+      for (var a = 0; a <= 17; a++) h += '<option value="' + a + '"' + (had[i] === a ? " selected" : "") + ">" + (a === 0 ? AL.less1 : a === 1 ? AL.one : (AL.n || "").replace("{n}", a)) + "</option>";
+      h += "</select></label>";
+    }
+    if (c && had.slice(0, c).filter(function (x) { return x !== null && x !== undefined; }).length < c) h += "<p>" + AL.ask + "</p>";
+    AG.innerHTML = h;
+  }
   function qTotal() {
     var t = Q && Q.querySelector("[data-q-total]"); if (!t) return;
     var o = qOpt(), u = o && Number(o.getAttribute("data-unit")) > 0 ? Number(o.getAttribute("data-unit")) : Number(t.getAttribute("data-unit"));
-    var n = qN(), mn = Number(t.getAttribute("data-min")) || 1, mx = Number(t.getAttribute("data-max")) || 20;
-    t.querySelector("b").textContent = (t.getAttribute("data-cur") + " " + Math.round((u * n) / 100).toLocaleString("es-AR")).trim();
-    var bs = Q.querySelectorAll("[data-q-pax]"); bs[0].disabled = n <= mn; bs[1].disabled = n >= mx;
+    var n = qN(), k = qK(), mn = Number(t.getAttribute("data-min")) || 1, mx = Number(t.getAttribute("data-max")) || 20;
+    var tiers = qTiers(), ages = qAges(), kids = 0;
+    for (var i = 0; i < k; i++) kids += Math.round(u * kidPct(ages[i] === undefined ? null : ages[i], u, tiers) / 100);
+    t.querySelector("b").textContent = (t.getAttribute("data-cur") + " " + Math.round((u * n + kids) / 100).toLocaleString("es-AR")).trim();
+    var bs = Q.querySelectorAll("[data-q-pax]"); bs[0].disabled = n <= mn || n + k <= mn; bs[1].disabled = n + k >= mx;
+    var ks = Q.querySelectorAll("[data-q-kid]"); if (ks.length) { ks[0].disabled = k <= 0; ks[1].disabled = n + k >= mx; }
   }
   if (Q) {
     Q.addEventListener("click", function (e) {
-      var b = e.target.closest("[data-q-pax]"); if (!b) return;
+      var b = e.target.closest("[data-q-pax], [data-q-kid]"); if (!b) return;
       var t = Q.querySelector("[data-q-total]"), mn = t ? Number(t.getAttribute("data-min")) || 1 : 1, mx = t ? Number(t.getAttribute("data-max")) || 20 : 20;
-      Q.querySelector("[data-q-n]").textContent = Math.min(mx, Math.max(mn, qN() + Number(b.getAttribute("data-q-pax"))));
+      if (b.hasAttribute("data-q-kid")) {
+        Q.querySelector("[data-q-k]").textContent = Math.min(mx - qN(), Math.max(0, qK() + Number(b.getAttribute("data-q-kid"))));
+        renderAges();
+      } else Q.querySelector("[data-q-n]").textContent = Math.min(mx - qK(), Math.max(1, qN() + Number(b.getAttribute("data-q-pax")), mn - qK()));
       qTotal();
     });
-    Q.addEventListener("change", qTotal);
+    // Al elegir una edad no se rearma la lista (no se pierde el foco): solo se saca el aviso cuando ya están todas.
+    Q.addEventListener("change", function (e) { if (e.target.hasAttribute && e.target.hasAttribute("data-q-age") && AG) { var p = AG.querySelector("p"); if (p && qAges().indexOf(null) < 0) p.remove(); } qTotal(); });
     qTotal();
   }
   function carry() {
@@ -73,12 +104,27 @@
     if (o) { var fo = form.querySelector('input[name="option"][value="' + o.value + '"]'); if (fo && !fo.checked) { fo.checked = true; fo.dispatchEvent(new Event("change", { bubbles: true })); } }
     var n = qN(), el = form.querySelector("#gv-adults") || form.querySelector("#gv-pax");
     if (el && n) { el.value = n; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }
+    // Niños y sus edades: el formulario arma un selector de edad por niño al cambiar la cantidad; después se copia cada edad.
+    var ch = form.querySelector("#gv-children");
+    if (ch && Q.querySelector("[data-q-k]")) {
+      ch.value = qK(); ch.dispatchEvent(new Event("input", { bubbles: true })); ch.dispatchEvent(new Event("change", { bubbles: true })); ch.dispatchEvent(new Event("blur")); // conv.js arma los selectores de edad al salir del campo
+      var ages = qAges(), sel = form.querySelectorAll("[data-ages-list] select");
+      for (var i = 0; i < sel.length; i++) if (ages[i] !== null && ages[i] !== undefined && sel[i].value !== String(ages[i])) { sel[i].value = String(ages[i]); sel[i].dispatchEvent(new Event("change", { bubbles: true })); }
+    }
   }
   // Al cerrar, la tarjeta muestra lo que quedó en el formulario (personas).
   function back() {
     if (!Q || !form) return;
     var el = form.querySelector("#gv-adults") || form.querySelector("#gv-pax"), o = Q.querySelector("[data-q-n]");
-    if (el && o && Number(el.value) > 0) { o.textContent = Math.round(Number(el.value)); qTotal(); }
+    if (el && o && Number(el.value) > 0) o.textContent = Math.round(Number(el.value));
+    var ch = form.querySelector("#gv-children"), k = Q.querySelector("[data-q-k]");
+    if (ch && k) {
+      var fa = [].map.call(form.querySelectorAll("[data-ages-list] select"), function (s) { return s.value; });
+      k.textContent = Math.max(0, Math.round(Number(ch.value)) || 0); renderAges();
+      [].forEach.call(Q.querySelectorAll("[data-q-age]"), function (s, i) { if (fa[i] !== undefined) s.value = fa[i]; });
+      renderAges();
+    }
+    qTotal();
   }
   // Al elegir otra opción en el formulario o en la lista de la ficha, la tarjeta la acompaña.
   if (form && Q) form.addEventListener("change", function (e) { if (e.target.name === "option") { var r = Q.querySelector('input[name="q-opt"][value="' + e.target.value + '"]'); if (r) { r.checked = true; qTotal(); } } });

@@ -331,11 +331,20 @@ export async function pensar(env, history, ctx = {}) {
   let raw = "", extra = "", reservada = null;
   const pasos = []; // qué consultó la IA en este mensaje (se ve en "Probar el asistente" del panel)
   const CIERRE = "\n\nYA NO PODÉS USAR MARCAS EN ESTE MENSAJE: respondele ahora al cliente con la información que tenés (si falta algo, preguntáselo).";
+  // Tiempo: WhatsApp da ~30 s por mensaje. Después de una reserva/propuesta, o si la IA repite una marca ya resuelta,
+  // la llamada siguiente es la última (sin marcas): así son 2 o 3 llamadas como mucho y no 4 o 5.
+  const hechas = new Set();
+  let ultima = false;
   for (let vuelta = 0; vuelta < 4; vuelta++) {
-    raw = await askAI(env, { system: system + extra + (vuelta === 3 ? CIERRE : ""), messages, maxTokens: 800 });
-    if (ctx.seguimiento || vuelta === 3) break;
+    if (vuelta === 3) ultima = true;
+    raw = await askAI(env, { system: system + extra + (ultima ? CIERRE : ""), messages, maxTokens: 800 });
+    if (ctx.seguimiento || ultima) break;
     const disp = [...raw.matchAll(DISP_RE)].slice(0, 3), res = [...raw.matchAll(RES_RE)].slice(0, 1);
     if (!disp.length && !res.length) break;
+    const nuevas = [...disp, ...res].filter((m) => !hechas.has(m[0].replace(/\s+/g, " ").toLowerCase()));
+    [...disp, ...res].forEach((m) => hechas.add(m[0].replace(/\s+/g, " ").toLowerCase()));
+    if (res.length || !nuevas.length) ultima = true;
+    if (!nuevas.length) continue; // solo repitió marcas: se le pide directamente el mensaje para el cliente
     const out = [];
     for (const m of [...disp, ...res]) pasos.push(m[0].slice(0, 200));
     for (const m of disp) out.push(await disponibilidad(env, m[1]).catch((e) => `DISPONIBILIDAD: error al consultar (${e?.message || "sin detalle"}).`));

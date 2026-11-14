@@ -115,7 +115,9 @@ export async function reservar(env, body, ctx = {}) {
   const resumen = `${p.title}${datos.option ? ` (${datos.option})` : ""} · ${datos.day}${datos.time ? " " + datos.time : ""} · ${adultos} adulto(s)${ninos ? ` y ${ninos} niño(s)${edades.length ? ` de ${edades.join(", ")} años` : ""}` : ""} · titular ${nombre} · total ${cur} ${(totalC / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
   const clave = [p.slug, datos.day, datos.time, datos.option, adultos, ninos, edades.join(","), sinTildes(nombre)].join("|");
   const prop = ctx.contact ? await propuesta(db, ctx.chatId) : (ctx.previo && /\d/.test(ctx.previo) && /\?/.test(ctx.previo) ? { k: clave, at: 1 } : null);
-  const confirma = prop && prop.k === clave && (prop.at || 0) < (ctx.inicio || Date.now()) && (prop.at === 1 || Date.now() - (prop.at || 0) < 30 * 60e3) && AFIRMA.test(ctx.ultimo || "") && !NIEGA.test(ctx.ultimo || "");
+  const confirma = prop && prop.k === clave && (prop.at || 0) < (ctx.inicio || Date.now()) && (prop.at === 1 || Date.now() - (prop.at || 0) < 30 * 60e3) && AFIRMA.test(ctx.ultimo || "") && !NIEGA.test(ctx.ultimo || "")
+    // y el resumen con el total le llegó de verdad al cliente (si el proceso se cortó antes de enviarlo, se vuelve a proponer)
+    && String(ctx.previo || "").replace(/[.\s\u00a0]/g, "").includes(String(Math.round(totalC / 100)));
   if (!confirma) {
     // Primer paso: se verifica el lugar y se guarda la propuesta. No se reserva nada.
     const st = await monthState(db, p, datos.day.slice(0, 7));

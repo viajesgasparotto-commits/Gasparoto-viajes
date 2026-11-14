@@ -52,7 +52,10 @@ r = await reservar(env, RES, { contact: "5511988887777", chatId: C1, ultimo: "po
 assert.ok(!r.id && (await contar()) === 0, "una propuesta del mismo mensaje no cuenta como confirmada");
 await new Promise((x) => setTimeout(x, 5));
 // Paso 2: el cliente dice que sí en un mensaje posterior → se crea
-r = await reservar(env, RES, { contact: "5511988887777", chatId: C1, ultimo: "sim, confirmo", inicio: Date.now() });
+r = await reservar(env, RES, { contact: "5511988887777", chatId: C1, ultimo: "sim, confirmo", inicio: Date.now(), previo: "Oi" });
+assert.ok(!r.id, "si el resumen con el total no llegó al cliente, no se reserva (se vuelve a proponer)");
+await new Promise((x) => setTimeout(x, 5));
+r = await reservar(env, RES, { contact: "5511988887777", chatId: C1, ultimo: "sim, confirmo", inicio: Date.now(), previo: "Resumo: total *R$ 420*. Confirma?" });
 assert.ok(r.id && r.pix === "00020126PIXCOPIAECOLA", r.texto);
 const b = await DB.prepare("SELECT * FROM bookings WHERE id=?").bind(r.id).first();
 assert.equal(b.status, "pendiente"); assert.equal(b.pax, 2); assert.equal(b.total, 42000); assert.equal(b.option_name, "Somente Show"); assert.equal(b.phone, "+5511988887777");
@@ -88,14 +91,21 @@ console.log("✓ charla completa: consulta → propuesta → sí → reserva →
 
 // Reintento después de un corte: el mismo pedido no duplica
 const antes = await contar();
-r = await reservar(env, M.slice(11, -2), { contact: "5511999990000", chatId: C2, ultimo: "Sim, confirmo", inicio: Date.now() });
+r = await reservar(env, M.slice(11, -2), { contact: "5511999990000", chatId: C2, ultimo: "Sim, confirmo", inicio: Date.now(), previo: "total R$ 950. Confirma?" });
 assert.equal(await contar(), antes, "el mismo pedido repetido no crea otra reserva");
 console.log("✓ un reintento o una marca repetida no duplica la reserva");
 
-AI = [1, 2, 3, 4].map(() => `[[DISPONIBILIDAD tango | desde ${dia}]]`).concat(["Temos lugar às *20:00*."]);
+AI = [1, 2, 3].map(() => `[[DISPONIBILIDAD tango | desde ${dia}]]`).concat(["Temos lugar às *20:00*."]);
 out = await pensar(env, [{ role: "user", text: "tem lugar?" }], { contact: "5511999990002" });
 assert.equal(out.reply, "Temos lugar às *20:00*.", "si la IA insiste con marcas, igual termina con un mensaje para el cliente");
 console.log("✓ nunca queda una respuesta vacía");
+let llamadas = 0; const f0 = globalThis.fetch;
+globalThis.fetch = async (u, i) => { if (String(u).includes("generativelanguage")) llamadas++; return f0(u, i); };
+AI = [M, "Resumo pronto. Confirma?"];
+await pensar(env, [{ role: "user", text: "Pode reservar, jantar e show, 2 adultos, Bia Lima" }], { contact: "5511999990009" });
+globalThis.fetch = f0;
+assert.equal(llamadas, 2, "después de una reserva/propuesta, la llamada siguiente es la última (cabe en el tiempo de WhatsApp)");
+console.log("✓ después de reservar o proponer, a lo sumo una llamada más (rápido para WhatsApp)");
 
 // Idioma: si sale en español para un cliente brasileño, se reescribe
 AI = ["Perfecto, Carla. ¿Me confirmás la reserva para mañana?", "Perfeito, Carla. Confirma a reserva para amanhã?"];

@@ -8,6 +8,8 @@ import { siteUrl, stripTags, BRAND, initBrand } from "./seo.js";
 import { SITE } from "./site.js";
 import { bundleItems, bundlePolicies, curOf, isBundle, kidsText, servicePolicies } from "./bundle.js";
 import { kidsPolicy, kidsScope, kidsTiersFor } from "./booking.js";
+import { pixManual } from "./pix-manual.js";
+import { pixEnabled } from "./pix.js";
 import { ensureSchema } from "./schema.js";
 import { DISP_RE, RES_RE, disponibilidad, reservar } from "./herramientas.js";
 
@@ -152,6 +154,8 @@ export async function systemPrompt(env, ctx = {}) {
   initBrand(env);
   const b = SITE.business || {};
   const hoy = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); // fecha en Buenos Aires (UTC-3)
+  // Pix manual del panel (mientras no haya pasarela): se cobra con la clave de la agencia y el comprobante.
+  const pixM = pixEnabled(env) ? null : await pixManual(env.DB);
   const extra = (await instrucciones(env.DB)).trim();
   const base = siteUrl(env) || "";
   const W = await web(env), G = await google(env);
@@ -253,7 +257,8 @@ Qual dia fica melhor para vocês?"
 - Si preguntan por promociones: contá las que figuran en las INDICACIONES DE LA AGENCIA; si no hay ninguna cargada, decí que en este momento no tenemos una promoción especial y recomendá un paquete del catálogo con su precio.
 
 PAGOS
-- El pago es con Pix: en la web (enlace del paquete) o con el código Pix que el sistema le manda por acá cuando reservás vos. Si pregunta cómo pagar, explicale las dos formas.
+${pixM ? `- El pago es con Pix a la clave de la agencia: ${pixM.chave}${pixM.nombre ? ` (titular: ${pixM.nombre})` : ""}. Lo normal es que reserves vos por acá: apenas se crea la reserva, el sistema le manda la clave en un mensaje aparte y vos le decís el total. Si el cliente te pide la clave, se la podés escribir.
+- Después de pagar tiene que mandar el comprobante por acá (foto o PDF); el equipo confirma la reserva al verlo. Nunca digas que está confirmada antes.` : `- El pago es con Pix: en la web (enlace del paquete) o con el código Pix que el sistema le manda por acá cuando reservás vos. Si pregunta cómo pagar, explicale las dos formas.`}
 - Si dice que ya pagó o pregunta si llegó su pago, mirá RESERVAS DE ESTE CLIENTE:
   · Si figura *pagada*, confirmale que el pago está acreditado y la reserva confirmada (paquete, fecha y horario).
   · Si no figura o no está *pagada*, pedile que mande el comprobante por acá (foto o PDF): el sistema le pregunta con botones si es el comprobante.
@@ -492,7 +497,8 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   if (r.pago) await run(db, "UPDATE ia_chats SET pay_check=1, pay_since=CURRENT_TIMESTAMP WHERE id=?", chat.id);
   // Reserva creada por la IA con Pix: el código copia e cola va en un mensaje aparte (así el cliente lo copia entero de un toque).
   const extra = r.pix ? [r.pix] : [];
-  if (r.pix) await guardarMensaje(db, chat.id, "assistant", "[Código Pix enviado]");
+  // Código copia e cola (empieza con 000201) o clave Pix manual del panel.
+  if (r.pix) await guardarMensaje(db, chat.id, "assistant", /^000201/.test(r.pix) ? "[Código Pix enviado]" : `[Clave Pix enviada: ${r.pix}]`);
   return { reply: r.reply, extra, handoff: r.handoff, pago: r.pago, chatId: chat.id, lang: await idiomaDe(db, chat.id, env) };
 }
 

@@ -63,6 +63,29 @@ t = await disponibilidad(env, `tango | desde ${dia}`);
 assert.ok(t.includes("20:00 quedan 4"), "la reserva descuenta el cupo: " + t);
 console.log("✓ confirmación en dos pasos: propone, el cliente dice sí y recién ahí reserva (cupo, total, Pix)");
 
+// Pix manual (sin pasarela): con la clave del panel, al reservar el sistema manda la clave aparte y la IA pide el comprobante.
+{
+  const envM = { ...env, MP_ACCESS_TOKEN: "" };
+  const RESM = `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 1 | nombre: Bia Lima`;
+  const C3 = (await DB.prepare("INSERT INTO ia_chats (channel, contact, name) VALUES ('whatsapp','5521977776666','Bia')").run()).meta.last_row_id;
+  // sin clave cargada: como antes, sin clave ni código
+  await reservar(envM, RESM, { contact: "5521977776666", chatId: C3, ultimo: "quero", inicio: Date.now() - 2000 });
+  await new Promise((x) => setTimeout(x, 5));
+  let m = await reservar(envM, RESM, { contact: "5521977776666", chatId: C3, ultimo: "sim", inicio: Date.now(), previo: "Total *R$ 210*. Confirma?" });
+  assert.ok(m.id && !m.pix && !/PIX MANUAL/.test(m.texto), m.texto);
+  await DB.prepare("DELETE FROM bookings WHERE id=?").bind(m.id).run();
+  await DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ia_pix_manual', ?)").bind(JSON.stringify({ chave: "pix@agencia.com", nombre: "Eliel Bispo" })).run();
+  await reservar(envM, RESM, { contact: "5521977776666", chatId: C3, ultimo: "quero", inicio: Date.now() - 2000 });
+  await new Promise((x) => setTimeout(x, 5));
+  m = await reservar(envM, RESM, { contact: "5521977776666", chatId: C3, ultimo: "sim", inicio: Date.now(), previo: "Total *R$ 210*. Confirma?" });
+  assert.ok(m.id && m.pix === "pix@agencia.com", m.texto); assert.ok(/PIX MANUAL/.test(m.texto) && /Eliel Bispo/.test(m.texto) && /comprobante/.test(m.texto), m.texto);
+  const t2 = await reservar(envM, RESM, { ultimo: "sim", previo: "Total R$ 210. Confirma?" });
+  assert.equal(t2.pix, "pix@agencia.com", "la prueba del panel también la muestra");
+  await DB.prepare("DELETE FROM bookings WHERE id=?").bind(m.id).run();
+  await DB.prepare("DELETE FROM settings WHERE key='ia_pix_manual'").run();
+  console.log("✓ Pix manual: sin pasarela, manda la clave del panel aparte y pide el comprobante");
+}
+
 // Un "no" no reserva
 await reservar(env, `producto: tango | fecha: ${dia} | hora: 20:00 | opcion: Somente Show | adultos: 1 | nombre: Ana Souza`, { contact: "5511988887777", chatId: C1, ultimo: "quero", inicio: Date.now() });
 await new Promise((x) => setTimeout(x, 5));

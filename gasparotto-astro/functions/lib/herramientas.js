@@ -8,6 +8,7 @@ import { addDays, bookingConfig, createBooking, isDay, kidsPolicy, kidsTiersFor,
 import { optionsOf, normTime, qtyTable } from "./ficha.js";
 import { isBundle } from "./bundle.js";
 import { canPayPix, createPix } from "./pix.js";
+import { pixManual } from "./pix-manual.js";
 import { siteUrl } from "./seo.js";
 
 export const DISP_RE = /\[\[\s*DISPONIBILIDAD\b([^\]]*)\]\]/gi;
@@ -131,6 +132,8 @@ export async function reservar(env, body, ctx = {}) {
   }
   if (!ctx.contact) {
     // Prueba desde el panel: se comporta igual que una reserva creada, pero no se guarda nada.
+    const pmT = canPayPix(env, { currency: "BRL", total: 1e4 }) ? null : await pixManual(db);
+    if (pmT) return { id: "prueba", pix: pmT.chave, texto: `RESERVA CREADA #PRUEBA: ${resumen} · estado pendiente de pago. COBRO POR PIX MANUAL: decile al cliente que haga un Pix del total a la clave que el sistema le manda en un mensaje aparte, justo después del tuyo (titular: ${pmT.nombre || "Gasparotto Viajes"}), y que mande el comprobante por acá; el equipo confirma al verlo. El lugar queda retenido 20 minutos. No escribas la clave vos. (Es una prueba del panel: no se guardó nada.)` };
     return { id: "prueba", pix: "", texto: `RESERVA CREADA #PRUEBA: ${resumen} · estado pendiente de pago. Se generó el código Pix (copia e cola); el sistema se lo manda al cliente en un mensaje aparte, justo después del tuyo. (Es una prueba del panel: no se guardó nada.)` };
   }
   const phone = "+" + String(ctx.contact).replace(/\D/g, "");
@@ -156,6 +159,12 @@ export async function reservar(env, body, ctx = {}) {
     if (x && x.ok && x.code) { pix = x.code; pagoTxt = `Se generó el código Pix (copia e cola) por ${total}; el sistema se lo manda al cliente en un mensaje aparte, justo después del tuyo. Vale ${Math.round((x.expires_in || 2100) / 60)} minutos y el lugar queda retenido mientras tanto. Al pagar, la reserva se confirma sola.`; }
     else pagoTxt = `No se pudo generar el código Pix ahora: mandale el enlace ${link(env, p)} para pagar o marcá la charla para una persona.`;
   } else pagoTxt = `Este servicio no cobra con Pix online: el equipo le confirma el pago por acá. El lugar queda retenido ${r.hold_minutes} minutos. Terminá tu mensaje con la marca para una persona.`;
+  // Sin Pix automático: se cobra con la clave Pix manual del panel (el sistema la manda sola en un mensaje aparte, fácil de copiar).
+  const pm = !pix ? await pixManual(db) : null;
+  if (pm) {
+    pix = pm.chave;
+    pagoTxt = `COBRO POR PIX MANUAL: en tu mensaje decile al cliente que para confirmar la reserva haga un Pix de ${total} a la clave que el sistema le manda en un mensaje aparte, justo después del tuyo (titular: ${pm.nombre || "Gasparotto Viajes"}), y que mande el comprobante por acá (foto o PDF). El lugar queda retenido ${r.hold_minutes} minutos: pedile que pague ahora. El equipo confirma la reserva al ver el comprobante. No escribas la clave vos.`;
+  }
   return {
     pix, id: r.id,
     texto: `RESERVA CREADA #${r.id}: ${p.title}${r.option ? ` (${r.option})` : ""} · ${datos.day} (${DIAS[new Date(datos.day + "T00:00:00Z").getUTCDay()]})${r.time ? " " + r.time : ""} · ${r.adults} adultos${r.children ? ` y ${r.children} niños` : ""} · titular ${nombre} · total ${total} · estado pendiente de pago. ${pagoTxt}`,

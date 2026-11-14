@@ -4,7 +4,7 @@ import { injectTheme, perks } from "./lib/brand.js";
 import { listCategories, catPath } from "./lib/categories.js";
 import { googleBlock, googlePhoto } from "./lib/google.js";
 import { parsePrice, priceCurrency, siteUrl, isProdHost, absUrl, clip, pageTitle, sanitizeHtml, ldScript, postLd, blogIndexLd, packageLd, packageSeo, personLd, buildSitemap, buildRobots, breadcrumbLd, orgLd, websiteLd, ymd, BRAND, LOGO, initBrand } from "./lib/seo.js";
-import { fichaHtml, compareTable, filterBar, kindOf, partsOf, timesOf, galleryOf, isVideoUrl, optionsOf, cheapestOption, policiesOf } from "./lib/ficha.js";
+import { fichaHtml, compareTable, filterBar, kindOf, partsOf, timesOf, galleryOf, isVideoUrl, optionsOf, cheapestOption, policiesOf, qtyTable } from "./lib/ficha.js";
 import { bookingConfig, holdMinutes, kidsPolicy, kidsScope, kidsTiersFor } from "./lib/booking.js";
 import { bundleItems, bundleKidTable, bundlePolicies, bundleQuote, curOf, fmtMoney, isBundle, kidsText, loadParts, servicePolicies, spanOf, winOf } from "./lib/bundle.js";
 import { pixEnabled } from "./lib/pix.js";
@@ -229,6 +229,8 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const kidTiers = kidTab ? kidTab.map((pct, a) => ({ from: a, to: a, pct })) : kids ? kidsPolicy(p).tiers : [];
   // Si la política de menores es solo de algunas opciones, los tramos valen solo ahí (data-kid-scope: índices de esas opciones; vacío = todas).
   const kidScope = !kidTab && kidTiers.length && opts.length ? (() => { const sc = kidsScope(p); return sc.length ? opts.filter((o) => sc.includes(o.name.toLowerCase())).map((o) => String(o.i)) : []; })() : [];
+  // Precio por cantidad (panel, ej. 2x1): {personas: centavos}; el formulario y la tarjeta muestran ese total (el servidor cobra lo mismo).
+  const qtT = qtyTable(p), qtyAttr = qtT ? ` data-qty-table="${esc(JSON.stringify(Object.fromEntries([...qtT].map(([n, r]) => [n, r.cents]))))}"` : "";
   const scopeAttr = kidScope.length ? ` data-kid-scope="${esc(JSON.stringify(kidScope))}"` : "";
   const KP = L.lang === "es"
     ? { full: "En esta opción, los niños pagan tarifa de adulto.", title: "Tarifa para niños", free: "gratis", pays: "pagan", yrs: (a, b) => (a === b ? `${a} ${a === 1 ? "año" : "años"}` : `${a} a ${b} años`), adult: (n) => `Desde ${n} años: tarifa de adulto`, ages: "Edad de cada niño" }
@@ -275,7 +277,7 @@ function packagePage(env, shellHtml, p, related = [], c = null, _blogPkgs = [], 
   const dateBlock = bk.enabled
     ? `<div data-cal><span class="${label}">${esc(L.fDateExact)}</span><div class="tw-cal mt-1.5"><div class="tw-cal-head"><button type="button" data-cal-nav="-1" class="tw-cal-nav" aria-label="${esc(L.calPrev)}">‹</button><p data-cal-title class="tw-cal-title" aria-live="polite"></p><button type="button" data-cal-nav="1" class="tw-cal-nav" aria-label="${esc(L.calNext)}">›</button></div><div data-cal-grid class="tw-cal-grid"></div><p data-cal-note class="tw-cal-note" role="status" aria-live="polite"></p></div><input type="hidden" name="date"><p data-err="date" id="gv-date-err" class="${err}" hidden></p></div>`
     : `<div><label for="gv-date" class="${label}">${esc(L.fDate)}</label><input id="gv-date" name="date" type="date" class="${field}"></div>`;
-  const lead = `${opts.length || pols.length || bItems.length || bk.enabled ? '<link rel="stylesheet" href="/assets/options.css?v=4">' : ""}<form id="pedir" class="tw-lead relative scroll-mt-24" data-gv-lead data-package="${esc(p.title)}" data-slug="${esc(p.slug)}"${kids ? ' data-kids="1"' : ""}${kidTiers.length ? ` data-kid-tiers="${esc(JSON.stringify(kidTiers))}"` : ""}${scopeAttr}${kidTab ? ' data-kid-mode="tab"' : ""}${bk.enabled ? ` data-min-pax="${bk.min_pax}" data-max-pax="${bk.max_pax}" data-hold-min="${holdMinutes(env)}"${unitC ? ` data-unit="${unitC}" data-cur="${priceCurrency(env, best ? best.price : p.price)}"` : ""}${payPix ? ' data-paymode="pix"' : ""}` : ""}${bundleOn ? ` data-bundle="${esc(bundleData)}"` : ""} novalidate>
+  const lead = `${opts.length || pols.length || bItems.length || bk.enabled ? '<link rel="stylesheet" href="/assets/options.css?v=4">' : ""}<form id="pedir" class="tw-lead relative scroll-mt-24" data-gv-lead data-package="${esc(p.title)}" data-slug="${esc(p.slug)}"${kids ? ' data-kids="1"' : ""}${kidTiers.length ? ` data-kid-tiers="${esc(JSON.stringify(kidTiers))}"` : ""}${scopeAttr}${qtyAttr}${kidTab ? ' data-kid-mode="tab"' : ""}${bk.enabled ? ` data-min-pax="${bk.min_pax}" data-max-pax="${bk.max_pax}" data-hold-min="${holdMinutes(env)}"${unitC ? ` data-unit="${unitC}" data-cur="${priceCurrency(env, best ? best.price : p.price)}"` : ""}${payPix ? ' data-paymode="pix"' : ""}` : ""}${bundleOn ? ` data-bundle="${esc(bundleData)}"` : ""} novalidate>
 <div data-fields>
 <h3 class="m-0 font-display text-[1.65rem] font-semibold leading-tight text-ink">${esc(L.formTitle)}</h3>
 <p class="m-0 mt-1.5 text-[0.95rem] leading-snug text-mute">${esc(bk.enabled ? (L.lang === "es" ? "Elegí la opción, la fecha y cuántos viajan. Ves el total antes de confirmar." : "Escolha a opção, a data e quantas pessoas viajam. Você vê o total antes de confirmar.") : L.formSub)}</p>
@@ -378,7 +380,7 @@ ${phoneField}
   const qKids = kidsForm
     ? `<div class="gvs-x"><span>${esc(TR.kids)}<small data-q-khint data-on="${esc(kidHintOn)}" data-off="${esc(KP.full)}">${esc(kidHintOn)}</small></span><div><button type="button" data-q-kid="-1" aria-label="${esc(TR.kLess)}" disabled>−</button><output data-q-k>0</output><button type="button" data-q-kid="1" aria-label="${esc(TR.kMore)}">+</button></div></div>${kidTiers.length ? `<div class="gvs-ages" data-q-ages hidden data-l="${esc(JSON.stringify({ age: TR.age, child: TR.child, less1: TR.less1, one: TR.one, n: TR.yrs, ask: TR.askAge }))}"></div>` : ""}`
     : "";
-  const qTotal = unitC ? `<p class="gvs-tot" data-q-total${kidsForm ? ` data-kid-tiers="${esc(JSON.stringify(kidTiers))}"${scopeAttr}` : ""} data-cur="${esc(curP(baseP))}" data-unit="${unitC}" data-min="${bk.enabled ? bk.min_pax : 1}" data-max="${bk.enabled ? bk.max_pax : 20}"><span>${esc(TR.total)}</span><b></b></p>` : "";
+  const qTotal = unitC ? `<p class="gvs-tot" data-q-total${qtyAttr}${kidsForm ? ` data-kid-tiers="${esc(JSON.stringify(kidTiers))}"${scopeAttr}` : ""} data-cur="${esc(curP(baseP))}" data-unit="${unitC}" data-min="${bk.enabled ? bk.min_pax : 1}" data-max="${bk.enabled ? bk.max_pax : 20}"><span>${esc(TR.total)}</span><b></b></p>` : "";
   const card = `<div class="gvs" data-q>${ribbon}<div class="gvs-in"><div class="gvs-p">${priceHtml(p, L, true)}${pct ? `<span class="gvs-off">-${pct}%</span>` : ""}</div>${saveLine}${qOpts}${qPax}${qKids}${qTotal}<a href="#pedir" data-bk-open class="tw-btn tw-btn--primary gvs-cta"><span>${esc(TR.book)}</span><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><ul class="gvs-t">${ticks.map((t) => `<li>${TICK}<span>${esc(t)}</span></li>`).join("")}</ul><p class="gvs-proof">${esc(TR.proof)}</p><a href="${esc(waFor(p))}" data-gv-wa="${esc(p.title)}" target="_blank" rel="noopener" class="gvs-wa">${esc(TR.ask)}</a></div></div>`;
   // Franja de beneficios debajo de la galería: lo que nos diferencia, bien visible antes de leer la ficha.
   const BI = { star: '<path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/>', shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>', bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
@@ -394,7 +396,7 @@ ${phoneField}
   const modal = `<div data-bk class="gvbk"><div class="gvbk-back" data-bk-close></div><div class="gvbk-panel" role="dialog" aria-modal="true" aria-labelledby="gvbk-t"><div class="gvbk-top"><div class="min-w-0"><p class="gvbk-k">${esc(L.formTitle)}</p><p id="gvbk-t" class="gvbk-t">${esc(p.title)}</p></div><button type="button" data-bk-close class="gvbk-x" aria-label="${esc(TR.close)}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="gvbk-body">${lead}</div></div></div>`;
 
   const body = `<div class="tw tw-page bg-white">
-<link rel="stylesheet" href="/assets/ficha.css?v=3">
+<link rel="stylesheet" href="/assets/ficha.css?v=4">
 <div class="tw-wrap">
 ${crumb}
 <header class="gvh">
@@ -419,7 +421,7 @@ ${F.st}${bundle}${opts.length ? "" : F.tb}${F.pl}${F.fq}${inB}
 </div>
 ${rel}
 ${bar}
-<script src="/assets/ficha.js?v=3" defer></script>
+<script src="/assets/ficha.js?v=4" defer></script>
 </div>`;
   return renderPage(shellHtml, { env,
     title: pageTitle(SEO.title),

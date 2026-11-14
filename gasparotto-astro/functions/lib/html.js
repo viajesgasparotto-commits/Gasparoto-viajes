@@ -177,7 +177,7 @@ export const CARD_GRID = "grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] g
 export function priceHtml(p, L, big = false, dark = false) {
   const main = dark ? "text-white" : "text-primary", soft = dark ? "text-white/70" : "text-mute";
   if (!p.price) return `<p class="m-0"><strong class="font-display ${big ? "text-3xl" : "text-lg"} font-semibold leading-tight ${main}">${esc(L.askPrice)}</strong></p>`;
-  return `<p class="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span class="text-sm ${soft}">${esc(L.from)}</span>${p.price_old ? `<s class="${big ? "text-base" : "text-sm"} ${soft}">${esc(p.price_old)}</s>` : ""}<strong class="font-display ${big ? "text-4xl" : "text-[1.65rem]"} font-semibold leading-none ${main}">${esc(p.price)}</strong><span class="text-sm ${soft}">${esc(L.perPerson)}</span></p>`;
+  return `<p class="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span class="text-sm ${soft}">${esc(L.from)}</span>${p.price_old ? `<s class="${big ? "text-base" : "text-sm"} ${soft}">${esc(p.price_old)}</s>` : ""}<strong class="font-display ${big ? "text-4xl" : "text-[1.65rem]"} font-semibold leading-none ${main}">${esc(p.price)}</strong><span class="text-sm ${soft}">${esc(parseMeta(p.meta).unit_lbl || L.perPerson)}</span></p>`;
 }
 
 // Textos de paquetes / servicios (es · pt-BR).

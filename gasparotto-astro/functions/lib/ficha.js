@@ -23,6 +23,15 @@ export function normTimes(raw) {
 // Precio escrito a mano: "R 150", "R$150", "r$ 150" → "R$ 150" (la moneda de Brasil lleva "$"; sin él el cliente lee mal el precio).
 export const precio = (s) => String(s ?? "").trim().replace(/^R\s*\$?\s*(?=\d)/i, "R$ ");
 
+// Tabla de precio por cantidad de personas (solo productos sin opciones): Map personas → { cents, txt }. null si no hay.
+export function qtyTable(p) {
+  const m = parseMeta(p && p.meta), rows = Array.isArray(m.qty) ? m.qty : [];
+  if (!rows.length || optionsOf(p).length) return null;
+  const t = new Map();
+  for (const r of rows) { const n = Math.round(Number(r && r[0])), c = Math.round((Number(String((r && r[1]) || "").replace(/[^\d,.]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) || 0) * 100); if (n >= 1 && c > 0) t.set(n, { cents: c, txt: String(r[1]) }); }
+  return t.size ? t : null;
+}
+
 export function normMeta(raw) {
   let m = {};
   try { m = typeof raw === "string" ? JSON.parse(raw || "{}") : raw || {}; } catch { m = {}; }
@@ -51,6 +60,10 @@ export function normMeta(raw) {
     // Mejor precio del mercado (se marca en el panel): sello en la ficha, en la tarjeta del listado y argumento para la IA.
     // box = cuánto cuesta lo mismo comprado directo en el lugar (boletería), opcional.
     best: m.best === 1 || m.best === true || m.best === "1" ? 1 : 0,
+    // Precio según la cantidad de personas (ej. 2x1): [[personas, "R$ total"]], lo carga el panel; vacío = precio por persona normal.
+    qty: [...new Map(arr(m.qty, 40).map((r) => [Math.round(Number(Array.isArray(r) ? r[0] : NaN)), precio(txt(Array.isArray(r) ? r[1] : "", 40))]).filter((r) => r[0] >= 1 && r[0] <= 99 && /\d/.test(r[1]))).entries()].sort((a, b) => a[0] - b[0]),
+    // Texto junto al precio en la web (ej. "por 2 pessoas"); vacío = "por pessoa".
+    unit_lbl: txt(m.unit_lbl, 40),
     // Oferta relámpago en la portada hasta (hora de Buenos Aires, "AAAA-MM-DDTHH:MM"); vacío = no.
     flash: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(m.flash || "")) ? String(m.flash) : "",
     box: precio(txt(m.box, 40)),

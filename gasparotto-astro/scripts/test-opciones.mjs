@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { onRequest } from "../functions/api/[[path]].js";
 import { onRequest as site } from "../functions/_middleware.js";
-import { normMeta, optionsOf, cheapestOption, precio } from "../functions/lib/ficha.js";
+import { normMeta, optionsOf, cheapestOption, precio, qtyTable } from "../functions/lib/ficha.js";
 import { kidsScope, kidsTiersFor, priceTotal, tiersFor } from "../functions/lib/booking.js";
 import { pickFlash, flashTile } from "../functions/lib/flash.js";
 import { addDays, todayBA } from "../functions/lib/booking.js";
@@ -202,5 +202,21 @@ fl = pickFlash(fRows.filter((r) => r.slug !== "b"), fNow); assert.equal(fl.p.slu
 assert.equal(pickFlash([fRows[2]], fNow), null, "sin oferta ni descuento: queda el panel de siempre");
 assert.equal(JSON.parse(normMeta(JSON.stringify({ flash: "2026-11-20T23:59" }))).flash, "2026-11-20T23:59"); assert.equal(JSON.parse(normMeta(JSON.stringify({ flash: "mañana" }))).flash, "");
 console.log("✓ oferta relâmpago: reloj real hasta la hora del panel; si no, mayor descuento sin reloj");
+
+// Precio por cantidad de personas (2x1 que el panel carga a mano): la reserva cobra el total de la tabla; cantidad sin precio → consultar.
+r = await call("POST", "packages", { title: "Señor Tango 2x1", category: tango.slug, price: "R$ 400", price_old: "", published: 1, content: "<p>2x1</p>",
+  meta: JSON.stringify({ qty: [[1, "R 400"], [2, "R$ 400"], [3, "R$ 800"], [4, "R$ 800"], [0, "x"], [5, "nada"]], unit_lbl: "por 2 pessoas" }) }, admin);
+assert.equal(r.status, 200, JSON.stringify(r.data));
+const s2x1 = await one("SELECT * FROM packages WHERE slug='senor-tango-2x1'");
+assert.deepEqual(JSON.parse(s2x1.meta).qty, [[1, "R$ 400"], [2, "R$ 400"], [3, "R$ 800"], [4, "R$ 800"]], "se guardan solo filas válidas, con R$");
+assert.equal(qtyTable(s2x1).get(3).cents, 80000);
+await env.DB.prepare("UPDATE packages SET booking_enabled=1, min_pax=1, max_pax=8, daily_capacity=10, weekdays='0,1,2,3,4,5,6', min_advance_days=1, horizon_days=60 WHERE id=?").bind(s2x1.id).run();
+const bk2 = (pax) => call("POST", "book", { slug: "senor-tango-2x1", date: day, pax, name: "Cliente " + pax, phone: "+55 31 9" + pax + "777-000" + pax });
+r = await bk2(3); assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal((await one("SELECT total FROM bookings WHERE package_id=? ORDER BY id DESC", s2x1.id)).total, 80000, "3 personas = R$ 800 de la tabla");
+r = await bk2(2); assert.equal((await one("SELECT total FROM bookings WHERE package_id=? ORDER BY id DESC", s2x1.id)).total, 40000);
+r = await bk2(5); assert.equal(r.status, 400); assert.ok(/consultanos/.test(r.data.error));
+const pg2 = await (await site({ request: new Request("https://x.test/paquetes/senor-tango-2x1/"), env, next: async () => new Response("", { status: 404 }), waitUntil: () => {} })).text();
+assert.ok(pg2.includes('data-qty-table="') && pg2.includes("por 2 pessoas"), "la ficha lleva la tabla y el texto del precio");
+console.log("✓ precio por cantidad (2x1): cobra la tabla del panel, no multiplica; cantidad sin precio pide consultar");
 
 console.log("\nTodo OK");

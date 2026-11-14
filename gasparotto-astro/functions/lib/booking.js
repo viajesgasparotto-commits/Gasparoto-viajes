@@ -3,7 +3,7 @@
 // anticipación mínima y horizonte de venta. Excepción por día: cerrado, abierto a la fuerza (aunque el día de semana esté apagado) o con cupo propio.
 // Ocupación: reservas pagadas + reservas pendientes con retención vigente (bookings; las crea createBooking, fase 2).
 import { parsePrice, priceCurrency } from "./seo.js";
-import { normTime, optionsOf, timesOf } from "./ficha.js";
+import { normTime, optionsOf, qtyTable, timesOf } from "./ficha.js";
 const num = (v, d, lo, hi) => { const n = Math.round(Number(v)); return Math.min(hi, Math.max(lo, Number.isFinite(n) ? n : d)); };
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -223,7 +223,10 @@ export async function createBooking(db, env, p, { day, time, pax, adults, childr
 
   const unit = opt ? opt.cents / 100 : Number(parsePrice(p.price)), unitC = Math.round(unit * 100);
   // centavos: adultos a precio completo + niños según su tramo de edad (sin tramos, todos pagan completo)
-  const total = Number.isFinite(unit) ? priceTotal(unitC, adults, tiers.length ? ages : Array(children).fill(99), tiersFor(tiers, unitC)) : 0;
+  let total = Number.isFinite(unit) ? priceTotal(unitC, adults, tiers.length ? ages : Array(children).fill(99), tiersFor(tiers, unitC)) : 0;
+  // Precio por cantidad (panel, ej. 2x1): el total es el de la tabla para esa cantidad de personas (adultos y niños cuentan igual).
+  const qt = qtyTable(p);
+  if (qt) { const row = qt.get(pax); if (!row) return { code: "pax", error: `Para ${pax} personas consultanos por WhatsApp.`, status: 400 }; total = row.cents; }
   const currency = priceCurrency(env, opt ? opt.price : p.price), mins = holdMinutes(env);
   const token = crypto.randomUUID().replace(/-/g, "");
   const tf = cfg.byTime ? " AND (b.time=? OR b.time='')" : ""; // por horario: cuenta ese horario + las reservas viejas del día sin hora

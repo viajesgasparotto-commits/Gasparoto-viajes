@@ -3,7 +3,7 @@
 // (en todo el sitio o en una charla). El canal (WhatsApp hoy, Instagram después) solo entrega y envía texto.
 // El proveedor de IA (Gemini o Claude) se elige en functions/lib/ai.js.
 import { CORTE_CACHE, askAI, aiConfig } from "./ai.js";
-import { parseMeta, timesOf, optionsOf, precio } from "./ficha.js";
+import { parseMeta, timesOf, optionsOf, precio, qtyTable } from "./ficha.js";
 import { siteUrl, stripTags, BRAND, initBrand } from "./seo.js";
 import { SITE } from "./site.js";
 import { bundleItems, bundlePolicies, curOf, isBundle, kidsText, servicePolicies } from "./bundle.js";
@@ -84,6 +84,7 @@ async function web(env) {
       p.price ? `  Precio: ${opts ? "desde " : ""}${precio(p.price)}${p.price_old ? ` (antes ${precio(p.price_old)})` : ""}${opts ? " (es la opción más barata; cada opción tiene su precio)" : ""}` : "  Precio: a consultar",
       m.best === 1 && `  MEJOR PRECIO DEL MERCADO${m.box ? ` (en la boletería del lugar cuesta ${precio(m.box)})` : ""}: usalo como argumento de venta`,
       opts && `  Opciones (cada una con su precio): ${opts}`,
+      qtyTable(p) && `  PRECIO TOTAL SEGÚN LA CANTIDAD DE PERSONAS (usá este, no multipliques): ${[...qtyTable(p)].map(([n, r]) => `${n} ${n === 1 ? "persona" : "personas"}: ${r.txt}`).join("; ")}`,
       times && `  Horarios: ${times}`,
       facts && `  Datos: ${clip(facts, 400)}`,
       p.excerpt && `  Resumen: ${clip(p.excerpt, 300)}`,

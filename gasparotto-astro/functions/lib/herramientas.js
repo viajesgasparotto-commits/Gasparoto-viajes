@@ -5,7 +5,7 @@
 //      → crea la reserva pendiente (retiene el cupo, igual que la web) y, si el producto cobra con Pix, genera el código copia e cola.
 // asistente.js › pensar() corre las marcas, le devuelve los resultados a la IA y ella le escribe al cliente.
 import { addDays, bookingConfig, createBooking, isDay, kidsPolicy, kidsTiersFor, monthState, priceTotal, tiersFor, todayBA } from "./booking.js";
-import { optionsOf, normTime } from "./ficha.js";
+import { optionsOf, normTime, qtyTable } from "./ficha.js";
 import { isBundle } from "./bundle.js";
 import { canPayPix, createPix } from "./pix.js";
 import { siteUrl } from "./seo.js";
@@ -110,7 +110,9 @@ export async function reservar(env, body, ctx = {}) {
   if (datos.pax < cfg.min_pax || datos.pax > cfg.max_pax) return { texto: `RESERVA NO CREADA: se reserva para ${cfg.min_pax} a ${cfg.max_pax} personas.` };
   const unitC = opt ? opt.cents : Math.round((Number(String(p.price).replace(/[^\d,.]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) || 0) * 100);
   const tiers = kidsTiersFor(p, opt ? opt.name : "");
-  const totalC = priceTotal(unitC, adultos, ninos && tiers.length ? edades : Array(ninos).fill(99), tiersFor(tiers, unitC));
+  let totalC = priceTotal(unitC, adultos, ninos && tiers.length ? edades : Array(ninos).fill(99), tiersFor(tiers, unitC));
+  const qt = qtyTable(p);
+  if (qt) { const row = qt.get(datos.pax); if (!row) return { texto: `RESERVA NO CREADA: ${p.title} tiene precio por cantidad y no hay precio para ${datos.pax} personas. Cantidades con precio: ${[...qt.keys()].join(", ")}.` }; totalC = row.cents; }
   const cur = String((opt ? opt.price : p.price) || "").match(/^[^\d]*/)[0].trim() || "R$";
   const resumen = `${p.title}${datos.option ? ` (${datos.option})` : ""} · ${datos.day} (${DIAS[new Date(datos.day + "T00:00:00Z").getUTCDay()]})${datos.time ? " " + datos.time : ""} · ${adultos} adulto(s)${ninos ? ` y ${ninos} niño(s)${edades.length ? ` de ${edades.join(", ")} años` : ""}` : ""} · titular ${nombre} · total ${cur} ${(totalC / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
   const clave = [p.slug, datos.day, datos.time, datos.option, adultos, ninos, edades.join(","), sinTildes(nombre)].join("|");

@@ -80,7 +80,7 @@ env.GOOGLE_PLACE_ID = "ChIJtest";
 
 // 1) Proveedor
 assert.deepEqual(aiConfig({ GEMINI_API_KEY: "x" }), { provider: "gemini", model: "gemini-3.5-flash", ready: true });
-assert.equal(aiConfig({ GEMINI_API_KEY: "x", ANTHROPIC_API_KEY: "y" }).provider, "claude", "sin IA_PROVEEDOR, Claude tiene prioridad si tiene clave");
+assert.equal(aiConfig({ GEMINI_API_KEY: "x", ANTHROPIC_API_KEY: "y" }).provider, "gemini", "sin IA_PROVEEDOR, Gemini primero (más barato) y Claude de respaldo");
 assert.deepEqual(aiConfig({ IA_PROVEEDOR: "claude", GEMINI_API_KEY: "x" }), { provider: "gemini", model: "gemini-3.5-flash", ready: true }, "si el elegido no tiene clave, usa el otro");
 assert.equal(aiConfig({ IA_PROVEEDOR: "claude" }).ready, false);
 assert.equal(aiConfig({ IA_PROVEEDOR: "gemini", GEMINI_API_KEY: "x", GEMINI_MODEL: "gemini-3-flash" }).model, "gemini-3-flash");
@@ -272,7 +272,7 @@ await inbound(waMsg("Já paguei, chegou?"));
 let ps = of("generativelanguage")[0].body.system_instruction.parts[0].text;
 assert.ok(/Reserva #\d+: City Tour Zona Sul, 2027-03-10 09:00, 4 pers\., total 720\.00 BRL · estado: \*pagada\*/.test(ps), "la IA ve la reserva del cliente aunque el teléfono esté escrito distinto");
 assert.ok(!ps.includes("2027-04-02"), "no ve reservas de otros clientes");
-assert.ok(/La venta se cierra SIEMPRE en la web/.test(ps) && /Nunca digas que un pago está acreditado/.test(ps));
+assert.ok(/DISPONIBILIDAD Y RESERVAS POR WHATSAPP/.test(ps) && /Nunca digas que un pago está acreditado/.test(ps));
 assert.equal((await one("SELECT pay_check FROM ia_chats WHERE contact='5511999990000'")).pay_check, 0);
 // Comprobante: Bruno (reserva pendiente) escribe y después manda una foto → botones, sin IA
 reset(); aiReply = "Ainda não vejo o pagamento. Pode me mandar o comprovante por aqui?";

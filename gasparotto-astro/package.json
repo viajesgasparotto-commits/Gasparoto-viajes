@@ -45,7 +45,8 @@
     "test:paquetes": "node --no-warnings scripts/test-paquetes-combinados.mjs",
     "test:mcp": "node --no-warnings scripts/test-mcp.mjs",
     "test:ia": "node --no-warnings scripts/test-ia.mjs",
-    "test": "npm run test:rutas && npm run test:reservas && npm run test:pix && npm run test:users && npm run test:equipo && npm run test:seguridad && npm run test:cache && npm run test:consultas && npm run test:analitica && npm run test:google && npm run test:i18n && npm run test:blog-idiomas && npm run test:autoria && npm run test:blog-busqueda && npm run test:horarios && npm run test:reservas-horario && npm run test:reservas-horario-api && npm run test:formulario-horario && npm run test:horarios-panel && npm run test:horario-cerrado && npm run test:seo-paquetes && npm run test:reagendar && npm run test:reservas-antiabuso && npm run test:opciones && npm run test:mcp && npm run test:ia",
+    "test:ia-reservas": "node scripts/test-ia-reservas.mjs",
+    "test": "npm run test:rutas && npm run test:reservas && npm run test:pix && npm run test:users && npm run test:equipo && npm run test:seguridad && npm run test:cache && npm run test:consultas && npm run test:analitica && npm run test:google && npm run test:i18n && npm run test:blog-idiomas && npm run test:autoria && npm run test:blog-busqueda && npm run test:horarios && npm run test:reservas-horario && npm run test:reservas-horario-api && npm run test:formulario-horario && npm run test:horarios-panel && npm run test:horario-cerrado && npm run test:seo-paquetes && npm run test:reagendar && npm run test:reservas-antiabuso && npm run test:opciones && npm run test:mcp && npm run test:ia && npm run test:ia-reservas",
     "new-agency": "node scripts/new-agency.mjs",
     "translate:blog": "node scripts/translate-blog.mjs"
   },

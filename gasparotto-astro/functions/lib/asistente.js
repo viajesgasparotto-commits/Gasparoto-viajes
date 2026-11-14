@@ -9,6 +9,7 @@ import { SITE } from "./site.js";
 import { bundleItems, bundlePolicies, curOf, isBundle, kidsText, servicePolicies } from "./bundle.js";
 import { kidsPolicy } from "./booking.js";
 import { ensureSchema } from "./schema.js";
+import { DISP_RE, RES_RE, disponibilidad, reservar } from "./herramientas.js";
 
 // Marcas que la IA agrega al final (nunca le llegan al cliente).
 export const HANDOFF = "[[HUMANO]]"; // conviene que una persona mire la charla (la IA sigue atendiendo)
@@ -178,8 +179,18 @@ TU TRABAJO ES VENDER (como el mejor vendedor de la agencia)
 - Cierre: cada mensaje en el que recomendás algo termina en un cierre, nunca en una descripción. Cuando ya sabés qué le sirve, cerrá con una pregunta de elección fácil usando horarios o fechas reales del catálogo ("¿Te queda mejor el de las 9:00 o el de las 14:00?") o una invitación directa ("¿Lo reservamos para el sábado?"), y mandá el enlace del paquete. Explicá que reservar es simple: elige el día, paga online y recibe la confirmación.
 - Después de mandar el enlace, pedile que te avise cuando lo reserve (así le confirmás todo) u ofrecé ayuda si se traba.
 - Si vuelve a escribir sin haber reservado, retomá donde quedó y volvé a invitarlo a reservar (sin presionar).
-- La venta se cierra SIEMPRE en la web: el cliente entra al enlace del paquete, elige fecha y personas, y paga ahí. No tomes reservas por chat ni pidas datos para reservar.
+- El cliente puede reservar de dos formas: en el enlace (elige el día y paga solo) o acá mismo por WhatsApp, con vos. Cuando ya sabés qué servicio quiere, ofrecé las dos ("¿Te lo reservo yo por acá o preferís hacerlo en el enlace?").
 - Si el paquete dice "se reserva coordinando con el equipo", tomá fecha y personas y marcá la charla para una persona.
+
+DISPONIBILIDAD Y RESERVAS POR WHATSAPP (herramientas del sistema)
+- Para saber qué días y horarios tienen lugar, respondé SOLO con la marca [[DISPONIBILIDAD slug | desde AAAA-MM-DD]] (sin ningún otro texto). El slug es la última parte del enlace del catálogo (/paquetes/<slug>/). El sistema te devuelve los lugares en tiempo real y recién ahí le escribís al cliente. Nunca afirmes que hay o no hay lugar sin consultarlo; si te dio una fecha, consultá desde esa fecha.
+- Ofrecé solo días y horarios que figuren con lugar. Si la fecha que quiere no tiene, ofrecé la más cercana que sí tenga.
+- Para reservar acá necesitás: servicio, fecha, horario (si el servicio tiene horarios), opción (si tiene opciones), cuántos adultos y cuántos niños con sus edades (si hay niños) y el nombre y apellido del titular. Pedí lo que falte, una cosa por mensaje, sin volver a preguntar lo que ya sabés.
+- Antes de reservar, mandá un resumen corto (servicio, opción, fecha, horario, personas y total) y preguntá si confirma. Solo cuando el cliente confirma claramente ("sí", "confirmo", "pode reservar"), respondé SOLO con la marca:
+  [[RESERVAR producto: slug | fecha: AAAA-MM-DD | hora: HH:MM | opcion: nombre exacto de la opción | adultos: N | ninos: N | edades: 5,8 | nombre: Nombre Apellido]]
+  (omití hora, opcion o edades si no corresponden). Una sola reserva por mensaje.
+- El sistema crea la reserva, retiene el lugar y te devuelve el resultado. Con eso, contale al cliente en 2 o 3 frases que su lugar quedó reservado, el total y que el código Pix (copia e cola) le llega en el mensaje siguiente; al pagar recibe la confirmación. Si el resultado dice que no se pudo, explicá el motivo en una frase y ofrecé otra fecha u horario.
+- Los paquetes que combinan varios servicios se reservan en el enlace (elige las fechas de cada servicio ahí).
 - Si encaja, ofrecé un servicio complementario del catálogo. No insistas si dice que no.
 - Objeciones: si le parece caro, explicá qué incluye y por qué vale; si hay una opción más económica, ofrecela. Si duda, preguntá qué le falta para decidir. Las reseñas de Google ayudan a dar confianza.
 - Si el cliente ya reservó, felicitalo y ofrecé lo complementario.
@@ -203,7 +214,7 @@ CÓMO ESCRIBÍS (formato de WhatsApp, que se lea lindo en el celular)
 - Si preguntan por promociones: contá las que figuran en las INDICACIONES DE LA AGENCIA; si no hay ninguna cargada, decí que en este momento no tenemos una promoción especial y recomendá un paquete del catálogo con su precio.
 
 PAGOS
-- El pago se hace solo en la web. Si pregunta cómo pagar, mandale el enlace del paquete.
+- El pago es con Pix: en la web (enlace del paquete) o con el código Pix que el sistema le manda por acá cuando reservás vos. Si pregunta cómo pagar, explicale las dos formas.
 - Si dice que ya pagó o pregunta si llegó su pago, mirá RESERVAS DE ESTE CLIENTE:
   · Si figura *pagada*, confirmale que el pago está acreditado y la reserva confirmada (paquete, fecha y horario).
   · Si no figura o no está *pagada*, pedile que mande el comprobante por acá (foto o PDF): el sistema le pregunta con botones si es el comprobante.
@@ -311,13 +322,31 @@ async function guardarFicha(db, chatId, datos) {
 
 export async function pensar(env, history, ctx = {}) {
   if (!ctx.idioma) ctx = { ...ctx, idioma: idiomaTextos(history.filter((h) => h.role === "user" && !String(h.text).startsWith("[")).map((h) => h.text).reverse().slice(0, 6)) || (ctx.seguimiento ? lang2(env) : "") };
-  const raw = await askAI(env, { system: await systemPrompt(env, ctx), messages: history.slice(-HISTORY), maxTokens: 800 });
+  const system = await systemPrompt(env, ctx), messages = history.slice(-HISTORY);
+  // Herramientas: si la IA pide disponibilidad o una reserva (marcas), el sistema las resuelve y le vuelve a preguntar con los resultados.
+  // Hasta 3 vueltas por mensaje y una sola reserva. En los seguimientos automáticos no se usan.
+  let raw = "", extra = "", reservada = null;
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    raw = await askAI(env, { system: system + extra, messages, maxTokens: 800 });
+    if (ctx.seguimiento) break;
+    const disp = [...raw.matchAll(DISP_RE)].slice(0, 3), res = [...raw.matchAll(RES_RE)].slice(0, 1);
+    if (!disp.length && !res.length) break;
+    const out = [];
+    for (const m of disp) out.push(await disponibilidad(env, m[1]).catch((e) => `DISPONIBILIDAD: error al consultar (${e?.message || "sin detalle"}).`));
+    for (const m of res) {
+      if (reservada) { out.push("RESERVA: ya se creó una reserva en este mensaje; no repitas la marca."); continue; }
+      const r = await reservar(env, m[1], ctx).catch((e) => ({ texto: `RESERVA NO CREADA: error del sistema (${e?.message || "sin detalle"}).` }));
+      if (r.id) reservada = r;
+      out.push(r.texto);
+    }
+    extra += `\n\nRESULTADOS DEL SISTEMA (recién consultados, en tiempo real; usalos para responderle al cliente y NO vuelvas a escribir las marcas ya resueltas)\n${out.join("\n\n")}`;
+  }
   const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO), noSeguir = raw.includes(NO_SEGUIR);
   const { texto, datos } = sacarFicha(raw);
   // Marcas internas mal escritas ([HUMANO], [[ PAGO ]]…) tampoco le llegan al cliente.
-  const reply = pulir(texto.split(HANDOFF).join("").split(PAGO).join("").split(NO_SEGUIR).join("").replace(/\[{1,2}\s*(HUMANO|PAGO|NO_SEGUIR)\s*\]{1,2}/gi, ""));
+  const reply = pulir(texto.split(HANDOFF).join("").split(PAGO).join("").split(NO_SEGUIR).join("").replace(DISP_RE, "").replace(RES_RE, "").replace(/\[{1,2}\s*(HUMANO|PAGO|NO_SEGUIR|DISPONIBILIDAD|RESERVAR)\b[^\]]*\]{1,2}/gi, ""));
   if (ctx.chatId) await guardarFicha(env.DB, ctx.chatId, datos).catch(() => {});
-  return { reply, handoff, pago, datos, noSeguir };
+  return { reply, handoff, pago, datos, noSeguir, pix: reservada?.pix || "", reserva: reservada?.id || 0 };
 }
 
 // ---------- Conversaciones guardadas ----------
@@ -382,7 +411,7 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   const previas = (await one(db, "SELECT COUNT(*) n FROM ia_messages WHERE chat_id=? AND role<>'user' AND at > datetime('now','-12 hours')", chat.id))?.n || 0;
   let r;
   try {
-    r = await pensar(env, await historial(db, chat.id), { reservas: await reservasDe(db, contact), nombre: chat.name || name, origen: chat.origin, primera: previas === 0, chatId: chat.id, ficha: chat.datos });
+    r = await pensar(env, await historial(db, chat.id), { reservas: await reservasDe(db, contact), nombre: chat.name || name, origen: chat.origin, primera: previas === 0, chatId: chat.id, ficha: chat.datos, contact: channel === "whatsapp" ? contact : "" });
   } catch (err) {
     // No se le manda un aviso enlatado al toque: el reintento programado (cada 5 min) le contesta bien en unos minutos.
     console.error("IA:", err?.message); await flag(db, chat, `${REINTENTO} ${String(err?.message || "")}`); return { skip: "error de la IA: se reintenta" };
@@ -391,7 +420,10 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   await guardarMensaje(db, chat.id, "assistant", r.reply);
   if (r.handoff) await flag(db, chat, "La IA pidió que una persona mire la charla");
   if (r.pago) await run(db, "UPDATE ia_chats SET pay_check=1, pay_since=CURRENT_TIMESTAMP WHERE id=?", chat.id);
-  return { reply: r.reply, handoff: r.handoff, pago: r.pago, chatId: chat.id, lang: await idiomaDe(db, chat.id, env) };
+  // Reserva creada por la IA con Pix: el código copia e cola va en un mensaje aparte (así el cliente lo copia entero de un toque).
+  const extra = r.pix ? [r.pix] : [];
+  if (r.pix) await guardarMensaje(db, chat.id, "assistant", "[Código Pix enviado]");
+  return { reply: r.reply, extra, handoff: r.handoff, pago: r.pago, chatId: chat.id, lang: await idiomaDe(db, chat.id, env) };
 }
 
 // La IA no pudo responder: la charla queda marcada y el cliente recibe un aviso amable (una sola vez seguida, no en cada mensaje).

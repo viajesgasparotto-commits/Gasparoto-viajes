@@ -1,5 +1,5 @@
 // Proveedor de IA intercambiable: Gemini (gratis, para pruebas) o Claude (producción).
-// Se elige con la variable IA_PROVEEDOR = "gemini" | "claude". Si no está, se usa el que tenga clave (Claude primero).
+// Se elige con la variable IA_PROVEEDOR = "gemini" | "claude". Si no está, se usa el que tenga clave (Gemini primero: más barato; Claude queda de respaldo).
 //   Gemini: GEMINI_API_KEY  (opcional GEMINI_MODEL, por defecto gemini-3.5-flash)
 //   Claude: ANTHROPIC_API_KEY (opcional CLAUDE_MODEL, por defecto claude-sonnet-5-5)
 // El resto del sitio solo llama a askAI(): cambiar de proveedor no toca ningún otro archivo.
@@ -14,7 +14,8 @@ const TIMEOUT_MS = 15000; // por intento: Cloudflare da ~30 s para terminar desp
 export function aiConfig(env = {}) {
   const has = { gemini: !!String(env.GEMINI_API_KEY || "").trim(), claude: !!String(env.ANTHROPIC_API_KEY || "").trim() };
   let provider = String(env.IA_PROVEEDOR || "").trim().toLowerCase();
-  if (provider !== "gemini" && provider !== "claude") provider = has.claude ? "claude" : "gemini";
+  // Sin elección: Gemini primero (mucho más barato por mensaje) y Claude de respaldo si Gemini falla.
+  if (provider !== "gemini" && provider !== "claude") provider = has.gemini ? "gemini" : "claude";
   // El elegido no tiene clave pero el otro sí: se usa el otro (así nunca se apaga por una clave faltante).
   if (!has[provider]) { const otro = provider === "claude" ? "gemini" : "claude"; if (has[otro]) provider = otro; }
   const model = String((provider === "claude" ? env.CLAUDE_MODEL : env.GEMINI_MODEL) || "").trim() || DEFAULT_MODELS[provider];

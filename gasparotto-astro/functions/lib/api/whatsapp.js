@@ -48,6 +48,7 @@ export async function procesarWhatsapp(env, body) {
         continue;
       }
       if (r.reply) await responder(env, m.from, r.reply, r.lang);
+      for (const x of r.extra || []) await enviarTexto(env, m.from, x); // p. ej. el código Pix de una reserva hecha por la IA
     } catch (e) { console.error("whatsapp:", e?.message || e); }
   }
 }

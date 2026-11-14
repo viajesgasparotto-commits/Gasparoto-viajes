@@ -131,7 +131,7 @@ assert.equal(sends[0].body.interactive.action.parameters.display_text, "Reservar
 assert.equal(sends[0].body.interactive.action.parameters.url, "https://gasparottoviajes.com/paquetes/city-tour-zona-sur/");
 assert.equal(sends[0].body.interactive.body.text, "Olá! Para 4 pessoas recomendo o *City Tour Zona Sul*", "el texto va sin el enlace suelto");
 assert.equal(sends[0].headers.authorization, "Bearer wa-token");
-assert.ok(/el mejor vendedor/.test(sys) && /pregunta de elección fácil/.test(sys), "técnica de cierre");
+assert.ok(/el mejor vendedor/.test(sys) && /preguntas? de elección fácil/.test(sys) && /Escalera de cierre/.test(sys) && /Solo necesito el nombre y apellido/.test(sys), "técnica de cierre");
 assert.ok(of("graph.facebook.com").some((c) => c.body.status === "read"), "marca como leído");
 const chat = await one("SELECT * FROM ia_chats WHERE contact='5511999990000'");
 assert.equal(chat.name, "Ana"); assert.equal(chat.msgs, 2); assert.equal(chat.paused, 0);

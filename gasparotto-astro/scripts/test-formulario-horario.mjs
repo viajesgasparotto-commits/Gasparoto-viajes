@@ -11,7 +11,7 @@ const brand = read("functions/lib/brand.js");
 const reservas = read("functions/lib/api/reservas.js");
 
 // 1) Todo lo que conv.js busca con [data-…] existe en el markup del servidor. Los botones de horario los crea el propio script.
-const createdByScript = new Set(["data-time", "data-day", "data-itt", "data-itd", "data-slug", "data-bad"]); // botones de día y de horario, y los renglones y selectores del itinerario de un paquete: los crea conv.js
+const createdByScript = new Set(["data-time", "data-day", "data-itt", "data-itd", "data-slug", "data-bad", "data-x", "data-ok", "data-d", "data-t"]); // + la ventana para elegir fecha/horario de cada servicio (itModal) // botones de día y de horario, y los renglones y selectores del itinerario de un paquete: los crea conv.js
 const queried = [...new Set([...conv.matchAll(/\[(data-[a-z-]+)/g)].map((m) => m[1]))];
 for (const attr of queried) {
   if (createdByScript.has(attr)) continue;

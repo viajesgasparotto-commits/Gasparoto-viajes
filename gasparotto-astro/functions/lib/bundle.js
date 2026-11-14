@@ -53,8 +53,10 @@ export function bundleItems(p, svcs) {
   }).filter(Boolean);
 }
 export const spanOf = (items) => Math.max(1, ...items.map((i) => i.day));
-// Días que tiene el cliente para repartir los servicios ("libre"): la ventana del panel o, si no hay, hasta el último día del itinerario.
-export const winOf = (p, items) => Math.max(spanOf(items), Math.min(14, Number(parseMeta(p.meta).win) || 0));
+// Días que tiene el cliente para repartir los servicios ("libre"): la ventana del panel o, si no la cargaron, 30 días
+// (cada servicio puede ir en la fecha que el cliente quiera, mientras tenga lugar; el día del itinerario queda como recomendado).
+export const WIN_DEFAULT = 30, WIN_MAX = 60;
+export const winOf = (p, items) => Math.max(spanOf(items), Math.min(WIN_MAX, Number(parseMeta(p.meta).win) || WIN_DEFAULT));
 
 // ---------- Niños en paquetes ----------
 // Cada servicio tiene su propia política de niños (ej. City Tour: desde 6 años paga completo; Tango: de 4 a 11 paga 50%). En el paquete, un niño paga

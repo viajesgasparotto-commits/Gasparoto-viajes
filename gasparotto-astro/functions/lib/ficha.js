@@ -39,8 +39,8 @@ export function normMeta(raw) {
     // pmode: "fijo" = la agencia fija el día de cada servicio y el cliente solo elige cuándo empieza; "libre" = el cliente puede mover cada servicio
     // a otro día dentro de los días del paquete. auto = precio = suma de los servicios (menos disc %, de 0 a 90).
     plan: [], pmode: m.pmode === "libre" ? "libre" : "fijo",
-    // win (solo "libre"): cuántos días tiene el cliente para repartir los servicios desde la fecha de inicio (1..14). 0 = hasta el último día del itinerario.
-    win: Math.min(14, Math.max(0, Math.round(Number(m.win) || 0))),
+    // win (solo "libre"): cuántos días tiene el cliente para repartir los servicios desde la fecha de inicio (1..60). 0 = 30 días.
+    win: Math.min(60, Math.max(0, Math.round(Number(m.win) || 0))),
     auto: m.auto === 1 || m.auto === true || m.auto === "1" ? 1 : 0,
     disc: Math.min(90, Math.max(0, Math.round(Number(m.disc) || 0))),
     // Opciones con precio del mismo producto (ej. tango: Solo show · Jantar show · Platea VIP): [nombre, precio, precio anterior, detalle].

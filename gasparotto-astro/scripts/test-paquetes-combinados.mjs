@@ -135,7 +135,7 @@ assert.ok(r.data.includes("Roteiro") && r.data.includes("Tango") && r.data.inclu
 console.log("✓ panel: reserva agrupada, pagada y cambio de fecha en grupo (o nada), voucher con el itinerario");
 
 // 8) Itinerario libre: el cliente mueve cada servicio dentro de los días del paquete y elige el horario del Tango
-await save({ title: "Buenos Aires completo", price: "R$ 1", meta: meta({ pmode: "libre", plan: [["city-tour", 1, "", ""], ["tango", 1, "", ""], ["tigre", 3, "", ""], ["traslado", 1, "", ""]] }) }, pk.id);
+await save({ title: "Buenos Aires completo", price: "R$ 1", meta: meta({ pmode: "libre", win: 3, plan: [["city-tour", 1, "", ""], ["tango", 1, "", ""], ["tigre", 3, "", ""], ["traslado", 1, "", ""]] }) }, pk.id);
 const d1s = addDays(d0, 20);
 r = await call("GET", "avail?slug=buenos-aires-completo&start=" + d1s);
 assert.equal(r.data.mode, "libre"); assert.equal(r.data.span, 3);

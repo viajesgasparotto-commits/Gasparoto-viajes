@@ -134,3 +134,7 @@ html.gvbk-lock, html.gvbk-lock body { overflow: hidden; }
 .gvben small { margin-top: .15rem; font-size: .8125rem; color: var(--color-mute); }
 .gvben li.is-hi b, .gvben li.is-hi small { color: #fff; }
 @media (max-width: 639px) { .gvben { grid-template-columns: 1fr 1fr; gap: .5rem; } .gvben li { flex-direction: column; align-items: flex-start; gap: .5rem; padding: .8rem; } .gvben li.is-hi { grid-column: 1 / -1; flex-direction: row; align-items: center; } }
+
+/* Políticas del formulario: solo las de la opción elegida, separadas por coma */
+.gvp-form[hidden], .gvp-form [data-pol-opt][hidden] { display: none; }
+.gvp-form [data-pol-opt]:not([hidden]) ~ [data-pol-opt]:not([hidden])::before { content: ", "; }

@@ -97,6 +97,15 @@
       var kidsOn = f.hasAttribute("data-kids"), adEl = q("adults"), chEl = q("children");
       // Tramos de precio por edad (data-kid-tiers): [{from,to,pct}]. Sin tramos, los niños pagan el precio completo y no se pregunta la edad.
       var kidTiers = []; try { kidTiers = JSON.parse(f.getAttribute("data-kid-tiers") || "[]") || []; } catch (e) { kidTiers = []; }
+      // Tramos que valen solo en algunas opciones (data-kid-scope: índices). En las demás los niños pagan tarifa de adulto: no se pide edad.
+      var allTiers = kidTiers, kidScope = []; try { kidScope = JSON.parse(f.getAttribute("data-kid-scope") || "[]") || []; } catch (e) { kidScope = []; }
+      function scopeTiers() {
+        if (!kidScope.length) return;
+        var o = f.querySelector('input[name="option"]:checked'), on = !o || kidScope.indexOf(o.value) >= 0;
+        kidTiers = on ? allTiers : [];
+        var info = f.querySelector("[data-kid-info]");
+        if (info) { var ul = info.querySelector("ul"), full = info.querySelector("[data-kid-full]"); if (ul) ul.hidden = !on; if (full) full.hidden = on; }
+      }
       // Paquete que combina servicios (data-kid-mode="tab"): el % sale de la política de cada servicio y se muestra por edad ("1 niño de 6 años × R$ 310").
       var kidTab = f.getAttribute("data-kid-mode") === "tab";
       var agesBox = f.querySelector("[data-ages]"), agesList = f.querySelector("[data-ages-list]"), agesErr = f.querySelector('[data-err="ages"]');
@@ -112,7 +121,8 @@
       function ageOpts() { var h = '<option value="">' + KL.age + "</option>"; for (var i = 0; i <= 17; i++) h += '<option value="' + i + '">' + (i === 0 ? KL.less1 : i === 1 ? KL.one : KL.n.replace("{n}", i)) + "</option>"; return h; }
       // Un selector de edad por cada niño; conserva lo ya elegido al sumar o quitar niños.
       function renderAges() {
-        if (!agesBox || !kidTiers.length) return;
+        if (!agesBox) return;
+        if (!kidTiers.length) { agesBox.hidden = true; return; }
         var c = Math.max(0, Math.round(Number(chEl.value)) || 0);
         agesBox.hidden = c < 1;
         while (agesList.children.length > c) agesList.removeChild(agesList.lastChild);
@@ -597,7 +607,7 @@
       function optName() { var o = optSel(); return o ? o.getAttribute("data-label") || "" : ""; }
       function pkgName() { var b = f.getAttribute("data-package") || "", o = optName(); return o ? b + " \u00b7 " + o : b; }
       function syncOpt() { var o = optSel(); if (o && f.hasAttribute("data-unit") && Number(o.getAttribute("data-unit")) > 0) { unit = Number(o.getAttribute("data-unit")); cur = o.getAttribute("data-cur") || cur; } }
-      Array.prototype.forEach.call(optEls, function (o) { o.addEventListener("change", function () { syncOpt(); updSummary(); updRecap(); emit(f, "option", { name: optName() }); }); });
+      Array.prototype.forEach.call(optEls, function (o) { o.addEventListener("change", function () { syncOpt(); if (kidsOn) { scopeTiers(); renderAges(); } updSummary(); updRecap(); emit(f, "option", { name: optName() }); }); });
       // "Escolher" en la lista de opciones de la ficha: marca esa opción y vuelve al paso 1 del formulario (el enlace ya lleva a #pedir).
       Array.prototype.forEach.call(doc.querySelectorAll("[data-pick-option]"), function (a) {
         a.addEventListener("click", function () {
@@ -608,7 +618,7 @@
           setTimeout(function () { try { o.focus({ preventScroll: true }); } catch (e) {} }, 350);
         });
       });
-      syncOpt();
+      syncOpt(); if (kidsOn) { scopeTiers(); renderAges(); }
       function updSummary() {
         if (!sumBox || !unit) return;
         var n = Math.round(Number(paxEl.value)), dEl = f.querySelector('input[name="date"]'), dv = dEl ? dEl.value : "";

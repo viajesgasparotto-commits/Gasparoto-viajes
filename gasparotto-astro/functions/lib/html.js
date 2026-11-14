@@ -1,7 +1,7 @@
 // Utilidades HTML compartidas.
 import { BRAND, LANG, parsePrice } from "./seo.js";
 
-import { hoursOf, cardFacts, kindOf, partsOf, parseMeta, timesOf } from "./ficha.js";
+import { hoursOf, cardFacts, kindOf, optionsOf, partsOf, parseMeta, timesOf } from "./ficha.js";
 export const esc = (s = "") =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -247,14 +247,18 @@ export function bundleSection(p, parts, L, waFor, plan = {}) {
   // Día y horario de cada servicio en el itinerario (solo si el paquete dura más de un día o algún servicio tiene hora u opción fija).
   const span = Math.max(1, ...items.map((i) => i.day)), byS = new Map(items.map((i) => [i.slug, i]));
   const tag = (x) => { const i = byS.get(x.slug); if (!i || (span < 2 && !i.planTime && !i.option)) return ""; const d = (L.lang === "es" ? "Día " : "Dia ") + i.day; return `<span class="gvi-tag">${esc([span > 1 ? d : "", i.planTime, i.option].filter(Boolean).join(" · "))}</span>`; };
+  // Precio de cada servicio: el de la opción elegida en el itinerario (ej. Catulo "Cena Show" R$ 290), no el "a partir de" del servicio.
+  const priced = (x) => { const i = byS.get(x.slug); if (!i || !i.option || !i.txt) return x; const o = optionsOf(x).find((y) => y.name === i.option); return { ...x, price: i.txt, price_old: o ? o.old || "" : "" }; };
   const row = (x) => {
     const thumb = x.image ? `<img src="${esc(x.image)}" alt="${esc(x.image_alt || x.title)}" loading="lazy" decoding="async" class="block size-24 shrink-0 rounded-lg object-cover sm:size-32">` : `<span class="grid size-24 shrink-0 place-items-center rounded-lg bg-mist text-mute sm:size-32">${STACK}</span>`;
-    return `<li class="group relative flex gap-4 rounded-xl border border-ink/15 bg-white p-3 transition hover:border-primary/60 hover:shadow-sm sm:gap-5 sm:p-4">${thumb}<div class="flex min-w-0 flex-1 flex-col gap-1.5">${tag(x)}<h3 class="m-0 font-display text-lg font-semibold leading-snug text-ink"><a href="/paquetes/${esc(x.slug)}/" class="tw-card-title no-underline after:absolute after:inset-0 after:content-['']"><span>${esc(x.title)}</span></a></h3>${x.excerpt ? `<p class="m-0 line-clamp-2 text-[0.9375rem] leading-snug text-mute">${esc(x.excerpt)}</p>` : ""}<div class="mt-auto flex flex-wrap items-end justify-between gap-x-4 gap-y-2 pt-2">${priceHtml(x, L)}<span class="flex items-center gap-3 text-sm font-semibold"><span class="text-primary">${esc(K.detail)} →</span><a data-gv-wa="${esc(x.title)}" href="${esc(waFor(x))}" target="_blank" rel="noopener" class="relative z-10 text-mute underline-offset-4 hover:text-ink hover:underline">${esc(K.ask)}</a></span></div></div></li>`;
+    return `<li class="group relative flex gap-4 rounded-xl border border-ink/15 bg-white p-3 transition hover:border-primary/60 hover:shadow-sm sm:gap-5 sm:p-4">${thumb}<div class="flex min-w-0 flex-1 flex-col gap-1.5">${tag(x)}<h3 class="m-0 font-display text-lg font-semibold leading-snug text-ink"><a href="/paquetes/${esc(x.slug)}/" class="tw-card-title no-underline after:absolute after:inset-0 after:content-['']"><span>${esc(x.title)}</span></a></h3>${x.excerpt ? `<p class="m-0 line-clamp-2 text-[0.9375rem] leading-snug text-mute">${esc(x.excerpt)}</p>` : ""}<div class="mt-auto flex flex-wrap items-end justify-between gap-x-4 gap-y-2 pt-2">${priceHtml(priced(x), L)}<span class="flex items-center gap-3 text-sm font-semibold"><span class="text-primary">${esc(K.detail)} →</span><a data-gv-wa="${esc(x.title)}" href="${esc(waFor(x))}" target="_blank" rel="noopener" class="relative z-10 text-mute underline-offset-4 hover:text-ink hover:underline">${esc(K.ask)}</a></span></div></div></li>`;
   };
+  // En el orden del itinerario: por día y horario (no en el orden en que se cargaron).
+  const ordered = [...parts].sort((a, b) => { const x = byS.get(a.slug), y = byS.get(b.slug); return (x ? x.day : 99) - (y ? y.day : 99) || String((x && x.planTime) || "").localeCompare(String((y && y.planTime) || "")); });
   const box = sav
     ? `<div class="mt-6 grid gap-1 rounded-xl bg-mist p-5 sm:grid-cols-3 sm:gap-6"><p class="m-0 text-sm text-mute">${esc(K.apart)}<br><s class="font-display text-xl font-semibold text-mute">${esc(sav.sum)}</s></p><p class="m-0 text-sm text-mute">${esc(K.together)}<br><strong class="font-display text-xl font-semibold text-ink">${esc(sav.price)}</strong></p><p class="m-0 text-sm text-mute">${esc(K.save)}<br><strong class="font-display text-xl font-semibold text-cta">${esc(sav.save)} (${sav.pct}%)</strong></p></div>`
     : "";
-  return `<section id="servicios-incluidos" data-fx="up" class="mt-16 scroll-mt-24"><h2 class="m-0 font-display text-h3 font-semibold text-ink">${esc(K.bundleH)}</h2><p class="m-0 mb-6 mt-2 max-w-2xl text-mute">${esc(K.bundleP)}</p><ul class="m-0 grid list-none gap-4 p-0">${parts.map(row).join("")}</ul>${box}</section>`;
+  return `<section id="servicios-incluidos" data-fx="up" class="mt-16 scroll-mt-24"><h2 class="m-0 font-display text-h3 font-semibold text-ink">${esc(K.bundleH)}</h2><p class="m-0 mb-6 mt-2 max-w-2xl text-mute">${esc(K.bundleP)}</p><ul class="m-0 grid list-none gap-4 p-0">${ordered.map(row).join("")}</ul>${box}</section>`;
 }
 
 // Filtro Paquetes / Servicios de los listados (solo si hay de los dos tipos). active: "", "paquete" o "servicio".

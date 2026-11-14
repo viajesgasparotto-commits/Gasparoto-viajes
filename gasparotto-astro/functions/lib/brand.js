@@ -4,7 +4,7 @@ import { esc } from "./html.js";
 import { BRAND } from "./seo.js";
 
 // Subir este número cuando cambie conv.js (los /assets/* se cachean un año).
-export const ASSET_V = "23";
+export const ASSET_V = "24";
 
 const hex = (v, fallback) => (/^#[0-9a-f]{3,8}$/i.test(String(v || "").trim()) ? String(v).trim() : fallback);
 

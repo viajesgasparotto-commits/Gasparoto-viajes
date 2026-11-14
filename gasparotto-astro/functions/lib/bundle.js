@@ -6,7 +6,7 @@
 // Precio (meta.auto + meta.disc): precio del paquete = suma de los servicios (la opción elegida en el itinerario o la más barata) menos el descuento %.
 // Reserva: la del paquete (lleva el total) + una fila por servicio reservable (parent_id, total 0) que ocupa el cupo de ese servicio en su día y horario.
 import { cheapestOption, optionsOf, parseMeta, planOf, policiesOf, POLICY_TYPES } from "./ficha.js";
-import { KID_MAX_AGE, OCCUPIED, addDays, bookingConfig, createBooking, isDay, kidPct, kidsPolicy, monthState, tiersFor } from "./booking.js";
+import { KID_MAX_AGE, OCCUPIED, addDays, bookingConfig, createBooking, isDay, kidPct, kidsPolicy, kidsTiersFor, monthState, tiersFor } from "./booking.js";
 import { parsePrice } from "./seo.js";
 
 export const isBundle = (p) => parseMeta(p && p.meta).kind === "paquete" && planOf(p).length > 0;
@@ -65,7 +65,7 @@ export const winOf = (p, items) => Math.max(spanOf(items), Math.min(WIN_MAX, Num
 export function bundleKidTable(items) {
   const priced = items.filter((i) => i.unit > 0);
   if (!priced.length || priced.length !== items.length) return null;
-  const pols = priced.map((i) => (Number(i.svc.accepts_children) === 1 ? tiersFor(kidsPolicy(i.svc).tiers, i.unit) : []));
+  const pols = priced.map((i) => (Number(i.svc.accepts_children) === 1 ? tiersFor(kidsTiersFor(i.svc, i.option), i.unit) : []));
   if (!pols.some((t) => t.length)) return null;
   const sum = priced.reduce((a, i) => a + i.unit, 0);
   return Array.from({ length: KID_MAX_AGE + 1 }, (_, age) =>
@@ -93,7 +93,7 @@ export function bundlePolicies(p, items, L = {}) {
       const sp = policiesOf(it.svc, L).filter((x) => x.type === type && !x.option);
       if (sp.length) { lines.push(`**${it.title}:** ${sp.map((x) => x.text.replace(/\s*\n+\s*/g, " ")).join(" ")}`); continue; }
       if (type === "menores" && Number(it.svc.accepts_children) === 1) {
-        const t = kidsPolicy(it.svc).tiers;
+        const t = kidsTiersFor(it.svc, it.option);
         if (t.length) lines.push(`**${it.title}:** ${kidsText(t, lang, curOf(it.txt || it.svc.price))}`);
       }
     }

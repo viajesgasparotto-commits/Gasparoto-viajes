@@ -37,6 +37,17 @@ export function kidsPolicy(p = {}) {
   }).filter((t) => t.from <= t.to).sort((a, b) => a.from - b.from).slice(0, 4);
   return { tiers };
 }
+// Tarifa de niños por opción: si la política "Menores" del producto está cargada solo para algunas opciones (ej. "Somente Show"),
+// los tramos por edad valen solo en esas opciones; en las demás los niños pagan como adultos. Sin políticas por opción, valen en todas.
+export function kidsScope(p = {}) {
+  let m = p.meta; if (typeof m === "string") { try { m = JSON.parse(m || "{}"); } catch { m = {}; } }
+  const pol = (Array.isArray(m && m.policies) ? m.policies : []).filter((x) => Array.isArray(x) && x[0] === "menores");
+  return pol.length && pol.every((x) => String(x[2] || "").trim()) ? [...new Set(pol.map((x) => String(x[2]).trim().toLowerCase()))] : [];
+}
+export function kidsTiersFor(p = {}, option = "") {
+  const t = kidsPolicy(p).tiers, sc = kidsScope(p);
+  return !t.length || !sc.length || !String(option || "").trim() ? t : sc.includes(String(option).trim().toLowerCase()) ? t : [];
+}
 // Tramos listos para calcular con un precio adulto (centavos): el precio fijo se pasa a % (con decimales) de ese precio, tope 100%.
 export const tiersFor = (tiers, unitCents) => tiers.map((t) => (t.amt == null ? t : { from: t.from, to: t.to, pct: unitCents > 0 ? Math.min(100, (t.amt * 100) / unitCents) : 100 }));
 // Valida los tramos que manda el panel: devuelve { tiers } o { error }.
@@ -180,11 +191,7 @@ export async function createBooking(db, env, p, { day, time, pax, adults, childr
   // Edades de los niños: si el paquete tiene tramos de precio por edad, hacen falta (una por niño) para calcular el total.
   // kidTab (paquetes que combinan servicios): % por edad de 0 a 17 calculado con la política de cada servicio; reemplaza a los tramos propios.
   const tab = Array.isArray(kidTab) && kidTab.length === KID_MAX_AGE + 1 ? kidTab : null;
-  const tiers = tab ? tab.map((pct, a) => ({ from: a, to: a, pct })) : kidsPolicy(p).tiers;
   ages = Array.isArray(ages) ? ages.map(Number) : [];
-  if (children > 0 && tiers.length) {
-    if (ages.length !== children || ages.some((x) => !Number.isInteger(x) || x < 0 || x > KID_MAX_AGE)) return { code: "pax", error: "Indicá la edad de cada niño.", status: 400 };
-  } else ages = [];
   // Opciones con precio (meta.options): si el producto las tiene, hay que elegir una (por índice o por nombre) y su precio es el que se cobra.
   // Todas comparten fecha, horario y cupo. Sin opciones, se usa el precio del producto como siempre.
   const opts = optionsOf(p);
@@ -195,6 +202,11 @@ export async function createBooking(db, env, p, { day, time, pax, adults, childr
     if (!opt) return { code: "option", error: "Elegí una opción.", status: 400 };
     if (!opt.cents) return { code: "option", error: "Esa opción no tiene un precio para reservar en línea.", status: 400 };
   }
+  // Tramos de niños de la opción elegida (o la tabla del paquete que combina servicios).
+  const tiers = tab ? tab.map((pct, a) => ({ from: a, to: a, pct })) : kidsTiersFor(p, opt ? opt.name : "");
+  if (children > 0 && tiers.length) {
+    if (ages.length !== children || ages.some((x) => !Number.isInteger(x) || x < 0 || x > KID_MAX_AGE)) return { code: "pax", error: "Indicá la edad de cada niño.", status: 400 };
+  } else ages = [];
   await expireHolds(db);
   const st = await monthState(db, p, day.slice(0, 7));
   const d = st.days.find((x) => x.day === day);

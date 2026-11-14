@@ -7,7 +7,7 @@ import { parseMeta, timesOf, optionsOf, precio } from "./ficha.js";
 import { siteUrl, stripTags, BRAND, initBrand } from "./seo.js";
 import { SITE } from "./site.js";
 import { bundleItems, bundlePolicies, curOf, isBundle, kidsText, servicePolicies } from "./bundle.js";
-import { kidsPolicy } from "./booking.js";
+import { kidsPolicy, kidsScope, kidsTiersFor } from "./booking.js";
 import { ensureSchema } from "./schema.js";
 import { DISP_RE, RES_RE, disponibilidad, reservar } from "./herramientas.js";
 
@@ -59,12 +59,14 @@ async function web(env) {
   const PT = { policyTypes: { menores: "Menores", cancelacion: "Cancelación", documentacion: "Documentación", pagos: "Pagos" }, lang: "es" };
   const ninos = (p, items) => {
     if (items) {
-      const L = items.map((i) => Number(i.svc.accepts_children) === 1 ? (kidsPolicy(i.svc).tiers.length ? `${i.title}: ${kidsText(kidsPolicy(i.svc).tiers, "es", curOf(i.txt || i.svc.price))}` : `${i.title}: precio de adulto`) : `${i.title}: no acepta niños`);
+      const L = items.map((i) => Number(i.svc.accepts_children) === 1 ? (kidsTiersFor(i.svc, i.option).length ? `${i.title}: ${kidsText(kidsTiersFor(i.svc, i.option), "es", curOf(i.txt || i.svc.price))}` : `${i.title}: precio de adulto`) : `${i.title}: no acepta niños`);
       return items.some((i) => Number(i.svc.accepts_children) === 1) ? `cada niño paga según cada servicio (${L.join(" | ")})` : "";
     }
     if (Number(p.accepts_children) !== 1) return "";
-    const t = kidsPolicy(p).tiers;
-    return t.length ? kidsText(t, "es", curOf(p.price)) : "pagan como adulto";
+    const t = kidsPolicy(p).tiers, sc = kidsScope(p);
+    if (!t.length) return "pagan como adulto";
+    // Política de menores solo para algunas opciones: en las demás, los niños pagan como adulto.
+    return sc.length ? `${kidsText(t, "es", curOf(p.price))}, SOLO en la opción ${sc.map((x) => (optionsOf(p).find((o) => o.name.toLowerCase() === x) || { name: x }).name).join(" / ")}; en las otras opciones los niños pagan como adulto` : kidsText(t, "es", curOf(p.price));
   };
   const rows = (await db.prepare("SELECT slug, title, category, price, price_old, excerpt, details, content, meta, booking_enabled, pay_mode, time_booking, min_pax, max_pax, accepts_children, kids_policy FROM packages WHERE published=1 ORDER BY featured DESC, home_order, id DESC LIMIT 80").all()).results || [];
   const pkgs = rows.map((p) => {

@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { onRequest } from "../functions/api/[[path]].js";
 import { onRequest as site } from "../functions/_middleware.js";
 import { normMeta, optionsOf, cheapestOption, precio } from "../functions/lib/ficha.js";
+import { kidsScope, kidsTiersFor, priceTotal, tiersFor } from "../functions/lib/booking.js";
 import { addDays, todayBA } from "../functions/lib/booking.js";
 
 function d1() {
@@ -177,5 +178,16 @@ assert.equal(precio("R 150"), "R$ 150"); assert.equal(precio(" R$150"), "R$ 150"
 const nm = JSON.parse(normMeta(JSON.stringify({ box: "R 600", options: [["Solo show", "R 210", "R 250", ""]] })));
 assert.deepEqual([nm.box, nm.options[0][1], nm.options[0][2]], ["R$ 600", "R$ 210", "R$ 250"]);
 console.log("✓ precios sin $ se normalizan a R$");
+
+// Tarifa de niños solo para la opción de la política "Menores" (ej. Tango: descuento solo en Somente Show; con jantar pagan como adulto).
+const tangoK = { accepts_children: 1, kids_policy: JSON.stringify({ tiers: [{ from: 0, to: 3, pct: 0 }, { from: 4, to: 12, pct: 50 }] }),
+  meta: JSON.stringify({ options: [["Jantar e Show Platea", "R$ 475", "R$ 500", ""], ["Somente Show", "R$ 210", "R$ 250", ""]], policies: [["menores", "0 a 3 anos grátis", "Somente Show", ""]] }) };
+assert.deepEqual(kidsScope(tangoK), ["somente show"]);
+assert.equal(kidsTiersFor(tangoK, "Somente Show").length, 2); assert.equal(kidsTiersFor(tangoK, "Jantar e Show Platea").length, 0);
+assert.equal(priceTotal(21000, 2, [2, 7], tiersFor(kidsTiersFor(tangoK, "Somente Show"), 21000)), 42000 + 0 + 10500);
+assert.equal(priceTotal(47500, 2, [99, 99], tiersFor(kidsTiersFor(tangoK, "Jantar e Show Platea"), 47500)), 47500 * 4, "con jantar, niños = adulto");
+const general = { ...tangoK, meta: JSON.stringify({ policies: [["menores", "x", "", ""], ["menores", "y", "Somente Show", ""]] }) };
+assert.deepEqual(kidsScope(general), []); assert.equal(kidsTiersFor(general, "Jantar e Show Platea").length, 2, "con una política general, valen en todas");
+console.log("✓ tarifa de niños solo en la opción de la política de menores");
 
 console.log("\nTodo OK");

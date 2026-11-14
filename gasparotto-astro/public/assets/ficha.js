@@ -54,7 +54,13 @@
   // sin edad elegida, el niño se cuenta como adulto (el total nunca promete menos de lo que se cobra) y se pide la edad.
   function qK() { var o = Q && Q.querySelector("[data-q-k]"); return o ? Number(o.textContent) || 0 : 0; }
   var AG = Q && Q.querySelector("[data-q-ages]"), AL = {}; try { AL = AG ? JSON.parse(AG.getAttribute("data-l")) : {}; } catch (e) { AL = {}; }
-  function qTiers() { var t = Q && Q.querySelector("[data-q-total]"); try { return JSON.parse((t && t.getAttribute("data-kid-tiers")) || "[]") || []; } catch (e) { return []; } }
+  // Tramos de niños de la opción marcada: si la política de menores es solo de algunas opciones (data-kid-scope), en las demás pagan como adultos.
+  function qScoped() {
+    var t = Q && Q.querySelector("[data-q-total]"), sc = []; try { sc = JSON.parse((t && t.getAttribute("data-kid-scope")) || "[]") || []; } catch (e) { sc = []; }
+    var o = qOpt(); return !sc.length || !o || sc.indexOf(o.value) >= 0;
+  }
+  function qTiers() { var t = Q && Q.querySelector("[data-q-total]"); if (!qScoped()) return []; try { return JSON.parse((t && t.getAttribute("data-kid-tiers")) || "[]") || []; } catch (e) { return []; } }
+  function qKidHint() { var h = Q && Q.querySelector("[data-q-khint]"); if (h) h.textContent = qScoped() ? h.getAttribute("data-on") : h.getAttribute("data-off"); }
   function qAges() { return AG ? [].map.call(AG.querySelectorAll("select"), function (s) { return s.value === "" ? null : Number(s.value); }) : []; }
   function kidPct(age, unit, tiers) {
     if (age === null) return 100;
@@ -62,8 +68,9 @@
     return 100;
   }
   function renderAges() {
+    qKidHint();
     if (!AG) return;
-    var c = qK(), had = qAges();
+    var c = qTiers().length ? qK() : 0, had = qAges();
     AG.hidden = c < 1;
     var h = "";
     for (var i = 0; i < c; i++) {
@@ -95,7 +102,12 @@
       qTotal();
     });
     // Al elegir una edad no se rearma la lista (no se pierde el foco): solo se saca el aviso cuando ya están todas.
-    Q.addEventListener("change", function (e) { if (e.target.hasAttribute && e.target.hasAttribute("data-q-age") && AG) { var p = AG.querySelector("p"); if (p && qAges().indexOf(null) < 0) p.remove(); } qTotal(); });
+    Q.addEventListener("change", function (e) {
+      if (e.target.name === "q-opt") renderAges();
+      if (e.target.hasAttribute && e.target.hasAttribute("data-q-age") && AG) { var p = AG.querySelector("p"); if (p && qAges().indexOf(null) < 0) p.remove(); }
+      qTotal();
+    });
+    renderAges();
     qTotal();
   }
   function carry() {
@@ -128,6 +140,16 @@
   }
   // Al elegir otra opción en el formulario o en la lista de la ficha, la tarjeta la acompaña.
   if (form && Q) form.addEventListener("change", function (e) { if (e.target.name === "option") { var r = Q.querySelector('input[name="q-opt"][value="' + e.target.value + '"]'); if (r) { r.checked = true; qTotal(); } } });
+
+  // Políticas en el formulario ("Antes de reservar, confira as políticas (Menores)"): solo las de la opción elegida o las de todas.
+  var PF = doc.querySelector("[data-pol-form]");
+  function polForm() {
+    if (!PF || !form) return;
+    var o = form.querySelector('input[name="option"]:checked'), v = o ? o.value : null, any = false;
+    [].forEach.call(PF.querySelectorAll("[data-pol-opt]"), function (x) { var k = x.getAttribute("data-pol-opt"), on = !k || v === null || k === v; x.hidden = !on; if (on) any = true; });
+    PF.hidden = !any;
+  }
+  if (PF && form) { form.addEventListener("change", function (e) { if (e.target.name === "option") polForm(); }); polForm(); }
 
   // "Ver todas las fotos": abre el visor de la galería desde la primera.
   var all = doc.querySelector("[data-gvg-all]");

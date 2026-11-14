@@ -7,7 +7,7 @@ import { SITE } from "../site.js";
 
 // Categorías fijas de la portada: no se borran ni cambian de dirección (sí de nombre).
 const isFixed = (c) => c.kind === "packages" && (SITE.fixedCategories || []).some((f) => f.slug === c.slug);
-import { cheapestOption, normMeta, optionsOf, parseMeta } from "../ficha.js";
+import { cheapestOption, normMeta, optionsOf, parseMeta, precio } from "../ficha.js";
 import { bundleItems, bundleQuote, loadParts, refreshBundlesWith } from "../bundle.js";
 import { applyTokens, esc, findPriceWidgets, slugify } from "../html.js";
 import { clip, sanitizeHtml, stripTags } from "../seo.js";
@@ -252,6 +252,8 @@ export async function manejarContenido({ ctx, request, env, url, res, id, method
           const q = bundleQuote({ meta: d.meta }, bundleItems({ meta: d.meta }, await loadParts(env.DB, { meta: d.meta })));
           if (q.ok) { d.price = q.price; d.price_old = q.price_old; }
         }
+        if (d.price != null) d.price = precio(d.price);
+        if (d.price_old != null) d.price_old = precio(d.price_old);
         // Subcategoría: tiene que existir dentro de la categoría elegida; si no (o si cambió la categoría), queda vacía.
         const sub = slugify(d.subcategory || "");
         d.subcategory = sub && (await env.DB.prepare("SELECT 1 AS x FROM subcategories WHERE parent=? AND slug=?").bind(d.category, sub).first()) ? sub : "";

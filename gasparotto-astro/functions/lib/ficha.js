@@ -20,6 +20,9 @@ export function normTimes(raw) {
 }
 
 // Guardado: normaliza lo que manda el panel (nunca confiar en el JSON recibido).
+// Precio escrito a mano: "R 150", "R$150", "r$ 150" → "R$ 150" (la moneda de Brasil lleva "$"; sin él el cliente lee mal el precio).
+export const precio = (s) => String(s ?? "").trim().replace(/^R\s*\$?\s*(?=\d)/i, "R$ ");
+
 export function normMeta(raw) {
   let m = {};
   try { m = typeof raw === "string" ? JSON.parse(raw || "{}") : raw || {}; } catch { m = {}; }
@@ -48,8 +51,8 @@ export function normMeta(raw) {
     // Mejor precio del mercado (se marca en el panel): sello en la ficha, en la tarjeta del listado y argumento para la IA.
     // box = cuánto cuesta lo mismo comprado directo en el lugar (boletería), opcional.
     best: m.best === 1 || m.best === true || m.best === "1" ? 1 : 0,
-    box: txt(m.box, 40),
-    options: arr(m.options, 12).map((r) => [txt(r?.[0], 60), txt(r?.[1], 40), txt(r?.[2], 40), txt(r?.[3], 140)])
+    box: precio(txt(m.box, 40)),
+    options: arr(m.options, 12).map((r) => [txt(r?.[0], 60), precio(txt(r?.[1], 40)), precio(txt(r?.[2], 40)), txt(r?.[3], 140)])
       .filter((r, i, all) => r[0] && r[1] && /\d/.test(r[1]) && all.findIndex((x) => x[0].toLowerCase() === r[0].toLowerCase()) === i),
   };
   // Itinerario: un renglón por servicio del paquete (los que no vienen en plan quedan en el día 1). Los servicios se ordenan como el itinerario.

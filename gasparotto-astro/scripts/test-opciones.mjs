@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { onRequest } from "../functions/api/[[path]].js";
 import { onRequest as site } from "../functions/_middleware.js";
-import { normMeta, optionsOf, cheapestOption } from "../functions/lib/ficha.js";
+import { normMeta, optionsOf, cheapestOption, precio } from "../functions/lib/ficha.js";
 import { addDays, todayBA } from "../functions/lib/booking.js";
 
 function d1() {
@@ -171,5 +171,11 @@ r = await call("PUT", "packages/" + pv.id, { ...pv, meta: JSON.stringify({ ...JS
 h = (await page("/paquetes/tango-porteno/")).html;
 assert.ok(!h.includes('id="politicas"') && !h.includes("confira as políticas"), "sin políticas no se muestra nada");
 console.log("✓ políticas: menores, cancelación y otras; por opción o para todo; se muestran en la ficha");
+
+// Precios escritos sin "$" (R 150) se guardan bien: R$ 150 (en el precio, las opciones y la boletería).
+assert.equal(precio("R 150"), "R$ 150"); assert.equal(precio(" R$150"), "R$ 150"); assert.equal(precio("US$ 50"), "US$ 50"); assert.equal(precio("Consultar"), "Consultar");
+const nm = JSON.parse(normMeta(JSON.stringify({ box: "R 600", options: [["Solo show", "R 210", "R 250", ""]] })));
+assert.deepEqual([nm.box, nm.options[0][1], nm.options[0][2]], ["R$ 600", "R$ 210", "R$ 250"]);
+console.log("✓ precios sin $ se normalizan a R$");
 
 console.log("\nTodo OK");

@@ -326,12 +326,15 @@ export async function pensar(env, history, ctx = {}) {
   // Herramientas: si la IA pide disponibilidad o una reserva (marcas), el sistema las resuelve y le vuelve a preguntar con los resultados.
   // Hasta 3 vueltas por mensaje y una sola reserva. En los seguimientos automáticos no se usan.
   let raw = "", extra = "", reservada = null;
-  for (let vuelta = 0; vuelta < 3; vuelta++) {
-    raw = await askAI(env, { system: system + extra, messages, maxTokens: 800 });
-    if (ctx.seguimiento) break;
+  const pasos = []; // qué consultó la IA en este mensaje (se ve en "Probar el asistente" del panel)
+  const CIERRE = "\n\nYA NO PODÉS USAR MARCAS EN ESTE MENSAJE: respondele ahora al cliente con la información que tenés (si falta algo, preguntáselo).";
+  for (let vuelta = 0; vuelta < 4; vuelta++) {
+    raw = await askAI(env, { system: system + extra + (vuelta === 3 ? CIERRE : ""), messages, maxTokens: 800 });
+    if (ctx.seguimiento || vuelta === 3) break;
     const disp = [...raw.matchAll(DISP_RE)].slice(0, 3), res = [...raw.matchAll(RES_RE)].slice(0, 1);
     if (!disp.length && !res.length) break;
     const out = [];
+    for (const m of [...disp, ...res]) pasos.push(m[0].slice(0, 200));
     for (const m of disp) out.push(await disponibilidad(env, m[1]).catch((e) => `DISPONIBILIDAD: error al consultar (${e?.message || "sin detalle"}).`));
     for (const m of res) {
       if (reservada) { out.push("RESERVA: ya se creó una reserva en este mensaje; no repitas la marca."); continue; }
@@ -343,12 +346,16 @@ export async function pensar(env, history, ctx = {}) {
     const IDI = { es: "ESPAÑOL", pt: "PORTUGUÉS DE BRASIL", en: "INGLÉS" }[ctx.idioma] || "el idioma del último mensaje del cliente";
     extra += `\n\nRESULTADOS DEL SISTEMA (recién consultados, en tiempo real; usalos para responderle al cliente y NO vuelvas a escribir las marcas ya resueltas)\n${out.join("\n\n")}\n\nIMPORTANTE: escribile al cliente en ${IDI}, aunque estos resultados estén en español.`;
   }
+  // Si después de las consultas la IA igual devolvió solo marcas (respuesta vacía), se le pide una vez más el texto para el cliente.
+  if (!ctx.seguimiento && !raw.replace(DISP_RE, "").replace(RES_RE, "").replace(/\[\[[^\]]*\]\]/g, "").trim()) {
+    raw = await askAI(env, { system: system + extra + CIERRE, messages, maxTokens: 800 }).catch(() => raw);
+  }
   const handoff = raw.includes(HANDOFF), pago = raw.includes(PAGO), noSeguir = raw.includes(NO_SEGUIR);
   const { texto, datos } = sacarFicha(raw);
   // Marcas internas mal escritas ([HUMANO], [[ PAGO ]]…) tampoco le llegan al cliente.
   const reply = pulir(texto.split(HANDOFF).join("").split(PAGO).join("").split(NO_SEGUIR).join("").replace(DISP_RE, "").replace(RES_RE, "").replace(/\[{1,2}\s*(HUMANO|PAGO|NO_SEGUIR|DISPONIBILIDAD|RESERVAR)\b[^\]]*\]{1,2}/gi, ""));
   if (ctx.chatId) await guardarFicha(env.DB, ctx.chatId, datos).catch(() => {});
-  return { reply, handoff, pago, datos, noSeguir, pix: reservada?.pix || "", reserva: reservada?.id || 0 };
+  return { reply, handoff, pago, datos, noSeguir, pix: reservada?.pix || "", reserva: reservada?.id || 0, pasos };
 }
 
 // ---------- Conversaciones guardadas ----------

@@ -64,6 +64,12 @@ assert.equal((await DB.prepare("SELECT COUNT(*) n FROM bookings").first()).n, an
 assert.ok(r.id && r.pix === "00020126PIXCOPIAECOLA", r.texto);
 console.log("✓ un reintento o una marca repetida no duplica la reserva");
 
+AI = [1, 2, 3, 4].map(() => `[[DISPONIBILIDAD tango | desde ${dia}]]`).concat(["Temos lugar às *20:00*."]);
+out = await pensar(env, [{ role: "user", text: "tem lugar?" }], { contact: "5511999990002" });
+assert.equal(out.reply, "Temos lugar às *20:00*.", "si la IA insiste con marcas, igual termina con un mensaje para el cliente");
+assert.equal(out.pasos.length, 3);
+console.log("✓ nunca queda una respuesta vacía (la IA que insiste con consultas igual responde)");
+
 AI = [`[[RESERVAR producto: tango | fecha: ${dia} | hora: 20:00 | adultos: 1 | nombre: X Y]]`];
 out = await pensar(env, [{ role: "user", text: "oi" }], { contact: "5511999990001", seguimiento: 3 });
 assert.ok(!out.reserva && !/\[\[/.test(out.reply), "en los seguimientos automáticos no se reserva");

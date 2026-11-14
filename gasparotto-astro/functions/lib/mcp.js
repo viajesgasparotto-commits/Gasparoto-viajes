@@ -1,11 +1,12 @@
-// Conector de Claude para el blog: servidor MCP (Model Context Protocol) por HTTP, sin estado y sin sesión.
+// Conector de Claude para el blog y los paquetes/servicios: servidor MCP (Model Context Protocol) por HTTP, sin estado y sin sesión.
 // Se agrega en claude.ai › Personalizar › Conectores › Agregar conector personalizado, con la dirección que da el panel
 // (Conectar Claude): https://<sitio>/mcp/<clave>, autenticación "Sin inicio de sesión". También acepta la clave en
 // "Authorization: Bearer <clave>" o "x-api-key" (por si se usa desde Claude Code u otro cliente).
 //
-// Qué puede hacer Claude: ver categorías, notas y paquetes; crear y editar notas; subir imágenes desde una URL.
-// No puede borrar nada, ni tocar paquetes, precios, reservas ni usuarios. Con una clave "solo borradores" todo queda
-// en borrador y no puede modificar notas publicadas; con "puede publicar", Claude puede publicar si se lo pedís.
+// Qué puede hacer Claude: ver categorías, notas, paquetes y servicios; crear y editar notas, paquetes y servicios
+// (mcp-paquetes.js); subir imágenes desde una URL. No puede borrar nada, ni tocar reservas, disponibilidad ni usuarios.
+// Con una clave "solo borradores" todo queda en borrador y no puede modificar lo publicado; con "puede publicar",
+// Claude puede publicar si se lo pedís.
 // Las notas se guardan con la misma lógica que el panel (manejarContenido): sanitizado, slug, SEO, redirecciones y autoría.
 import { manejarContenido } from "./api/contenido.js";
 import { IMG_TYPES, sniffImage } from "./api/medios.js";
@@ -14,6 +15,7 @@ import { ensureSchema } from "./schema.js";
 import { logActivity } from "./activity.js";
 import { purge } from "./edge.js";
 import { stripTags } from "./seo.js";
+import { PKG_TOOLS, PKG_GUIDE, callPkgTool } from "./mcp-paquetes.js";
 
 const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const LIVE = "(publish_date='' OR publish_date<=date('now','-3 hours'))";
@@ -42,7 +44,7 @@ function tokenOf(request, url) {
 function guide(env, key) {
   const pt = !/^es/i.test(String(env.SITE_LANG || "pt-BR"));
   return [
-    `Conector del blog de ${env.BRAND_NAME || "la agencia"} (${String(env.SITE_URL || "").replace(/\/$/, "")}).`,
+    `Conector del blog y de los paquetes y servicios de ${env.BRAND_NAME || "la agencia"} (${String(env.SITE_URL || "").replace(/\/$/, "")}).`,
     pt ? "El público es brasileño: escribí las notas en portugués de Brasil, salvo que te pidan otro idioma." : "Escribí las notas en español rioplatense, salvo que te pidan otro idioma.",
     key.can_publish
       ? "Esta clave PUEDE publicar. Aun así, creá las notas como borrador y publicá solo si la persona lo pide explícitamente."
@@ -53,6 +55,7 @@ function guide(env, key) {
     "SEO: título de 30 a 60 caracteres con la palabra clave; descripción para Google (seo_description) de 70 a 160; resumen corto (excerpt) de una o dos frases; 600 palabras o más; datos concretos y verificables (precios y horarios de la agencia solo si salen de sitio_listar_paquetes).",
     "Imagen principal: si tenés una URL https de una imagen con permiso de uso, subila con blog_subir_imagen y usá la dirección /media/… que devuelve; si no, dejá la nota sin imagen y avisá que falta.",
     "Al terminar, pasale a la persona el enlace de edición del panel que devuelve la herramienta.",
+    PKG_GUIDE,
   ].join("\n");
 }
 
@@ -111,8 +114,9 @@ export const TOOLS = [
   { name: "blog_ver_entrada", title: "Ver una nota", description: "Devuelve una nota completa (incluido el HTML del contenido) por id o por dirección.", inputSchema: { type: "object", properties: { id: { type: "integer" }, slug: STR("Dirección de la nota.") } }, annotations: { readOnlyHint: true } },
   { name: "blog_crear_entrada", title: "Crear una nota", description: "Crea una nota del blog. Queda como BORRADOR salvo que la clave pueda publicar y 'publicar' sea true. Devuelve el id, la dirección y el enlace para editarla en el panel.", inputSchema: { type: "object", properties: POST_FIELDS, required: ["titulo", "contenido"] }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false } },
   { name: "blog_editar_entrada", title: "Editar una nota", description: "Cambia solo los campos que mandes de una nota existente. Con una clave 'solo borradores' únicamente se pueden editar borradores.", inputSchema: { type: "object", properties: { id: { type: "integer", description: "Id de la nota (de blog_listar_entradas)." }, ...POST_FIELDS }, required: ["id"] }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
-  { name: "blog_subir_imagen", title: "Subir una imagen", description: "Descarga una imagen desde una URL https (JPG, PNG, WEBP, GIF o AVIF, hasta 8 MB) y la guarda en el sitio. Devuelve la dirección /media/… para usar en 'imagen' o dentro del contenido. Usá solo imágenes con permiso de uso.", inputSchema: { type: "object", properties: { url: STR("URL https de la imagen.") }, required: ["url"] }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
+  { name: "blog_subir_imagen", title: "Subir una imagen", description: "Descarga una imagen desde una URL https (JPG, PNG, WEBP, GIF o AVIF, hasta 8 MB) y la guarda en el sitio. Devuelve la dirección /media/… para usar en 'imagen', 'galeria' o dentro del contenido (notas, paquetes y servicios). Usá solo imágenes con permiso de uso.", inputSchema: { type: "object", properties: { url: STR("URL https de la imagen.") }, required: ["url"] }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
   { name: "sitio_listar_paquetes", title: "Paquetes y servicios", description: "Lista los paquetes y servicios publicados (título, categoría, precio desde y dirección) para enlazarlos desde las notas.", inputSchema: { type: "object", properties: { buscar: STR("Texto a buscar (opcional).") } }, annotations: { readOnlyHint: true } },
+  ...PKG_TOOLS,
 ];
 
 const ok = (data, text) => ({ content: [{ type: "text", text: text || JSON.stringify(data, null, 2) }], structuredContent: data });
@@ -220,6 +224,8 @@ async function callTool(name, a, { env, key, user, origin }) {
     return ok({ id, titulo: p.title, estado: st, direccion: `${site}/blog/${p.slug}/`, editar_en_el_panel: editLink(id) },
       `${create ? "Nota creada" : "Nota actualizada"} (#${id}, ${st}): “${p.title}”.\n${st === "borrador" ? "Es un borrador: no se ve en el sitio hasta que se publique desde el panel → Blog." : `Dirección: ${site}/blog/${p.slug}/`}\nPanel: ${editLink(id)}`);
   }
+  const pk = await callPkgTool(name, a, { env, key, user, origin, mdToHtml });
+  if (pk) return pk;
   return fail("Herramienta desconocida: " + name);
 }
 
@@ -256,7 +262,7 @@ export async function handleMcp(request, env) {
     try {
       if (m.method === "initialize") {
         const want = m.params?.protocolVersion;
-        replies.push(rpc(m.id, { protocolVersion: VERSIONS.includes(want) ? want : VERSIONS[1], capabilities: { tools: { listChanged: false } }, serverInfo: { name: "gasparotto-blog", title: `Blog · ${env.BRAND_NAME || "Agencia"}`, version: "1.0.0" }, instructions: guide(env, key) }));
+        replies.push(rpc(m.id, { protocolVersion: VERSIONS.includes(want) ? want : VERSIONS[1], capabilities: { tools: { listChanged: false } }, serverInfo: { name: "gasparotto-blog", title: `Blog y paquetes · ${env.BRAND_NAME || "Agencia"}`, version: "1.1.0" }, instructions: guide(env, key) }));
       } else if (m.method === "ping") replies.push(rpc(m.id, {}));
       else if (m.method === "tools/list") replies.push(rpc(m.id, { tools: TOOLS }));
       else if (m.method === "tools/call") {

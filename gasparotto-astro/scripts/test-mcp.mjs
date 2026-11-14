@@ -66,7 +66,7 @@ assert.ok(/SOLO borradores/.test(r.j.result.instructions), "explica el permiso d
 r = await mcp(url, "initialize", { protocolVersion: "1999-01-01" }); assert.equal(r.j.result.protocolVersion, "2025-06-18", "versión desconocida → la soportada");
 r = await mcp(url, "notifications/initialized", null, { note: true }); assert.equal(r.status, 202);
 r = await mcp(url, "tools/list"); const names = r.j.result.tools.map((t) => t.name);
-assert.deepEqual(names, ["blog_listar_categorias", "blog_listar_entradas", "blog_ver_entrada", "blog_crear_entrada", "blog_editar_entrada", "blog_subir_imagen", "sitio_listar_paquetes"]);
+assert.deepEqual(names, ["blog_listar_categorias", "blog_listar_entradas", "blog_ver_entrada", "blog_crear_entrada", "blog_editar_entrada", "blog_subir_imagen", "sitio_listar_paquetes", "paquetes_listar_categorias", "paquetes_listar", "paquete_ver", "paquete_crear", "paquete_editar"]);
 assert.ok(!names.some((n) => /borrar|eliminar|delete/.test(n)), "no hay herramientas para borrar");
 r = await mcp(url, null, null, { http: "GET" }); assert.equal(r.status, 405);
 r = await mcp("https://x.test/mcp/gvk_" + "x".repeat(40), "tools/list", null, { ip: "10.9.9.9" }); assert.equal(r.status, 401);
@@ -129,6 +129,38 @@ t = await tool(url, "blog_subir_imagen", { url: "http://img.example/ok.png" }); 
 t = await tool(url, "blog_listar_entradas", { estado: "publicadas" });
 assert.equal(t.structuredContent.entradas.length, 2);
 console.log("✓ imágenes: solo https y solo imágenes reales; listado por estado");
+
+// 7b) Paquetes y servicios: crear en borrador (precios con R$, opciones, incluye, datos), ver, editar, permisos
+t = await tool(url, "paquetes_listar_categorias");
+const pcat = t.structuredContent.categorias[0].clave; assert.ok(pcat, "hay categorías de paquetes");
+t = await tool(url, "paquete_crear", { titulo: "Tango com Jantar", tipo: "servicio", categoria: pcat, resumen: "Jantar e show no centro.", contenido: "Uma noite **inesquecível**.",
+  opciones: [{ nombre: "Somente show", precio: "R 210" }, { nombre: "Jantar e show", precio: "R$ 475", precio_anterior: "R$ 500", detalle: "Jantar de 3 etapas" }],
+  incluye: ["Traslado ida e volta", "Bebidas"], no_incluye: ["Gorjetas"], datos: [{ etiqueta: "Duração", valor: "3h" }], horarios: ["20:30"], mejor_precio: true, precio_boleteria: "R 600",
+  politicas: [{ tipo: "cancelacion", texto: "Sem custo até 48h antes." }], publicar: true });
+assert.ok(t.isError && /no puede publicar/.test(t.content[0].text), "clave de borradores no publica paquetes");
+t = await tool(url, "paquete_crear", { titulo: "Tango com Jantar", tipo: "servicio", categoria: pcat, resumen: "Jantar e show no centro.", contenido: "Uma noite **inesquecível**.",
+  opciones: [{ nombre: "Somente show", precio: "R 210" }, { nombre: "Jantar e show", precio: "R$ 475", precio_anterior: "R$ 500", detalle: "Jantar de 3 etapas" }],
+  incluye: ["Traslado ida e volta", "Bebidas"], no_incluye: ["Gorjetas"], datos: [{ etiqueta: "Duração", valor: "3h" }], horarios: ["20:30"], mejor_precio: true, precio_boleteria: "R 600",
+  politicas: [{ tipo: "cancelacion", texto: "Sem custo até 48h antes." }] });
+assert.ok(!t.isError, JSON.stringify(t)); const pid = t.structuredContent.id;
+assert.equal(t.structuredContent.estado, "borrador"); assert.ok(/#packages\/\d+$/.test(t.structuredContent.editar_en_el_panel));
+let pk = await one("SELECT * FROM packages WHERE id=?", pid);
+assert.equal(pk.published, 0); assert.equal(pk.price, "R$ 210", "precio desde = opción más barata, con R$"); assert.equal(pk.details, "Traslado ida e volta\nBebidas");
+assert.ok(pk.content.includes("<strong>inesquecível</strong>"), "Markdown → HTML");
+let pm = JSON.parse(pk.meta); assert.equal(pm.kind, "servicio"); assert.equal(pm.best, 1); assert.equal(pm.box, "R$ 600"); assert.deepEqual(pm.times, [["20:30", ""]]); assert.equal(pm.options[1][2], "R$ 500"); assert.equal(pm.policies[0][0], "cancelacion");
+t = await tool(url, "paquete_ver", { id: pid }); assert.equal(t.structuredContent.opciones.length, 2); assert.equal(t.structuredContent.datos[0].valor, "3h");
+t = await tool(url, "paquete_editar", { id: pid, resumen: "Show de tango com jantar e traslado." });
+pk = await one("SELECT * FROM packages WHERE id=?", pid); pm = JSON.parse(pk.meta);
+assert.equal(pk.excerpt, "Show de tango com jantar e traslado."); assert.equal(pm.options.length, 2, "editar no borra lo que no se manda"); assert.equal(pk.details, "Traslado ida e volta\nBebidas");
+t = await tool(url, "paquete_crear", { titulo: "Pacote Tango + City", tipo: "paquete", categoria: pcat, servicios_incluidos: [{ servicio: "city-tour", dia: 1 }, { servicio: "tango-com-jantar", dia: 2 }], precio: "R$ 600" });
+assert.ok(!t.isError, JSON.stringify(t)); assert.deepEqual(JSON.parse((await one("SELECT meta FROM packages WHERE id=?", t.structuredContent.id)).meta).parts, ["city-tour", "tango-com-jantar"]);
+t = await tool(url, "paquete_editar", { id: 1, precio: "R$ 1" });
+assert.ok(t.isError && /publicado/.test(t.content[0].text), "clave de borradores no toca productos publicados");
+assert.equal((await one("SELECT price FROM packages WHERE id=1")).price, "R$ 180");
+t = await tool(url, "paquetes_listar", { estado: "borradores" }); assert.equal(t.structuredContent.productos.length, 2);
+t = await tool(pub, "paquete_editar", { id: pid, publicar: true }); assert.equal(t.structuredContent.estado, "publicado");
+t = await tool(url, "paquete_crear", { titulo: "Sem categoria", categoria: "no-existe" }); assert.ok(t.isError && /Categorías disponibles/.test(t.content[0].text));
+console.log("✓ paquetes: crea y edita en borrador (R$, opciones, incluye, políticas, paquetes con servicios), no publica ni toca lo publicado sin permiso");
 
 // 8) Revocar corta el acceso en el acto; el sitio deja pasar /mcp a la función
 await call("DELETE", "claude-keys/" + row.id, null, admin);

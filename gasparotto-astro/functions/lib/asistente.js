@@ -138,6 +138,13 @@ export async function origenDe(env, text, referral = null) {
   return "Contacto directo";
 }
 
+// Calendario de las próximas dos semanas con el día de la semana: la IA se equivoca si calcula sola qué día cae cada fecha.
+const SEMANA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+export const proximos = (hoy) => Array.from({ length: 15 }, (_, i) => {
+  const d = new Date(Date.parse(hoy + "T12:00:00Z") + i * 864e5);
+  return `${SEMANA[d.getUTCDay()]} ${d.toISOString().slice(0, 10)}${i === 0 ? " (hoy)" : i === 1 ? " (mañana)" : ""}`;
+}).join(", ");
+
 export async function systemPrompt(env, ctx = {}) {
   initBrand(env);
   const b = SITE.business || {};
@@ -274,7 +281,7 @@ ${b.street ? `- Oficina: ${b.street}, ${b.locality || ""} (en plena Calle Florid
 ${extra ? `INDICACIONES DE LA AGENCIA (tienen prioridad sobre lo anterior, salvo las reglas firmes)\n${extra}\n\n` : ""}CATÁLOGO (lo único que podés vender)
 ${W.text || "(Todavía no hay paquetes publicados: tomá los datos del cliente y terminá con " + HANDOFF + ".)"}
 ${W.posts ? `\nBLOG (notas para recomendar con su enlace)\n${W.posts}` : ""}${CORTE_CACHE}ESTA CHARLA
-- Hoy es ${hoy} (hora de Buenos Aires).${ctx.idioma ? `\n- El último mensaje del cliente está en ${{ es: "ESPAÑOL", pt: "PORTUGUÉS", en: "INGLÉS" }[ctx.idioma]}: respondé en ese idioma (también la presentación).` : ""}
+- Hoy es ${hoy} (hora de Buenos Aires). Próximos días (usalos tal cual para fechas y días de la semana; no los calcules vos): ${proximos(hoy)}.${ctx.idioma ? `\n- El último mensaje del cliente está en ${{ es: "ESPAÑOL", pt: "PORTUGUÉS", en: "INGLÉS" }[ctx.idioma]}: respondé en ese idioma (también la presentación).` : ""}
 
 PRESENTACIÓN EN ESTA CHARLA
 ${primera ? `- ESTE ES TU PRIMER MENSAJE en esta charla y SÍ O SÍ tiene que incluir la presentación, corta, y lo que preguntó, en este orden:

@@ -112,7 +112,7 @@ export async function reservar(env, body, ctx = {}) {
   const tiers = kidsPolicy(p).tiers;
   const totalC = priceTotal(unitC, adultos, ninos && tiers.length ? edades : Array(ninos).fill(99), tiersFor(tiers, unitC));
   const cur = String((opt ? opt.price : p.price) || "").match(/^[^\d]*/)[0].trim() || "R$";
-  const resumen = `${p.title}${datos.option ? ` (${datos.option})` : ""} · ${datos.day}${datos.time ? " " + datos.time : ""} · ${adultos} adulto(s)${ninos ? ` y ${ninos} niño(s)${edades.length ? ` de ${edades.join(", ")} años` : ""}` : ""} · titular ${nombre} · total ${cur} ${(totalC / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+  const resumen = `${p.title}${datos.option ? ` (${datos.option})` : ""} · ${datos.day} (${DIAS[new Date(datos.day + "T00:00:00Z").getUTCDay()]})${datos.time ? " " + datos.time : ""} · ${adultos} adulto(s)${ninos ? ` y ${ninos} niño(s)${edades.length ? ` de ${edades.join(", ")} años` : ""}` : ""} · titular ${nombre} · total ${cur} ${(totalC / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
   const clave = [p.slug, datos.day, datos.time, datos.option, adultos, ninos, edades.join(","), sinTildes(nombre)].join("|");
   const prop = ctx.contact ? await propuesta(db, ctx.chatId) : (ctx.previo && /\d/.test(ctx.previo) && /\?/.test(ctx.previo) ? { k: clave, at: 1 } : null);
   const confirma = prop && prop.k === clave && (prop.at || 0) < (ctx.inicio || Date.now()) && (prop.at === 1 || Date.now() - (prop.at || 0) < 30 * 60e3) && AFIRMA.test(ctx.ultimo || "") && !NIEGA.test(ctx.ultimo || "")
@@ -156,6 +156,6 @@ export async function reservar(env, body, ctx = {}) {
   } else pagoTxt = `Este servicio no cobra con Pix online: el equipo le confirma el pago por acá. El lugar queda retenido ${r.hold_minutes} minutos. Terminá tu mensaje con la marca para una persona.`;
   return {
     pix, id: r.id,
-    texto: `RESERVA CREADA #${r.id}: ${p.title}${r.option ? ` (${r.option})` : ""} · ${datos.day}${r.time ? " " + r.time : ""} · ${r.adults} adultos${r.children ? ` y ${r.children} niños` : ""} · titular ${nombre} · total ${total} · estado pendiente de pago. ${pagoTxt}`,
+    texto: `RESERVA CREADA #${r.id}: ${p.title}${r.option ? ` (${r.option})` : ""} · ${datos.day} (${DIAS[new Date(datos.day + "T00:00:00Z").getUTCDay()]})${r.time ? " " + r.time : ""} · ${r.adults} adultos${r.children ? ` y ${r.children} niños` : ""} · titular ${nombre} · total ${total} · estado pendiente de pago. ${pagoTxt}`,
   };
 }

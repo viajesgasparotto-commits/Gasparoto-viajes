@@ -261,5 +261,17 @@ r = await bkh("0", "20:00", 3); assert.equal(r.status, 200, JSON.stringify(r.dat
 const pgh = await (await site({ request: new Request("https://x.test/paquetes/tango-horarios/"), env, next: async () => new Response("", { status: 404 }), waitUntil: () => {} })).text();
 assert.ok(pgh.includes("data-opt-times=") && pgh.includes("22:00 · 23:30"), "la ficha muestra el horario de cada opción y el formulario lo filtra");
 console.log("✓ horario propio por opción: se guarda, se muestra y la reserva solo acepta el de la opción");
+// Disponibilidad: el horario de cada opción también se carga ahí (y alcanza para "reservar por horario" sin horarios generales).
+r = await call("GET", "slots?package_id=" + th.id + "&month=" + day.slice(0, 7), undefined, admin);
+assert.deepEqual(r.data.config.opt_times, [{ name: "Jantar e Show", times: "20:00" }, { name: "Somente Show", times: "22:00, 23:30" }]);
+assert.deepEqual(r.data.config.time_rows, [], "los horarios generales no se mezclan con los de las opciones");
+const cfgBody = { times: [], booking_enabled: 1, pay_mode: "whatsapp", min_pax: 1, max_pax: 8, daily_capacity: 10, min_advance_days: 1, horizon_days: 60, weekdays: [0, 1, 2, 3, 4, 5, 6], time_booking: 1 };
+r = await call("PUT", "booking-config/" + th.id, { ...cfgBody, opt_times: [{ name: "Jantar e Show", times: "20h30" }, { name: "Somente Show", times: "22:00" }] }, admin);
+assert.equal(r.status, 200, JSON.stringify(r.data));
+const th2 = await one("SELECT meta, time_booking FROM packages WHERE id=?", th.id);
+assert.deepEqual(JSON.parse(th2.meta).options.map((o) => o[4]), ["20:30", "22:00"]); assert.equal(th2.time_booking, 1);
+r = await call("PUT", "booking-config/" + th.id, { ...cfgBody, opt_times: [{ name: "Somente Show", times: "a las diez" }] }, admin);
+assert.equal(r.status, 400); assert.ok(/Somente Show/.test(r.data.error));
+console.log("✓ Disponibilidad: horario por opción se ve y se guarda ahí también");
 
 console.log("\nTodo OK");

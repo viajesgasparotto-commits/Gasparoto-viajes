@@ -134,7 +134,7 @@ export function cheapestOption(opts) {
   return num.length ? num.reduce((a, b) => (b.cents < a.cents ? b : a)) : opts[0] || null;
 }
 // Horarios del producto: los de la ficha más los propios de cada opción (para el cupo por horario hacen falta todos).
-const baseTimes = (p) => (parseMeta(p.meta).times || []).filter((r) => Array.isArray(r) && /^\d{2}:\d{2}$/.test(r[0]));
+export const baseTimes = (p) => (parseMeta(p.meta).times || []).filter((r) => Array.isArray(r) && /^\d{2}:\d{2}$/.test(r[0]));
 export const timesOf = (p) => {
   const base = baseTimes(p), have = new Set(base.map((r) => r[0]));
   const extra = optionsOf(p).flatMap((o) => o.times).filter((t) => !have.has(t) && have.add(t)).map((t) => [t, ""]);

@@ -493,7 +493,9 @@ async function avail(){
         <div id="av-trows"></div><div id="av-terr" class="av-terr" role="alert" hidden></div>
         <div class="av-tbar"><button type="button" class="s" id="av-tadd">+ Agregar horario</button><button type="button" class="s" id="av-tgen" aria-expanded="false">Generar serie…</button><span class="av-tsug" id="av-tsug"></span></div>
         <div class="av-gen" id="av-gen" hidden><label>Desde<input type="time" id="av-g1" value="09:00" step="300"></label><label>Hasta<input type="time" id="av-g2" value="17:00" step="300"></label><label>Cada<select id="av-g3"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 hora</option><option value="90">1 h 30</option><option value="120">2 horas</option><option value="180">3 horas</option></select></label><button type="button" class="p" id="av-gok">Agregar</button><button type="button" class="s" id="av-gno">Cancelar</button></div>
-        <div class="av-prev" id="av-tprev" aria-live="polite" hidden></div></section>
+        <div class="av-prev" id="av-tprev" aria-live="polite" hidden></div>
+        ${(c.opt_times||[]).length?`<div class="av-optt" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line,#e2e8f0)"><span class="av-lbl" style="margin:0">Horario por opción</span> <small class="muted">(opcional · si cada opción sale a otra hora, ej. Jantar 20:00 y Somente Show 22:00. Vacío = usa los horarios de salida de arriba. Varios: 20:00, 22:30)</small>
+          <div style="display:grid;gap:8px;margin-top:8px">${c.opt_times.map((o,i)=>`<label style="display:grid;grid-template-columns:minmax(120px,1fr) 2fr;gap:10px;align-items:center;margin:0"><span><b>${esc(o.name)}</b></span><input data-optt="${i}" data-name="${esc(o.name)}" value="${esc(o.times||'')}" placeholder="🕗 ej. 20:00" maxlength="80"></label>`).join('')}</div></div>`:''}</section>
         <span class="av-lbl">Días de la semana con salida</span><div class="av-wdays">${WK.map(([k,l])=>`<label class="av-wdo"><input type="checkbox" data-wd="${k}" ${c.weekdays.includes(k)?'checked':''}><span>${l}</span></label>`).join('')}</div>
         <div class="av-savebar"><span class="av-dirty" id="av-dirty" hidden>● Cambios sin guardar</span><button class="p av-save" id="av-save">Guardar cambios</button></div>
       </section>
@@ -512,7 +514,7 @@ async function avail(){
   const trRead=()=>$$('.av-tr').map(row=>[row.querySelector('.av-ti').value,row.querySelector('.av-tn').value.trim()]);
   const cmpT=(x,y)=>!x?(!y?0:1):!y?-1:x.localeCompare(y);
   const trSort=a=>a.slice().sort((x,y)=>cmpT(x[0],y[0]));
-  const hasNow=()=>$$('.av-ti').some(i=>i.value);
+  const hasNow=()=>$$('.av-ti').some(i=>i.value)||$$('[data-optt]').some(i=>i.value.trim());
   const timeWarn=()=>{$('#av-time-warn').hidden=!($('#av-time').checked&&!hasNow())};
   const toMin=t=>(+t.slice(0,2))*60+(+t.slice(3,5)),fromMin=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
   // Validación en la misma lista: marca los repetidos (siempre) y los vacíos (al guardar); devuelve el primer campo con problema.
@@ -583,9 +585,9 @@ async function avail(){
     e.preventDefault();const rows=$$('.av-tr'),i=rows.indexOf(e.target.closest('.av-tr'));
     if(i<rows.length-1)rows[i+1].querySelector('.av-ti').focus();else if(rows.length<24)$('#av-tadd').click();
   });
-  trDraw();trPrev();$('#av-time').onchange=()=>{timeWarn();trPrev()};timeWarn();
+  trDraw();trPrev();$('#av-time').onchange=()=>{timeWarn();trPrev()};timeWarn();$$('[data-optt]').forEach(i=>i.addEventListener('input',timeWarn));
   // Borrador: si se toca un día del calendario, se cambia de mes o se vuelve a esta pantalla, lo que se estaba editando no se pierde.
-  const snap=()=>JSON.stringify({r:trRead(),c:$$('[data-cf]').map(i=>i.value),w:$$('[data-wd]:checked').map(i=>i.dataset.wd),t:$('#av-time').checked,m:$('#av-mode').value});
+  const snap=()=>JSON.stringify({r:trRead(),c:$$('[data-cf]').map(i=>i.value),w:$$('[data-wd]:checked').map(i=>i.dataset.wd),t:$('#av-time').checked,m:$('#av-mode').value,o:$$('[data-optt]').map(i=>i.value)});
   const base0=snap();
   const upd=()=>{const s=snap(),dirty=s!==base0;AV.draft=dirty?{pid:AV.pid,s:JSON.parse(s)}:null;$('#av-dirty').hidden=!dirty};
   const card=document.querySelector('.av-rules-card');
@@ -594,6 +596,7 @@ async function avail(){
   if(AV.draft&&AV.draft.pid===AV.pid){
     const dr=AV.draft.s;trs=dr.r;trDraw();
     $$('[data-cf]').forEach((i,k)=>{if(dr.c[k]!=null)i.value=dr.c[k]});
+    $$('[data-optt]').forEach((i,k)=>{if(dr.o&&dr.o[k]!=null)i.value=dr.o[k]});
     $$('[data-wd]').forEach(i=>{i.checked=dr.w.includes(i.dataset.wd)});
     $('#av-time').checked=dr.t;$('#av-mode').value=dr.m;modeUi();
     trAfter();
@@ -607,8 +610,9 @@ async function avail(){
     const bad=trCheck(true);
     if(bad){toast('Revisá los horarios marcados en rojo','err');bad.focus();return}
     const rows=trSort(trRead()),sb=$('#av-save');
-    if($('#av-time').checked&&!rows.length){toast('Cargá al menos un horario para reservar por horario','err');$('#av-tadd').focus();return}
-    const g=k=>Number($(`[data-cf=${k}]`).value),body={times:rows,booking_enabled:$('#av-mode').value==='wa'?0:1,pay_mode:$('#av-mode').value==='pix'?'pix':'whatsapp',min_pax:g('min_pax'),max_pax:g('max_pax'),daily_capacity:g('daily_capacity'),min_advance_days:g('min_advance_days'),horizon_days:g('horizon_days'),weekdays:$$('[data-wd]:checked').map(i=>+i.dataset.wd),time_booking:$('#av-time').checked?1:0};
+    const optT=$$('[data-optt]').map(i=>({name:i.dataset.name,times:i.value.trim()}));
+    if($('#av-time').checked&&!rows.length&&!optT.some(o=>o.times)){toast('Cargá al menos un horario (de salida o de alguna opción) para reservar por horario','err');$('#av-tadd').focus();return}
+    const g=k=>Number($(`[data-cf=${k}]`).value),body={times:rows,...(optT.length?{opt_times:optT}:{}),booking_enabled:$('#av-mode').value==='wa'?0:1,pay_mode:$('#av-mode').value==='pix'?'pix':'whatsapp',min_pax:g('min_pax'),max_pax:g('max_pax'),daily_capacity:g('daily_capacity'),min_advance_days:g('min_advance_days'),horizon_days:g('horizon_days'),weekdays:$$('[data-wd]:checked').map(i=>+i.dataset.wd),time_booking:$('#av-time').checked?1:0};
     sb.disabled=true;sb.textContent='Guardando…';try{const r=await api('booking-config/'+AV.pid,'PUT',body);AV.draft=null;DATA.packages=null;AV.cache=null;const o=(r&&r.orphans)||0;
       toast(o?`Guardado. Ojo: ${o} reserva${o>1?'s':''} futura${o>1?'s':''} quedó en un horario que ya no existe; revisalas en Reservas.`:'Cambios guardados',o?'err':'ok',o?9000:undefined);avail()}catch{sb.disabled=false;sb.textContent='Guardar cambios'}};
   const pick=(day,range)=>{const all=d.days.map(x=>x.day);if(range&&AV.anchor&&all.includes(AV.anchor)){const a=all.indexOf(AV.anchor),b=all.indexOf(day),lo=Math.min(a,b),hi=Math.max(a,b);for(let i=lo;i<=hi;i++)if(d.days[i].st!=='past')AV.sel.add(d.days[i].day)}else{AV.sel.has(day)?AV.sel.delete(day):AV.sel.add(day);AV.anchor=day}AV.focus=day;avail()};

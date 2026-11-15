@@ -2,7 +2,7 @@
 
 import { voucherPage } from "../voucher.js";
 import { BOOKING_STATUS, addDays, bookingConfig, createBooking, expireHolds, holdMinutes, isDay, isMonth, monthState, parseWeekdays, setBookingStatus, moveBooking, todayBA } from "../booking.js";
-import { timesOf, normTime, normTimes, parseMeta } from "../ficha.js";
+import { timesOf, baseTimes, optionsOf, normTime, normTimes, parseMeta } from "../ficha.js";
 import { bookingItin, bundleItems, bundleMonth, bundleStart, createBundleBooking, isBundle, loadParts } from "../bundle.js";
 import { canPayPix, cancelPix, createPix, syncPayment, verifyWebhook } from "../pix.js";
 import { ensureSchema } from "../schema.js";
@@ -251,7 +251,7 @@ export async function manejarReservas({ request, env, url, res, id, method }) {
       const c = st.cfg;
       // Reservas que hoy ocupan cupo (pagadas y pendientes con retención vigente), para el detalle por día del panel.
       const res = (await env.DB.prepare("SELECT id, day, time, pax, adults, children, child_ages, name, phone, status, COALESCE(parent_id, 0) AS parent_id, (SELECT k.title FROM bookings pb JOIN packages k ON k.id=pb.package_id WHERE pb.id=bookings.parent_id) AS via FROM bookings WHERE package_id=? AND day BETWEEN ? AND ? AND (status='pagada' OR (status='pendiente' AND hold_until > datetime('now'))) ORDER BY day, id").bind(p.id, `${month}-01`, `${month}-31`).all()).results;
-      return json({ month, today: st.today, res, config: { enabled: c.enabled, min_pax: c.min_pax, max_pax: c.max_pax, capacity: c.capacity, weekdays: c.weekdays, advance: c.advance, horizon: c.horizon, pay: c.pay, time_flag: c.timeFlag, by_time: c.byTime, times: c.times, time_rows: timesOf(p) }, days: st.days });
+      return json({ month, today: st.today, res, config: { enabled: c.enabled, min_pax: c.min_pax, max_pax: c.max_pax, capacity: c.capacity, weekdays: c.weekdays, advance: c.advance, horizon: c.horizon, pay: c.pay, time_flag: c.timeFlag, by_time: c.byTime, times: c.times, time_rows: baseTimes(p), opt_times: optionsOf(p).map((o) => ({ name: o.name, times: o.times.join(", ") })) }, days: st.days });
     }
     if (method === "PUT") {
       const b = await request.json().catch(() => ({}));
@@ -297,20 +297,36 @@ export async function manejarReservas({ request, env, url, res, id, method }) {
     const row = await env.DB.prepare("SELECT meta FROM packages WHERE id=?").bind(pid).first();
     if (!row) return json({ error: "No existe el paquete" }, 404);
     const sentTimes = Array.isArray(b.times);
-    const times = sentTimes ? normTimes(b.times) : timesOf(row);
+    const times = sentTimes ? normTimes(b.times) : baseTimes(row);
+    // Horario propio de cada opción (ej. Jantar 20:00, Somente Show 22:00): se guarda en la opción (meta.options[i][4]).
+    const meta0 = parseMeta(row.meta), sentOpt = Array.isArray(b.opt_times) && Array.isArray(meta0.options);
+    if (sentOpt) {
+      const by = new Map(b.opt_times.map((x) => [String((x && x.name) || "").trim().toLowerCase(), String((x && x.times) || "")]));
+      const bad = [];
+      meta0.options = meta0.options.map((o) => {
+        if (!Array.isArray(o) || !by.has(String(o[0] || "").trim().toLowerCase())) return o;
+        const raw = by.get(String(o[0]).trim().toLowerCase()), parts = raw.split(/[,;\s]+/).filter(Boolean), ok = [...new Set(parts.map(normTime).filter(Boolean))].sort();
+        if (parts.length !== parts.map(normTime).filter(Boolean).length) bad.push(o[0]);
+        const n = o.slice(0, 4); while (n.length < 4) n.push("");
+        return ok.length ? [...n, ok.join(", ")] : n;
+      });
+      if (bad.length) return json({ error: `Revisá el horario de ${bad.join(", ")}: usá el formato 20:00 (si son varios, separalos con coma).` }, 400);
+    }
+    const optT = (sentOpt ? meta0.options : Array.isArray(meta0.options) ? meta0.options : []).flatMap((o) => (Array.isArray(o) && o[4] ? String(o[4]).split(/,\s*/) : []));
+    const allTimes = [...new Set([...times.map((t) => t[0]), ...optT])];
     if (sentTimes && b.times.length && !times.length) return json({ error: "Ningún horario es válido. Usá el formato 09:00 (de 00:00 a 23:59)." }, 400);
     // Reservar por horario: solo si el producto tiene horarios cargados (los que llegan ahora o los que ya tenía). Si el panel no manda el campo, se conserva el valor actual.
     const tb = b.time_booking === undefined ? null : Number(b.time_booking) === 1 ? 1 : 0;
-    if (tb === 1 && !times.length) return json({ error: "Para reservar por horario primero cargá los horarios de salida (sección “Horarios de salida”)." }, 400);
+    if (tb === 1 && !allTimes.length) return json({ error: "Para reservar por horario primero cargá los horarios de salida (sección “Horarios de salida”)." }, 400);
     // Si se apaga el modo por horario y los horarios se borran a la vez, no dejamos un "time_booking" prendido sin horarios: el motor lo ignora, pero el panel lo mostraría tildado.
-    const tbSave = sentTimes && !times.length && tb === null ? 0 : tb;
+    const tbSave = sentTimes && !allTimes.length && tb === null ? 0 : tb;
     const stmts = [env.DB.prepare("UPDATE packages SET booking_enabled=?, min_pax=?, max_pax=?, daily_capacity=?, weekdays=?, min_advance_days=?, horizon_days=?, pay_mode=?, time_booking=COALESCE(?, time_booking) WHERE id=?")
       .bind(c.enabled ? 1 : 0, c.min_pax, c.max_pax, c.capacity, c.weekdays.join(","), c.advance, c.horizon, c.enabled ? c.pay : "whatsapp", tbSave, pid)];
-    if (sentTimes) stmts.push(env.DB.prepare("UPDATE packages SET meta=? WHERE id=?").bind(JSON.stringify({ ...parseMeta(row.meta), times }), pid));
+    if (sentTimes || sentOpt) stmts.push(env.DB.prepare("UPDATE packages SET meta=? WHERE id=?").bind(JSON.stringify({ ...meta0, ...(sentTimes ? { times } : {}) }), pid));
     // Reservas futuras que quedaron en un horario que ya no existe: siguen valiendo, pero conviene avisar para moverlas desde Reservas.
     let orphans = 0;
     if (sentTimes) {
-      const keep = times.map((t) => t[0]);
+      const keep = allTimes;
       orphans = Number((await env.DB.prepare(`SELECT COUNT(*) n FROM bookings WHERE package_id=? AND day>=? AND time<>'' ${keep.length ? `AND time NOT IN (${keep.map(() => "?").join(",")})` : ""} AND (status='pagada' OR (status='pendiente' AND hold_until > datetime('now')))`).bind(pid, todayBA(), ...keep).first())?.n) || 0;
     }
     await env.DB.batch(stmts); // el paquete existe (se leyó arriba), así que el UPDATE siempre aplica

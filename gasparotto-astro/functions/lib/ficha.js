@@ -72,7 +72,7 @@ export function normMeta(raw) {
     // Oferta relámpago en la portada hasta (hora de Buenos Aires, "AAAA-MM-DDTHH:MM"); vacío = no.
     flash: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(m.flash || "")) ? String(m.flash) : "",
     box: precio(txt(m.box, 40)),
-    options: arr(m.options, 12).map((r) => [txt(r?.[0], 60), precio(txt(r?.[1], 40)), precio(txt(r?.[2], 40)), txt(r?.[3], 140)])
+    options: arr(m.options, 12).map((r) => { const t = [...new Set(String(r?.[4] || "").split(/[,;\s]+/).map(normTime).filter(Boolean))].sort().slice(0, 12).join(", "); return t ? [txt(r?.[0], 60), precio(txt(r?.[1], 40)), precio(txt(r?.[2], 40)), txt(r?.[3], 140), t] : [txt(r?.[0], 60), precio(txt(r?.[1], 40)), precio(txt(r?.[2], 40)), txt(r?.[3], 140)]; })
       .filter((r, i, all) => r[0] && r[1] && /\d/.test(r[1]) && all.findIndex((x) => x[0].toLowerCase() === r[0].toLowerCase()) === i),
   };
   // Itinerario: un renglón por servicio del paquete (los que no vienen en plan quedan en el día 1). Los servicios se ordenan como el itinerario.
@@ -125,7 +125,7 @@ export function optionsOf(p, parse = (s) => { const m = String(s || "").match(/\
   const o = parseMeta(p.meta).options;
   return (Array.isArray(o) ? o : []).filter((r) => Array.isArray(r) && r[0] && r[1]).slice(0, 12).map((r, i) => {
     const n = parse(r[1]);
-    return { i, name: String(r[0]), price: String(r[1]), old: String(r[2] || ""), note: String(r[3] || ""), cents: Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0 };
+    return { i, name: String(r[0]), price: String(r[1]), old: String(r[2] || ""), note: String(r[3] || ""), times: String(r[4] || "").split(/[,;\s]+/).filter((t) => /^\d{2}:\d{2}$/.test(t)), cents: Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0 };
   });
 }
 // La opción más barata con precio numérico (la que se muestra como "a partir de"); si ninguna es numérica, la primera.
@@ -133,7 +133,20 @@ export function cheapestOption(opts) {
   const num = opts.filter((o) => o.cents > 0);
   return num.length ? num.reduce((a, b) => (b.cents < a.cents ? b : a)) : opts[0] || null;
 }
-export const timesOf = (p) => (parseMeta(p.meta).times || []).filter((r) => Array.isArray(r) && /^\d{2}:\d{2}$/.test(r[0]));
+// Horarios del producto: los de la ficha más los propios de cada opción (para el cupo por horario hacen falta todos).
+const baseTimes = (p) => (parseMeta(p.meta).times || []).filter((r) => Array.isArray(r) && /^\d{2}:\d{2}$/.test(r[0]));
+export const timesOf = (p) => {
+  const base = baseTimes(p), have = new Set(base.map((r) => r[0]));
+  const extra = optionsOf(p).flatMap((o) => o.times).filter((t) => !have.has(t) && have.add(t)).map((t) => [t, ""]);
+  return extra.length ? [...base, ...extra].sort((a, b) => a[0].localeCompare(b[0])) : base;
+};
+// Horarios de una opción: los suyos si los tiene; si no, los de la ficha (o todos, si la ficha no tiene propios).
+export function optionTimes(p, name = "") {
+  const o = name ? optionsOf(p).find((x) => x.name.toLowerCase() === String(name).trim().toLowerCase()) : null;
+  if (o && o.times.length) return o.times;
+  const b = baseTimes(p).map((r) => r[0]);
+  return b.length ? b : timesOf(p).map((r) => r[0]);
+}
 export function parseMeta(s) { try { return JSON.parse(s || "{}") || {}; } catch { return {}; } }
 
 // Horas aproximadas para filtrar (0 = desconocido, 24 = día completo).

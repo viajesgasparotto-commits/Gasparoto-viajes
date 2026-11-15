@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { onRequest } from "../functions/api/[[path]].js";
 import { onRequest as site } from "../functions/_middleware.js";
-import { normMeta, optionsOf, cheapestOption, precio, qtyTable } from "../functions/lib/ficha.js";
+import { normMeta, optionsOf, cheapestOption, precio, qtyTable, optionTimes, timesOf } from "../functions/lib/ficha.js";
 import { kidsScope, kidsTiersFor, priceTotal, tiersFor } from "../functions/lib/booking.js";
 import { pickFlash, flashTile } from "../functions/lib/flash.js";
 import { restoreExpired } from "../functions/lib/ofertas.js";
@@ -244,5 +244,22 @@ const optQ = { meta: normMeta(JSON.stringify({ options: [["Jantar", "R$ 475", ""
 assert.equal(qtyTable(optQ, "Somente Show").get(3).cents, 80000); assert.equal(qtyTable(optQ, "somente show").get(2).cents, 40000);
 assert.equal(qtyTable(optQ, "Jantar").get(2).cents, 90000, "sin tabla propia usa la general"); assert.equal(qtyTable(optQ, "Jantar").get(3), undefined);
 console.log("✓ precio por cantidad por opción");
+
+// Horario propio de cada opción: Jantar 20:00, Somente Show 22h y 23:30 (se normaliza); la reserva solo acepta el de la opción.
+r = await call("POST", "packages", { title: "Tango Horarios", category: tango.slug, price: "", published: 1, content: "<p>x</p>",
+  meta: JSON.stringify({ options: [["Jantar e Show", "R$ 475", "", "", "20:00"], ["Somente Show", "R$ 210", "", "", "22h, 23.30"]] }) }, admin);
+assert.equal(r.status, 200, JSON.stringify(r.data));
+const th = await one("SELECT * FROM packages WHERE slug='tango-horarios'");
+assert.deepEqual(JSON.parse(th.meta).options.map((o) => o[4]), ["20:00", "22:00, 23:30"]);
+assert.deepEqual(timesOf(th).map((x) => x[0]), ["20:00", "22:00", "23:30"], "el producto tiene todos los horarios (para el cupo)");
+assert.deepEqual(optionTimes(th, "Somente Show"), ["22:00", "23:30"]); assert.deepEqual(optionTimes(th, "Jantar e Show"), ["20:00"]);
+await env.DB.prepare("UPDATE packages SET booking_enabled=1, time_booking=1, min_pax=1, max_pax=8, daily_capacity=10, weekdays='0,1,2,3,4,5,6', min_advance_days=1, horizon_days=60 WHERE id=?").bind(th.id).run();
+const bkh = (option, time, i) => call("POST", "book", { slug: "tango-horarios", date: day, time, option, pax: 2, name: "Hora " + i, phone: "+55 41 98" + i + "11-000" + i });
+r = await bkh("1", "20:00", 1); assert.equal(r.status, 400, "Somente Show no sale a las 20:00"); assert.ok(/22:00/.test(r.data.error), r.data.error);
+r = await bkh("1", "22:00", 2); assert.equal(r.status, 200, JSON.stringify(r.data));
+r = await bkh("0", "20:00", 3); assert.equal(r.status, 200, JSON.stringify(r.data));
+const pgh = await (await site({ request: new Request("https://x.test/paquetes/tango-horarios/"), env, next: async () => new Response("", { status: 404 }), waitUntil: () => {} })).text();
+assert.ok(pgh.includes("data-opt-times=") && pgh.includes("22:00 · 23:30"), "la ficha muestra el horario de cada opción y el formulario lo filtra");
+console.log("✓ horario propio por opción: se guarda, se muestra y la reserva solo acepta el de la opción");
 
 console.log("\nTodo OK");

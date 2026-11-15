@@ -5,7 +5,7 @@
 //      → crea la reserva pendiente (retiene el cupo, igual que la web) y, si el producto cobra con Pix, genera el código copia e cola.
 // asistente.js › pensar() corre las marcas, le devuelve los resultados a la IA y ella le escribe al cliente.
 import { addDays, bookingConfig, createBooking, isDay, kidsPolicy, kidsTiersFor, monthState, priceTotal, tiersFor, todayBA } from "./booking.js";
-import { optionsOf, normTime, qtyTable } from "./ficha.js";
+import { optionsOf, optionTimes, normTime, qtyTable } from "./ficha.js";
 import { isBundle } from "./bundle.js";
 import { canPayPix, createPix } from "./pix.js";
 import { pixManual } from "./pix-manual.js";
@@ -66,7 +66,7 @@ export async function disponibilidad(env, body) {
       if (s.length) lineas.push(`${d.day} (${wd}): ${s.join(", ")}`);
     } else lineas.push(`${d.day} (${wd}): quedan ${d.left}`);
   }
-  const opts = optionsOf(p).map((o) => `${o.name} ${o.price}`).join("; ");
+  const opts = optionsOf(p).map((o) => `${o.name} ${o.price}${cfg.byTime && o.times.length ? ` (solo a las ${o.times.join(" o ")})` : ""}`).join("; ");
   return `DISPONIBILIDAD EN TIEMPO REAL de ${p.title} [slug: ${p.slug}] del ${desde} al ${hasta} · ${cfg.min_pax} a ${cfg.max_pax} personas por reserva${opts ? ` · opciones: ${opts}` : ""}${cfg.byTime ? ` · horarios: ${cfg.times.join(", ")}` : ""}
 ${lineas.length ? lineas.join("\n") : "(sin días con lugar en ese rango: ofrecé consultar otras fechas)"}${cerrados.length ? `\nSin lugar / cerrados: ${cerrados.join(" · ")}` : ""}`;
 }
@@ -107,6 +107,8 @@ export async function reservar(env, body, ctx = {}) {
   if (opts.length && !opt) return { texto: `RESERVA NO CREADA: falta elegir la opción. Opciones de ${p.title}: ${opts.map((o) => `${o.name} (${o.price})`).join("; ")}.` };
   if (opt) datos.option = opt.name;
   if (cfg.byTime && !cfg.times.includes(datos.time)) return { texto: `RESERVA NO CREADA: falta el horario. Horarios de ${p.title}: ${cfg.times.join(", ")}.` };
+  // Cada opción puede tener su propio horario (ej. Jantar 20:00, Somente Show 22:00).
+  if (cfg.byTime && opt && !optionTimes(p, opt.name).includes(datos.time)) return { texto: `RESERVA NO CREADA: ${opt.name} sale a las ${optionTimes(p, opt.name).join(" o ")}, no a las ${datos.time}. Proponele ese horario al cliente.` };
   if (!isDay(datos.day)) return { texto: "RESERVA NO CREADA: falta la fecha (AAAA-MM-DD)." };
   if (datos.pax < cfg.min_pax || datos.pax > cfg.max_pax) return { texto: `RESERVA NO CREADA: se reserva para ${cfg.min_pax} a ${cfg.max_pax} personas.` };
   const unitC = opt ? opt.cents : Math.round((Number(String(p.price).replace(/[^\d,.]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) || 0) * 100);

@@ -77,7 +77,7 @@ async function web(env) {
     const m = parseMeta(p.meta);
     const facts = (Array.isArray(m.facts) ? m.facts : []).filter((f) => Array.isArray(f) && f[0] && f[1]).map((f) => `${f[0]}: ${f[1]}`).join("; ");
     const times = timesOf(p).map((t) => t[0]).join(", ");
-    const opts = optionsOf(p).map((o) => `${o.name}: ${precio(o.price)}${o.old ? ` (antes ${precio(o.old)})` : ""}`).join("; ");
+    const opts = optionsOf(p).map((o) => `${o.name}: ${precio(o.price)}${o.old ? ` (antes ${precio(o.old)})` : ""}${o.times.length ? `, horario ${o.times.join(" o ")}` : ""}`).join("; ");
     const reserva = p.booking_enabled ? (p.pay_mode === "pix" ? "reserva y pago online (Pix) en el enlace" : "reserva online en el enlace") : "se reserva coordinando con el equipo";
     const items = isBundle(p) ? bundleItems(p, all) : null;
     const kids = ninos(p, items);

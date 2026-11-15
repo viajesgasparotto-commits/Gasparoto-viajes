@@ -3,7 +3,7 @@
 // anticipación mínima y horizonte de venta. Excepción por día: cerrado, abierto a la fuerza (aunque el día de semana esté apagado) o con cupo propio.
 // Ocupación: reservas pagadas + reservas pendientes con retención vigente (bookings; las crea createBooking, fase 2).
 import { parsePrice, priceCurrency } from "./seo.js";
-import { normTime, optionsOf, qtyTable, timesOf } from "./ficha.js";
+import { normTime, optionsOf, optionTimes, qtyTable, timesOf } from "./ficha.js";
 const num = (v, d, lo, hi) => { const n = Math.round(Number(v)); return Math.min(hi, Math.max(lo, Number.isFinite(n) ? n : d)); };
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -202,6 +202,8 @@ export async function createBooking(db, env, p, { day, time, pax, adults, childr
     if (!opt) return { code: "option", error: "Elegí una opción.", status: 400 };
     if (!opt.cents) return { code: "option", error: "Esa opción no tiene un precio para reservar en línea.", status: 400 };
   }
+  // Horario propio de la opción (ej. Jantar 20:00, Somente Show 22:00): solo se acepta uno de los suyos.
+  if (cfg.byTime && opt && !optionTimes(p, opt.name).includes(time)) return { code: "time", error: `Para ${opt.name} el horario es ${optionTimes(p, opt.name).join(" o ")}.`, status: 400 };
   // Tramos de niños de la opción elegida (o la tabla del paquete que combina servicios).
   const tiers = tab ? tab.map((pct, a) => ({ from: a, to: a, pct })) : kidsTiersFor(p, opt ? opt.name : "");
   if (children > 0 && tiers.length) {

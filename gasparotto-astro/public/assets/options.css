@@ -87,3 +87,6 @@ body.gvm-on{overflow:hidden}
 .gvm-d:disabled,.gvm-t:disabled{opacity:.45;cursor:not-allowed;text-decoration:line-through}
 .gvm-ok{width:100%;margin-top:1.1rem;justify-content:center}
 .gvm-ok:disabled{opacity:.5;cursor:not-allowed}
+/* Horario propio de la opción (ej. Jantar 20:00 · Somente Show 22:00) */
+.gvo-time{display:block;margin-top:.15rem;font-size:.82rem;font-weight:600;color:#0b5aa6}
+.gvo-tn .gvo-time{font-size:.88rem;color:#0b5aa6}

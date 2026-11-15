@@ -361,9 +361,13 @@
           if (s.left < pax) return L.slotShort.replace("{n}", s.left);
           return s.left <= 5 ? (s.left === 1 ? L.slotLeftOne : L.slotLeft.replace("{n}", s.left)) : "";
         }
+        // Horarios propios de cada opción (data-opt-times: {índice: ["20:00"]}): solo se muestran los de la opción elegida.
+        var optTimes = null; try { optTimes = JSON.parse(f.getAttribute("data-opt-times") || "null"); } catch (e) { optTimes = null; }
+        function allowedTimes() { if (!optTimes) return null; var o = f.querySelector('input[name="option"]:checked'); return o && optTimes[o.value] ? optTimes[o.value] : null; }
         function renderTimes(reveal) {
           if (!timesBox) return;
-          var list = picked ? (slotMap[picked] || []) : [], cur = timeEl.value, pax = curPax();
+          var ok = allowedTimes(), list = (picked ? (slotMap[picked] || []) : []).filter(function (s) { return !ok || ok.indexOf(s.t) >= 0; }), cur = timeEl.value, pax = curPax();
+          if (ok && cur && ok.indexOf(cur) < 0) { timeEl.value = ""; cur = ""; }
           timeList.textContent = "";
           timesBox.hidden = !list.length;
           list.forEach(function (s) {
@@ -438,6 +442,7 @@
         });
         // Cambiar las personas (botones − / +, adultos / niños) re-marca qué horarios alcanzan, sin perder el horario elegido.
         f.addEventListener("gv:pax", function (e) { if (timesBox && !timesBox.hidden && !(e.detail && e.detail.el === timeEl)) renderTimes(); });
+        f.addEventListener("change", function (e) { if (e.target && e.target.name === "option" && timesBox && optTimes) renderTimes(); }); // horario propio de cada opción
         start("", 6);
         return {
           reset: function () { if (BU) itinClear(); picked = ""; pickedNote = ""; dateEl.value = ""; pickTime(""); curMax = PMAX; if (meta) draw(meta); else noteEl.textContent = ""; },

@@ -19,6 +19,8 @@ const head = "<!--" + JSON.stringify(meta) + "-->\n";
 <Fragment set:html={head} /><Hero />
 <Trust />
 <section class="tw tw-section bg-white"><div class="tw-wrap"><Fragment set:html={'<div data-panel="google" hidden></div>'} /></div></section>
+{/* Franja "Nossos clientes": fotos subidas en el panel (aparece con 4 fotos o más). */}
+<Fragment set:html={'<div data-panel="clientes" hidden></div>'} />
 <Intents />
 
 <section id="paquetes" class="tw tw-section bg-white">

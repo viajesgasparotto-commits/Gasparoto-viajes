@@ -99,6 +99,10 @@ export const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS ia_messages_chat ON ia_messages (chat_id, id)`,
   `CREATE INDEX IF NOT EXISTS ia_messages_ext ON ia_messages (ext_id) WHERE ext_id <> ''`,
   `CREATE INDEX IF NOT EXISTS ia_chats_updated ON ia_chats (updated_at)`,
+  // "Nuestros clientes" (página /clientes/ y franja de la portada): fotos de clientes subidas desde el panel. published = 0 → oculta.
+  `CREATE TABLE IF NOT EXISTS client_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, image TEXT NOT NULL, caption TEXT DEFAULT '', published INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE IF NOT EXISTS page_clicks (
     path TEXT NOT NULL, dev TEXT NOT NULL DEFAULT 'd', target TEXT NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (path, dev, target, day))`,
 ];

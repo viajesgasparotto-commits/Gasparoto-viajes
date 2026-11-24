@@ -20,11 +20,14 @@ import { manejarMedios } from "./medios.js";
 import { manejarReservas, manejarReservasPublicas } from "./reservas.js";
 import { sessionKey } from "./sesion.js";
 import { manejarUsuarios } from "./usuarios.js";
+import { manejarClientes } from "./clientes.js";
 
 // Rutas que no piden sesión (cada una valida origen y cupos por su cuenta).
 const PUBLICAS = [manejarConsultasPublicas, manejarEstadisticasPublicas, manejarReservasPublicas, manejarWhatsappPublico];
 // Rutas del panel: ya con sesión válida y base de datos lista. El orden no importa (cada una responde solo a sus /api/<recurso>).
-const PANEL = [manejarUsuarios, manejarEstadisticas, manejarConsultas, manejarReservas, manejarContenido, manejarEquipo, manejarMedios, manejarGoogle, manejarTraducciones, manejarAutores, manejarClaude, manejarIA];
+const PANEL = [manejarUsuarios, manejarEstadisticas, manejarConsultas, manejarReservas, manejarContenido, manejarEquipo, manejarMedios, manejarGoogle, manejarTraducciones, manejarAutores, manejarClaude, manejarIA, manejarClientes];
+// Rol "fotos": solo sube fotos de clientes. Fuera de esto (y de /api/me y /api/logout) no ve ni toca nada del panel.
+const SOLO_FOTOS = new Set(["clientes", "upload"]);
 
 export async function handle(ctx) {
   const { request, env, params } = ctx;
@@ -58,6 +61,10 @@ export async function handle(ctx) {
   const { user } = sesion;
   const propia = await manejarSesion({ ...c, user, PW, secure });
   if (propia) return propia;
+  if (user.role === "fotos") {
+    if (!SOLO_FOTOS.has(res)) return json({ error: "Tu usuario solo puede subir fotos de clientes." }, 403);
+    if (res === "upload" && !/^image\//.test(request.headers.get("content-type") || "")) return json({ error: "Solo podés subir fotos." }, 403);
+  }
   if (!env.DB) return json({ error: "D1 no está conectada (binding DB)" }, 500);
   try { await ensureSchema(env.DB); } catch (e) { console.error("ensureSchema:", e); return json({ error: "No se pudo preparar la base de datos. Revisá los registros de Cloudflare." }, 500); }
 

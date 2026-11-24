@@ -2,7 +2,8 @@
 // Cloudflare Workers limita PBKDF2 a 100000 iteraciones como máximo.
 const enc = new TextEncoder();
 const ITER = 100000;
-export const ROLES = ["admin", "editor"];
+// fotos = solo sube fotos de clientes (sección "Nuestros clientes"); no ve nada más del panel.
+export const ROLES = ["admin", "editor", "fotos"];
 export const MIN_PASSWORD = 8;
 
 const toHex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");

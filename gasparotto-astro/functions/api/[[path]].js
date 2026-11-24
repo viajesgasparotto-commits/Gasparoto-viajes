@@ -5,8 +5,8 @@ import { logActivity } from "../lib/activity.js";
 import { purge } from "../lib/edge.js";
 
 // ---------- Historial: cada cambio hecho desde el panel queda registrado con quién lo hizo ----------
-const LOG_ENT = { posts: "entrada", packages: "paquete", categories: "categoría", subcategories: "subcategoría", prices: "precio", leads: "consulta", bookings: "reserva", slots: "disponibilidad", "booking-config": "disponibilidad", users: "usuario", tasks: "actividad", favorites: "favoritos", "claude-keys": "conexión de Claude" };
-const PURGE = new Set(["posts", "packages", "categories", "subcategories", "prices", "favorites", "booking-config"]);
+const LOG_ENT = { posts: "entrada", packages: "paquete", categories: "categoría", subcategories: "subcategoría", prices: "precio", leads: "consulta", bookings: "reserva", slots: "disponibilidad", "booking-config": "disponibilidad", users: "usuario", tasks: "actividad", favorites: "favoritos", "claude-keys": "conexión de Claude", clientes: "foto de cliente" };
+const PURGE = new Set(["posts", "packages", "categories", "subcategories", "prices", "favorites", "booking-config", "clientes"]);
 export async function onRequest(ctx) {
   const m = ctx.request.method, [res0, id0] = ctx.params.path || [];
   const loggable = !!LOG_ENT[res0] && m !== "GET" && m !== "HEAD";
@@ -16,7 +16,7 @@ export async function onRequest(ctx) {
   // Al guardar contenido se limpian las lecturas guardadas y las páginas afectadas (en los demás datacenters vence sola en 60 s).
   if (PURGE.has(res0) && m !== "GET" && m !== "HEAD" && r.status < 300) {
     const j = await r.clone().json().catch(() => ({}));
-    await purge(new URL(ctx.request.url).origin, ["/blog/", "/paquetes/", "/servicios/", ...(typeof j?.url === "string" ? [j.url] : [])]);
+    await purge(new URL(ctx.request.url).origin, ["/blog/", "/paquetes/", "/servicios/", ...(res0 === "clientes" ? ["/"] : []), ...(typeof j?.url === "string" ? [j.url] : [])]);
   }
   if (loggable && ctx.actor && ctx.env.DB && r.status < 300) {
     const a = ctx.act || {};

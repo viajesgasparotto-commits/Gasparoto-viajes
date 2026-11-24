@@ -15,6 +15,7 @@ import { blogText, blogIndexBody, postBody, authorBody, rssXml, catIn, searchBod
 import { peopleFor, authorBySlug } from "./lib/autores.js";
 import { memoize, edgeGet, edgePut, EDGE_RE, purge } from "./lib/edge.js";
 import { restoreExpired } from "./lib/ofertas.js";
+import { CLIENTES_PATH, PHOTOS_SQL, clientesBody, clientesStrip, clientesText } from "./lib/clientes.js";
 import { ensureSchema } from "./lib/schema.js";
 import { PT, ES, EN, splitLang, langPathOf, itemPath, alternateLinks, addToHead, localizeUrls } from "./lib/i18n.js";
 import { itemForLang, liveTranslations } from "./lib/translations.js";
@@ -498,6 +499,11 @@ async function sitemap(env) {
         const path = catPath(c.kind, c);
         if (c.listing) bump(path, d); else dynamic.push({ path, lastmod: d });
       }
+      // Nossos clientes: entra al sitemap cuando hay al menos una foto publicada
+      try {
+        const cl = await env.DB.prepare("SELECT MAX(created_at) lm FROM client_photos WHERE published=1").first();
+        if (cl && cl.lm) dynamic.push({ path: CLIENTES_PATH, lastmod: ymd(cl.lm) });
+      } catch { /* tabla todavía no creada */ }
       // Autores con perfil público y al menos un artículo publicado
       try {
         const au = (await env.DB.prepare(`SELECT u.slug, (SELECT MAX(COALESCE(NULLIF(p.updated_at,''), p.created_at)) FROM posts p WHERE p.author_id=u.id AND p.published=1 AND ${LIVE.replace(/publish_date/g, "p.publish_date")}) lm FROM users u WHERE u.active=1 AND u.profile_public=1 AND u.slug<>''`).all()).results;
@@ -650,12 +656,21 @@ async function handlePt(ctx) {
     const v = cur || (Math.random() < 0.5 ? "a" : "b");
     ctx.ab = v;
     const blogHead = `<div data-fx="up" class="mb-12 flex flex-wrap items-end justify-between gap-x-8 gap-y-3"><h2 class="m-0 font-display text-h2 font-semibold text-ink">${esc(tr(env).blog)}</h2><a href="/blog/" class="tw-link font-semibold text-primary">${esc(L.lang === "es" ? "Ver todo el blog" : "Ver todo o blog")}</a></div>`;
-    const r = await staticPage(env, url, "home", 200, (b) => putPanel(putPanel(b, "featured", pk.length ? pkgSection(pk, "", wa, L, "") : `<p class="m-0 text-lg text-mute">${esc(L.empty)}</p>`), "posts", ps.length ? `<section class="tw tw-section bg-white"><div class="tw-wrap">${blogHead}<div class="${CARD_GRID}">${ps.map((p) => postCardHtml(p, catMap.get(p.category))).join("")}</div></div></section>` : "")
+    // Fotos de clientes (franja "Nossos clientes"): también se guardan 60 s; al subir o borrar una foto se limpia la caché.
+    const fotos = await memoize("clientes", 60e3, () => rows(env, PHOTOS_SQL + " LIMIT 8"), () => true);
+    const r = await staticPage(env, url, "home", 200, (b) => putPanel(putPanel(putPanel(b, "clientes", clientesStrip(fotos, L.lang)), "featured", pk.length ? pkgSection(pk, "", wa, L, "") : `<p class="m-0 text-lg text-mute">${esc(L.empty)}</p>`), "posts", ps.length ? `<section class="tw tw-section bg-white"><div class="tw-wrap">${blogHead}<div class="${CARD_GRID}">${ps.map((p) => postCardHtml(p, catMap.get(p.category))).join("")}</div></div></section>` : "")
       .replaceAll("{{AB_CTA}}", AB_CTA[v]).replaceAll("{{AB}}", v));
     if (!r) return next();
     if (!cur) r.headers.append("set-cookie", `gv_ab=${v}; Path=/; Max-Age=2592000; SameSite=Lax`);
     r.headers.append("vary", "Cookie");
     return r;
+  }
+  // Nossos clientes: galería de fotos de clientes (se cargan en el panel → Nuestros clientes).
+  if (path === CLIENTES_PATH) {
+    const fotos = await rows(env, PHOTOS_SQL + " LIMIT 600");
+    const t = clientesText(L.lang), canonical = siteUrl(env) + CLIENTES_PATH;
+    const ld = ldScript({ "@context": "https://schema.org", ...breadcrumbLd(env, [{ name: L.lang === "es" ? "Inicio" : "Início", path: "/" }, { name: t.title, path: CLIENTES_PATH }]) });
+    return html(renderPage("", { env, title: pageTitle(t.title), desc: t.desc, body: clientesBody(fotos, L.lang), canonical, ld, ...(fotos.length ? {} : { robots: "noindex,follow" }) }), 200, env);
   }
   // Páginas fijas
   const fixedPage = Object.entries(SITE.pages).find(([k]) => k === path);

@@ -105,8 +105,9 @@ async function login(msg){
   await T.step('Comprobando base D1 y almacenamiento R2',async()=>me?`D1 ${me.db?'conectada':'sin conectar'} · R2 ${me.r2?'activo':'desactivado'}`:'requiere autenticación',0);
   if(!c1.ok){T.line('No se pudo iniciar. Revisá la configuración y recargá la página.','ko');booting=false;return}
   const enter=async m=>{T.line('<span class="ok">✓ Sesión iniciada.</span> Abriendo panel…');
-    await T.step('Cargando entradas y paquetes (D1)',async()=>{try{const[x,y]=await Promise.all([load('posts',true),load('packages',true)]);return `${x.length} entradas · ${y.length} paquetes`}catch{return 'sin datos todavía'}},0);
-    ME=m;applyBrand(m);if(m.brand)BR={brand:m.brand,logo:m.logo||BR.logo};try{await refreshCats()}catch{}booting=false;await sleep(250);
+    const fo=!!(m.user&&m.user.role==='fotos'); // rol "fotos": solo ve "Nuestros clientes"
+    if(!fo)await T.step('Cargando entradas y paquetes (D1)',async()=>{try{const[x,y]=await Promise.all([load('posts',true),load('packages',true)]);return `${x.length} entradas · ${y.length} paquetes`}catch{return 'sin datos todavía'}},0);
+    ME=m;applyBrand(m);if(m.brand)BR={brand:m.brand,logo:m.logo||BR.logo};if(fo)tab='clientes';else try{await refreshCats()}catch{}booting=false;await sleep(250);
     try{shell()}catch(e){T.line('Error al abrir el panel: '+esc(e.message),'ko')}};
   if(me)return enter(me);
   const f=$('#lf'),em=$('#em'),pw=$('#pw'),go=$('#go'),le=$('#le');
@@ -129,13 +130,15 @@ async function login(msg){
     if(!r2.ok)return fail(r2.out);
     enter(m)}}
 
-const NAV=[['Operación',[['home','Inicio','home'],['leads','Consultas','inbox'],['ia','Asistente IA','chat'],['bookings','Reservas','receipt'],['avail','Disponibilidad','calendar'],['tasks','Actividades','check']]],['Contenido',[['posts','Blog','pen'],['packages','Paquetes y servicios','box'],['translations','Traducciones','globe'],['favs','Favoritos de la portada','star'],['categories','Categorías','tag'],['prices','Precios','dollar'],['claude','Conectar Claude','spark']]],['Crecimiento',[['stats','Medición','chart'],['heat','Mapa de calor','eye'],['seo','SEO','search']]],['Cuenta',[['profile','Mi perfil','users']]],['Equipo',[['team','Rendimiento','chart'],['actrep','Reporte de actividades','check'],['history','Historial','clock'],['users','Usuarios','users']]]];
+const NAV=[['Operación',[['home','Inicio','home'],['leads','Consultas','inbox'],['ia','Asistente IA','chat'],['bookings','Reservas','receipt'],['avail','Disponibilidad','calendar'],['tasks','Actividades','check']]],['Contenido',[['posts','Blog','pen'],['packages','Paquetes y servicios','box'],['translations','Traducciones','globe'],['favs','Favoritos de la portada','star'],['categories','Categorías','tag'],['prices','Precios','dollar'],['clientes','Nuestros clientes','image'],['claude','Conectar Claude','spark']]],['Crecimiento',[['stats','Medición','chart'],['heat','Mapa de calor','eye'],['seo','SEO','search']]],['Cuenta',[['profile','Mi perfil','users']]],['Equipo',[['team','Rendimiento','chart'],['actrep','Reporte de actividades','check'],['history','Historial','clock'],['users','Usuarios','users']]]];
 const isAdmin=()=>!ME.user||ME.user.role==='admin';
+const isFotos=()=>!!(ME.user&&ME.user.role==='fotos');
+const ROLE_LBL={admin:'Administrador',editor:'Editor',fotos:'Fotos de clientes'};
 const MENU_SVG='<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
 const navBadge=k=>k==='seo'?'<span class="n" id="nb" hidden></span>':k==='bookings'?'<span class="n" id="nr" hidden></span>':k==='leads'?'<span class="n" id="nl" hidden></span>':k==='tasks'?'<span class="n" id="nt" hidden></span>':k==='ia'?'<span class="n" id="ni" hidden></span>':'';
 // Enlace directo a una nota o paquete: #posts/123 abre su formulario (lo usa el conector de Claude al terminar).
 {const m=tab.match(/^(posts|packages)\/(\d+)$/);if(m){tab=m[1];OPEN_ID=Number(m[2])}}
-const visibleNav=()=>NAV.filter(([sec])=>sec!=='Equipo'||isAdmin()).map(([sec,it])=>[sec,it.filter(([k])=>k!=='claude'||isAdmin())]);
+const visibleNav=()=>isFotos()?[['Clientes',[['clientes','Nuestros clientes','image']]]]:NAV.filter(([sec])=>sec!=='Equipo'||isAdmin()).map(([sec,it])=>[sec,it.filter(([k])=>k!=='claude'||isAdmin())]);
 const initials=n=>String(n||'').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase()||'•';
 
 // Búsqueda rápida de secciones (Ctrl/⌘ + K)
@@ -161,8 +164,9 @@ function cmdk(){
 if(!window._cmdkBound){window._cmdkBound=1;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();cmdk()}})}
 
 function shell(skip){
+  if(isFotos())tab='clientes';
   const sec=(NAV.find(([,it])=>it.some(([k])=>k===tab))||['',[]])[0],label=(NAV.flatMap(([,it])=>it).find(([k])=>k===tab)||[0,''])[1];
-  const u=ME.user||{},who=u.name||u.email||'Clave general',role=!ME.user?'Clave general':u.role==='admin'?'Administrador':'Editor';
+  const u=ME.user||{},who=u.name||u.email||'Clave general',role=!ME.user?'Clave general':ROLE_LBL[u.role]||'Editor';
   app.innerHTML=`<div class="app2" id="app2">
     <aside class="rail" aria-label="Navegación">
       <div class="brand"><img src="${esc(BR.logo)}" alt=""><div><b>${esc(BR.brand)}</b><small>Panel de administración</small></div></div>
@@ -184,13 +188,14 @@ function shell(skip){
       <div class="content"><div id="warn"></div><div id="v"></div></div>
     </div>
   </div>`;
-  $('#warn').innerHTML=[!ME.db&&'Falta conectar la base D1 (binding DB).',!ME.r2&&'Subida de imágenes desactivada (falta bucket R2 IMAGES): pegá URLs https de imagen.',!ME.whatsapp&&'Falta WHATSAPP_NUMBER: los botones Reservar de los paquetes nuevos irán a /reservas.',...(ME.security||[])].filter(Boolean).map(t=>`<div class="notice">${ic('alert')}<span>${t}</span></div>`).join('');
+  $('#warn').innerHTML=isFotos()?'':[!ME.db&&'Falta conectar la base D1 (binding DB).',!ME.r2&&'Subida de imágenes desactivada (falta bucket R2 IMAGES): pegá URLs https de imagen.',!ME.whatsapp&&'Falta WHATSAPP_NUMBER: los botones Reservar de los paquetes nuevos irán a /reservas.',...(ME.security||[])].filter(Boolean).map(t=>`<div class="notice">${ic('alert')}<span>${t}</span></div>`).join('');
   $$('[data-t]').forEach(b=>b.onclick=async()=>{if(!(await leave()))return;dirty=false;tab=b.dataset.t;location.hash=tab;$('#app2').classList.remove('open');shell()});
   $('#menu').onclick=()=>$('#app2').classList.toggle('open');
   $('#cmdk-b').onclick=cmdk;
   paintBell();$('#bell').onclick=e=>{e.stopPropagation();const o=$('#bellp').hidden;$('#bellp').hidden=!o;$('#bell').setAttribute('aria-expanded',o)};
   $('#out').onclick=async()=>{await api('logout','POST');DATA={posts:null,packages:null,categories:null};login()};
-  if(!skip)({home,leads,bookings,stats,posts:list,packages:list,translations,profile,avail,categories:cats,prices,seo,users,team,history,tasks,actrep,favs,heat,claude,ia})[tab]?.();
+  if(!skip)({home,leads,bookings,stats,posts:list,packages:list,translations,profile,avail,categories:cats,prices,seo,users,team,history,tasks,actrep,favs,heat,claude,ia,clientes})[tab]?.();
+  if(isFotos()){$('#cmdk-b').hidden=true;$('.bwrap').hidden=true;return}
   loadAlerts();
   refreshTaskBadge();
   fetch('/api/ia?count=1',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{const e=$('#ni');if(e&&d&&d.pending){e.textContent=d.pending;e.hidden=false}}).catch(()=>{});
@@ -1223,7 +1228,7 @@ async function seo(){const v=$('#v');const [po,pk]=await Promise.all([load('post
 async function users(){const v=$('#v');v.innerHTML='<div class="sk"></div><div class="sk"></div>';
   if(!isAdmin()){v.innerHTML=`<div class="notice">${ic('alert')}<span>Solo los administradores pueden gestionar usuarios.</span></div>`;return}
   let d;try{d=await api('users')}catch{return}
-  const ROLES=[['editor','Editor · usa el panel, sin gestionar usuarios'],['admin','Administrador · todo, incluye usuarios']],RL={admin:'Administrador',editor:'Editor'};
+  const ROLES=[['editor','Editor · usa el panel, sin gestionar usuarios'],['admin','Administrador · todo, incluye usuarios'],['fotos','Fotos de clientes · solo sube fotos a "Nuestros clientes"']],RL=ROLE_LBL;
   const L=d.users,me=d.self;
   v.innerHTML=`<div class="pagehead"><div><h2>Usuarios</h2><p class="muted">Cada persona del equipo entra con su email y su clave. La clave general del sitio sigue funcionando como acceso de administrador, sin email.</p></div><button class="p" data-add>${ic('plus')}Nuevo usuario</button></div>
   <section class="card cat-sec">${L.map(u=>`<div class="cat-row"><div class="cat-main"><b>${esc(u.name||u.email)}</b> <span class="tag" style="background:${u.role==='admin'?'var(--gv-primary,#0066a9)':'#6b7390'}">${RL[u.role]||esc(u.role)}</span>${u.active?'':' <span class="chip warn">desactivado</span>'}${u.id===me?' <span class="chip ok">vos</span>':''}<small class="muted">${esc(u.email)} · ${u.last_login?'último ingreso '+esc(ago(u.last_login)):'todavía no ingresó'}</small></div>
@@ -1260,7 +1265,7 @@ async function team(days=30){const v=$('#v');v.innerHTML=SK;
   const P=[...d.people].sort((a,b)=>b.total-a.total),max=Math.max(1,...P.map(p=>p.total)),tot=k=>P.reduce((s,p)=>s+(p[k]||0),0),maxV=Math.max(1,...d.authors.map(a=>a.views));
   v.innerHTML=`<div class="pagehead"><div><h2>Rendimiento del equipo</h2><p class="muted">Qué hizo cada persona en el panel y cómo rinden los artículos que publica. Últimos ${d.days} días.</p></div>${perBar(days)}</div>
   ${statRow([[num(tot('total')),'movimientos'],[num(tot('posts_pub')+tot('pk_pub')),'publicaciones'],[num(tot('posts_edit')+tot('pk_edit')),'actualizaciones'],[P.filter(p=>p.total).length,'personas activas']])}
-  <section class="card"><h3>Productividad por persona</h3>${P.length?`<div style="overflow-x:auto"><table class="tb2"><thead><tr><th>Persona</th><th>Publicó entradas</th><th>Publicó paquetes</th><th>Actualizó</th><th>Movimientos</th><th>Días activos</th><th>Actividades</th><th>Último movimiento</th></tr></thead><tbody>${P.map(p=>`<tr><td><b>${esc(p.name||p.email)}</b>${p.active===0?' <span class="chip warn">desactivado</span>':''}<br><small class="muted">${p.role==='admin'?'Administrador':'Editor'}</small></td><td>${p.posts_pub}</td><td>${p.pk_pub}</td><td>${p.posts_edit+p.pk_edit}</td><td>${meter(p.total,max)} <b>${p.total}</b></td><td>${p.active_days}</td><td>${p.tasks.total?`${p.tasks.done} de ${p.tasks.total}`:'—'}</td><td>${p.last_at?esc(when(p.last_at)):'—'}</td></tr>`).join('')}</tbody></table></div>`:emptyBox('Todavía no hay usuarios.','Creá usuarios en Equipo → Usuarios.')}
+  <section class="card"><h3>Productividad por persona</h3>${P.length?`<div style="overflow-x:auto"><table class="tb2"><thead><tr><th>Persona</th><th>Publicó entradas</th><th>Publicó paquetes</th><th>Actualizó</th><th>Movimientos</th><th>Días activos</th><th>Actividades</th><th>Último movimiento</th></tr></thead><tbody>${P.map(p=>`<tr><td><b>${esc(p.name||p.email)}</b>${p.active===0?' <span class="chip warn">desactivado</span>':''}<br><small class="muted">${ROLE_LBL[p.role]||'Editor'}</small></td><td>${p.posts_pub}</td><td>${p.pk_pub}</td><td>${p.posts_edit+p.pk_edit}</td><td>${meter(p.total,max)} <b>${p.total}</b></td><td>${p.active_days}</td><td>${p.tasks.total?`${p.tasks.done} de ${p.tasks.total}`:'—'}</td><td>${p.last_at?esc(when(p.last_at)):'—'}</td></tr>`).join('')}</tbody></table></div>`:emptyBox('Todavía no hay usuarios.','Creá usuarios en Equipo → Usuarios.')}
   <p class="muted" style="margin:8px 0 0"><small>"Publicó" cuenta cada vez que una entrada o paquete pasó a estar publicado; "Actualizó", cada edición posterior. Se empieza a contar desde que se usa esta versión.</small></p></section>
   <section class="card"><h3>Rendimiento de blogs por autor</h3>${d.authors.length?`<div style="overflow-x:auto"><table class="tb2"><thead><tr><th>Autor</th><th>Entradas publicadas</th><th>Visitas</th><th>Promedio por entrada</th><th>Clics WhatsApp</th><th>Su mejor entrada</th></tr></thead><tbody>${d.authors.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td>${a.posts}</td><td>${meter(a.views,maxV)} <b>${num(a.views)}</b></td><td>${num(a.avg)}</td><td>${a.wa}</td><td>${a.best&&a.best.views?`${esc(a.best.title)} <small class="muted">(${num(a.best.views)})</small>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:emptyBox('No hay entradas publicadas.')}
   <p class="muted" style="margin:8px 0 0"><small>Las entradas anteriores a esta versión figuran como “Sin autor asignado”: cada entrada nueva o editada de ahora en más queda a nombre de quien la crea.</small></p></section>
@@ -1473,6 +1478,48 @@ async function iaChat(id){const box=$('#ia-det');if(!box)return;let d;try{d=awai
   if($('#ia-at'))$('#ia-at').onclick=()=>put({atendida:true},'Listo');
   $('#ia-pz').onclick=()=>put({paused:!c.paused},c.paused?'La IA vuelve a responder en esta charla':'IA detenida en esta charla');
   $('#ia-r').onsubmit=async e=>{e.preventDefault();const t=$('#ia-rt').value.trim();if(!t)return;try{await api('ia/'+id,'POST',{text:t});toast('Enviado');ia()}catch{}}}
+/* ---------- Nuestros clientes: fotos para /clientes/ y la franja de la portada ---------- */
+// La usan todos los usuarios; el rol "fotos" solo ve esta sección y solo cambia o borra lo que subió.
+async function clientes(){const v=$('#v');v.innerHTML=SK;let d;try{d=await api('clientes')}catch{return}
+  const P=d.photos||[],pub=P.filter(p=>p.published).length,mine=p=>d.staff||p.created_by===d.me;
+  v.innerHTML=`<header class="pagehead"><div><h2>Nuestros clientes</h2><p class="muted">Las fotos se ven en la página <a href="/clientes/" target="_blank" rel="noopener">Nossos clientes</a> y, desde 4 fotos, también en la portada.</p></div></header>
+  <section class="card"><h3>Subir fotos</h3>
+    <div class="cl-drop" id="cl-drop"><input type="file" id="cl-f" accept="image/jpeg,image/png,image/webp" multiple hidden>
+      <button type="button" class="p" id="cl-pick">${ic('plus')}Elegir fotos</button><span class="muted">o arrastralas acá. Podés subir varias a la vez (JPG, PNG o WEBP).</span></div>
+    <label for="cl-cap" style="margin-top:12px">Texto que acompaña a las fotos <small>(opcional, en portugués)</small></label>
+    <input id="cl-cap" maxlength="140" placeholder="Ej: Família Souza no City Tour">
+    <p class="muted cl-note">${ic('alert')}<span>Subí solo fotos de clientes que te dieron permiso para publicarlas.</span></p>
+    <div id="cl-prog" aria-live="polite"></div>
+  </section>
+  <section class="card"><div class="cardhead"><h3>Fotos subidas</h3><span class="chip neutral">${pub} visible${pub===1?'':'s'}${P.length>pub?` · ${P.length-pub} oculta${P.length-pub===1?'':'s'}`:''}</span></div>
+    ${P.length?`<div class="cl-grid">${P.map(p=>`<figure class="cl-it${p.published?'':' off'}" data-id="${p.id}"><img src="${esc(p.image)}" alt="" loading="lazy">
+      ${p.published?'':'<span class="chip warn cl-st">Oculta</span>'}
+      <figcaption>${mine(p)?`<input data-cap="${p.id}" value="${esc(p.caption||'')}" maxlength="140" placeholder="Agregar texto" aria-label="Texto de la foto">`:`<span>${esc(p.caption||'')}</span>`}
+      <small class="muted">${esc(p.by_name||'Clave general')} · ${esc(ago(p.created_at))}</small>
+      ${mine(p)?`<span class="cl-act">${d.staff?`<button type="button" class="s" data-vis="${p.id}" data-on="${p.published?0:1}">${p.published?'Ocultar':'Mostrar'}</button>`:''}<button type="button" class="s d" data-del="${p.id}" aria-label="Borrar foto">${ic('x')}Borrar</button></span>`:''}</figcaption></figure>`).join('')}</div>`:emptyBox('Todavía no hay fotos.','Subí la primera con el botón de arriba.')}
+  </section>`;
+  const f=$('#cl-f'),drop=$('#cl-drop'),prog=$('#cl-prog');
+  const send=async files=>{files=[...files].filter(x=>x&&x.size);if(!files.length)return;
+    const cap=$('#cl-cap').value.trim();let ok=0;const bad=[];
+    for(const[i,file]of files.entries()){prog.innerHTML=`<p class="muted">Subiendo ${i+1} de ${files.length}…</p>`;
+      try{if(!/^image\/(jpeg|png|webp)$/.test(file.type))throw{error:'formato no permitido (usá JPG, PNG o WEBP)'};
+        const img=await compress(file);
+        const r=await fetch('/api/upload',{method:'POST',headers:{'content-type':img.type||file.type},body:img}),u=await r.json().catch(()=>({}));
+        if(!u.url)throw u;
+        await api('clientes','POST',{image:u.url,caption:cap});ok++}
+      catch(e){bad.push(`${file.name}: ${(e&&e.error)||'no se pudo subir'}`)}}
+    prog.innerHTML=bad.length?`<div class="notice">${ic('alert')}<span>${bad.map(esc).join('<br>')}</span></div>`:'';
+    if(ok)toast(ok===1?'Foto subida':`${ok} fotos subidas`);
+    if(ok){const keep=prog.innerHTML;await clientes();$('#cl-prog').innerHTML=keep}};
+  $('#cl-pick').onclick=()=>f.click();
+  f.onchange=()=>send(f.files);
+  drop.ondragover=e=>{e.preventDefault();drop.classList.add('on')};
+  drop.ondragleave=()=>drop.classList.remove('on');
+  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('on');send(e.dataTransfer.files)};
+  $$('[data-cap]',v).forEach(i=>i.onchange=async()=>{try{await api('clientes/'+i.dataset.cap,'PUT',{caption:i.value.trim()});toast('Texto guardado')}catch{}});
+  $$('[data-vis]',v).forEach(b=>b.onclick=async()=>{try{await api('clientes/'+b.dataset.vis,'PUT',{published:b.dataset.on==='1'});toast(b.dataset.on==='1'?'La foto se ve otra vez en el sitio':'Foto oculta: ya no se ve en el sitio');clientes()}catch{}});
+  $$('[data-del]',v).forEach(b=>b.onclick=async()=>{if(!(await confirmBox('Borrar foto','La foto deja de verse en el sitio. No se puede deshacer.','Borrar',true)))return;try{await api('clientes/'+b.dataset.del,'DELETE');toast('Foto borrada');clientes()}catch{}});
+}
 async function favs(){const v=$('#v');v.innerHTML=SK;let d;try{d=await api('favorites')}catch{return}
   FV={all:d.packages,posts:d.posts,slots:d.home_slots,pk:d.packages.filter(p=>p.featured).map(p=>p.id),po:d.posts.filter(p=>p.featured).map(p=>p.id),q:''};dirty=false;paintFavs()}
 function paintFavs(){const v=$('#v'),by=new Map(FV.all.map(p=>[p.id,p])),sel=FV.pk.map(i=>by.get(i)).filter(Boolean),q=FV.q.toLowerCase();

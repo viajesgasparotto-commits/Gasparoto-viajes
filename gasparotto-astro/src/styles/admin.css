@@ -1424,3 +1424,17 @@ button.av-d i{width:8px;height:8px;top:8px;right:8px}
 .ia-cx summary{cursor:pointer}
 .ia-cx[open] summary{margin-bottom:8px}
 @media(max-width:900px){.ia-inbox{grid-template-columns:minmax(0,1fr)}.ia-list-col{border-right:0;border-bottom:1px solid var(--pl-line)}.ia-list-col .ia-list{max-height:320px}}
+
+/* Nuestros clientes (fotos para /clientes/) */
+.cl-drop{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:18px;border:2px dashed #cfd4e2;border-radius:12px;background:#f7f8fc}
+.cl-drop.on{border-color:var(--gv-primary,#0066a9);background:#eef5fb}
+.cl-note{display:flex;gap:8px;align-items:flex-start;margin:12px 0 0;font-size:13px}.cl-note .ic{flex:none;width:16px;height:16px;margin-top:1px}
+.cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.cl-it{position:relative;margin:0;display:flex;flex-direction:column;border:1px solid #e8ebf4;border-radius:12px;overflow:hidden;background:#fff}
+.cl-it img{display:block;width:100%;aspect-ratio:1;object-fit:cover;background:#f2f4f8}
+.cl-it.off img{opacity:.45}
+.cl-st{position:absolute;top:8px;left:8px}
+.cl-it figcaption{display:flex;flex-direction:column;gap:6px;padding:10px}
+.cl-it figcaption input{width:100%;font-size:13px;padding:6px 8px}
+.cl-it figcaption small{font-size:12px}
+.cl-act{display:flex;flex-wrap:wrap;gap:6px}.cl-act button{padding:5px 10px;font-size:13px}

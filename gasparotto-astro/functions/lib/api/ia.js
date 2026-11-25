@@ -48,6 +48,8 @@ export async function manejarIA({ request, env, url, res, id, method, user }) {
     const messages = (await db.prepare("SELECT id, role, text, at FROM (SELECT * FROM ia_messages WHERE chat_id=? ORDER BY id DESC LIMIT 200) ORDER BY id").bind(rid).all()).results;
     return json({ chat, messages });
   }
+  // Embudo de ventas de WhatsApp: de las charlas nuevas del período, cuántas siguieron, vieron precio, dieron fecha, reservaron y pagaron.
+  if (method === "GET" && id === "embudo") return json(await embudo(db, Number(url.searchParams.get("dias")) || 30));
   if (method === "POST" && id === "probar") {
     const b = await request.json().catch(() => ({}));
     const messages = (Array.isArray(b.messages) ? b.messages : []).slice(-24).map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", text: String(m.text || "").slice(0, 2000) }));
@@ -102,4 +104,37 @@ export async function manejarIA({ request, env, url, res, id, method, user }) {
     return json({ ok: true });
   }
   return json({ error: "Método no permitido" }, 405);
+}
+
+// ---------- Embudo de ventas ----------
+// Cada charla nueva de WhatsApp del período cae en el paso más avanzado al que llegó:
+// 1 charla · 2 vio el precio · 3 siguió (escribió de nuevo después del precio) · 4 dio fecha o se le pidió el titular
+// · 5 reservó (reserva con su teléfono después de abrir la charla) · 6 pagó. Se separa por origen (anuncio, web, directo).
+const ultimos10 = (t) => String(t || "").replace(/\D/g, "").slice(-10);
+export async function embudo(db, dias = 30) {
+  dias = [7, 14, 30, 90].includes(dias) ? dias : 30;
+  const desde = `-${dias} day`;
+  const chats = (await db.prepare(`SELECT c.id, c.contact, c.origin, c.datos, c.created_at, c.handoff,
+      (SELECT COUNT(*) FROM ia_messages m WHERE m.chat_id=c.id AND m.role='user' AND m.id > (SELECT MIN(p.id) FROM ia_messages p WHERE p.chat_id=c.id AND p.role='assistant' AND p.text LIKE '%R$%')) AS tras,
+      (SELECT COUNT(*) FROM ia_messages m WHERE m.chat_id=c.id AND m.role='agent') AS a,
+      (SELECT COUNT(*) FROM ia_messages m WHERE m.chat_id=c.id AND m.role='assistant' AND m.text LIKE '%R$%') AS precio,
+      (SELECT COUNT(*) FROM ia_messages m WHERE m.chat_id=c.id AND m.role='assistant' AND (m.text LIKE '%titular%' OR m.text LIKE '%sobrenome%' OR m.text LIKE '%apellido%' OR m.text LIKE '%full name%')) AS titular
+    FROM ia_chats c WHERE c.channel='whatsapp' AND c.created_at > datetime('now', ?)`).bind(desde).all()).results || [];
+  const reservas = (await db.prepare("SELECT phone, status, total, created_at FROM bookings WHERE created_at > datetime('now', ?)").bind(`-${dias + 1} day`).all()).results || [];
+  const pasos = ["Charlas nuevas", "Vieron el precio", "Siguieron después del precio", "Dieron fecha", "Reservaron", "Pagaron"];
+  const vacio = () => pasos.map(() => 0);
+  const total = vacio(), porOrigen = {};
+  let esperando = 0;
+  for (const c of chats) {
+    const tel = ultimos10(c.contact);
+    const suyas = tel.length >= 8 ? reservas.filter((r) => ultimos10(r.phone) === tel && r.created_at >= c.created_at.slice(0, 10)) : [];
+    let fechas = false;
+    try { fechas = !!JSON.parse(c.datos || "{}").fechas; } catch { /* datos viejos */ }
+    const nivel = suyas.some((r) => r.status === "pagada") ? 5 : suyas.length ? 4 : fechas || c.titular ? 3 : c.tras ? 2 : c.precio ? 1 : 0;
+    const o = /^Anuncio/i.test(c.origin || "") ? "Anuncios de Meta" : /^Web/i.test(c.origin || "") ? "Web" : "Contacto directo";
+    porOrigen[o] = porOrigen[o] || vacio();
+    for (let i = 0; i <= nivel; i++) { total[i]++; porOrigen[o][i]++; }
+    if (c.handoff && !c.a) esperando++;
+  }
+  return { dias, pasos, total, porOrigen, esperando };
 }

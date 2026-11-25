@@ -1438,3 +1438,16 @@ button.av-d i{width:8px;height:8px;top:8px;right:8px}
 .cl-it figcaption input{width:100%;font-size:13px;padding:6px 8px}
 .cl-it figcaption small{font-size:12px}
 .cl-act{display:flex;flex-wrap:wrap;gap:6px}.cl-act button{padding:5px 10px;font-size:13px}
+
+/* Embudo de ventas (Asistente IA) */
+.emb .cardhead{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.emb-l{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:8px}
+.emb-l li{display:grid;grid-template-columns:minmax(150px,220px) 1fr minmax(150px,auto);gap:12px;align-items:center;font-size:14px}
+.emb-bar{height:14px;border-radius:7px;background:#eef1f7;overflow:hidden}
+.emb-bar i{display:block;height:100%;border-radius:7px;background:var(--gv-primary,#0066a9)}
+.emb-l li.is-worst .emb-lbl{font-weight:700}.emb-l li.is-worst .emb-bar i{background:#d97706}
+.emb-n small{font-size:12px}
+.emb-note{display:flex;gap:8px;align-items:flex-start;margin:14px 0 10px;padding:10px 12px;border-radius:10px;background:#fff7ed;font-size:14px}.emb-note .ic{flex:none;width:16px;height:16px;margin-top:2px;color:#d97706}
+.emb-t th,.emb-t td{font-size:13px;text-align:right;white-space:nowrap}.emb-t th:first-child,.emb-t td:first-child{text-align:left}
+@media (max-width:640px){.emb-l li{grid-template-columns:1fr auto}.emb-bar{grid-column:1/-1;order:3}}
+.emb-wrap{overflow-x:auto}

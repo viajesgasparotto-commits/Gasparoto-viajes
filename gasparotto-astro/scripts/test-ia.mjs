@@ -556,3 +556,14 @@ console.log("✓ seguimiento automático: dos por silencio como mucho (el 2.º c
   console.log("✓ mensajes que quedaron sin respuesta (proceso cortado) se responden en el aviso programado");
 }
 console.log("\nTodo OK: asistente IA");
+
+{
+  // Embudo de ventas: cada charla cae en el paso más avanzado al que llegó
+  const { embudo } = await import("../functions/lib/api/ia.js");
+  const e = await embudo(env.DB, 30);
+  assert.equal(e.pasos.length, 6); assert.ok(e.total[0] > 0, "cuenta charlas");
+  for (let i = 1; i < 6; i++) assert.ok(e.total[i] <= e.total[i - 1], "nunca sube de un paso al siguiente");
+  const sum = Object.values(e.porOrigen).reduce((a, r) => a + r[0], 0); assert.equal(sum, e.total[0], "los orígenes suman el total");
+  const r = await call("GET", "ia/embudo?dias=7", null, { cookie: admin }); assert.equal(r.status, 200); assert.equal(r.data.dias, 7);
+  console.log("✓ embudo de ventas: pasos, origen y período");
+}

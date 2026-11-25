@@ -422,6 +422,14 @@ assert.ok(/MENSAJE DE SEGUIMIENTO/.test(of("generativelanguage")[0].body.system_
 // No se repite en el mismo silencio
 reset(); r = await cron();
 assert.equal(r.data.enviados, 0, "un solo mensaje por silencio");
+// Segundo y último seguimiento del mismo silencio: entre las 16 y las 23 h, con días concretos (y nunca un tercero)
+await env.DB.prepare("UPDATE ia_messages SET at=datetime('now','-18 hours') WHERE chat_id=?").bind(nina).run();
+await env.DB.prepare("UPDATE ia_chats SET followup_at=datetime('now','-14 hours') WHERE id=?").bind(nina).run();
+reset(); aiReply = "Oi Nina! Ainda tem lugar no sábado. Se quiser, me responde *SIM* que eu já reservo.";
+r = await cron();
+assert.equal(r.data.enviados, 1, "segundo seguimiento"); assert.equal((await one("SELECT followups FROM ia_chats WHERE id=?", nina)).followups, 2);
+assert.ok(/SEGUNDO y último/.test(of("generativelanguage")[0].body.system_instruction.parts[0].text));
+reset(); r = await cron(); assert.equal(r.data.enviados, 0, "nunca un tercero en el mismo silencio");
 // Fuera de horario, nada
 env.IA_HORA_PRUEBA = 23; reset(); r = await cron(); assert.ok(/horario/.test(r.data.off));
 env.IA_HORA_PRUEBA = 15;
@@ -430,7 +438,7 @@ await call("PUT", "ia/config", { seguimiento: 0 }, { cookie: admin });
 r = await cron(); assert.ok(/apagado/.test(r.data.off));
 await call("PUT", "ia/config", { seguimiento: 3 }, { cookie: admin });
 assert.equal((await call("GET", "ia", null, { cookie: admin })).data.seguimiento, 3);
-console.log("✓ seguimiento automático: una vez por silencio, con botón, nunca si pagó, dentro de 24 h y en horario; se apaga desde el panel");
+console.log("✓ seguimiento automático: dos por silencio como mucho (el 2.º con días concretos), con botón, nunca si pagó, dentro de 24 h y en horario; se apaga desde el panel");
 
 {
   const t = pulir("Olá, **Ana**!\n\n\n# Oferta\nVeja em https://gasparottoviajes.com. Gostou?? [Tango](https://gasparottoviajes.com/paquetes/tango/)");
@@ -531,7 +539,11 @@ console.log("✓ seguimiento automático: una vez por silencio, con botón, nunc
   await inbound(waMsg("Quero falar com alguém", "5511666660000", "Lia"));
   const sent = of("graph.facebook.com").find((c) => c.body.type === "text");
   assert.ok(!/HUMANO|\[/.test(sent.body.text.body), "la marca mal escrita no le llega al cliente");
-  console.log("✓ seguimiento respeta al equipo y puede no escribir; marcas internas nunca se filtran");
+  // Promete que alguien del equipo le escribe pero se olvida la marca: la charla queda marcada igual
+  reset(); aiReply = "Perfeito! Um colega da nossa equipe vai te chamar por aqui para montar o roteiro.";
+  await inbound(waMsg("Quero um roteiro de 15 dias por Ushuaia e Calafate", "5511777770000", "Gabi"));
+  assert.equal((await one("SELECT handoff FROM ia_chats WHERE contact='5511777770000'")).handoff, 1, "promesa de una persona → marcada");
+  console.log("✓ seguimiento respeta al equipo y puede no escribir; marcas internas nunca se filtran; promesa de una persona → marcada");
 }
 {
   // 21) Mensaje sin respuesta porque el proceso se cortó (sin marca de error): el aviso programado lo responde

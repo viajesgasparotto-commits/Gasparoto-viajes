@@ -1495,6 +1495,16 @@ function iaEntrega(list){if(!list.length)return '';const u=list[0],[l,k]=ENT_L[u
   return `<div class="ia-ent ${k==='err'?'is-err':''}"><span>Último mensaje nuestro: <span class="chip ${k==='err'?'warn':k}">${esc(l)}</span> <small class="muted">${esc(ago(u.updated_at||u.created_at))}</small></span>${f.length?`<small>${ic('alert')} ${f.length} mensaje${f.length===1?'':'s'} no le llegaron. Motivo: ${esc(f[0].error||'sin detalle')}</small>`:''}</div>`}
 function iaEntregaRes(e){if(!e)return '';const tot=e.enviado+e.entregado+e.leido+e.fallido;if(!tot)return `<section class="card"><h3>Entrega de WhatsApp</h3><p class="muted">Desde ahora se registra si cada mensaje le llega al cliente. Todavía no hay datos.</p></section>`;
   return `<section class="card"><div class="cardhead"><h3>Entrega de WhatsApp · 7 días</h3></div><p class="ia-entres"><span><b>${e.leido}</b> leídos</span><span><b>${e.entregado}</b> entregados</span><span><b>${e.enviado}</b> sin confirmar</span><span class="${e.fallido?'is-err':''}"><b>${e.fallido}</b> no llegaron</span></p>${e.fallos.length?`<ul class="ia-fallos">${e.fallos.map(x=>`<li><b>${esc(x.name||'+'+x.contact)}</b> <small class="muted">${esc(ago(x.updated_at))}</small><br><small>${esc(x.error||'sin detalle')}</small></li>`).join('')}</ul>`:''}</section>`}
+// Relevo por la app: si Meta no deja que la respuesta de Gaspi salga por la API (p. ej. clientes de Brasil, error 130497),
+// se muestra lo que Gaspi escribió y un botón que abre la charla del cliente en WhatsApp (app o WhatsApp Web de la agencia)
+// con el texto ya escrito: se toca Enviar y listo. Lo que sale desde la app sí le llega.
+function iaRelevo(c,d){const f=(d.entrega||[]).filter(x=>x.status==='fallido');if(!f.length||(d.entrega[0]&&d.entrega[0].status!=='fallido'))return '';
+  const M=d.messages||[];let i=M.length-1;while(i>=0&&M[i].role==='assistant')i--;
+  const txt=M.slice(i+1).filter(m=>m.role==='assistant').map(m=>m.text).join('\n\n').trim();
+  return `<div class="ia-relevo"><p><b>${ic('alert')} Este mensaje no le llegó.</b> ${/130497/.test(f[0].error||'')?'Meta no deja que Gaspi le escriba a números de este país hasta verificar el negocio.':'Motivo: '+esc(f[0].error||'sin detalle')} Mandalo desde la app de WhatsApp de la agencia: ahí sí llega.</p>
+    <textarea id="ia-relt" rows="5" aria-label="Respuesta para enviar desde WhatsApp">${esc(txt)}</textarea>
+    <div class="ia-relb"><a class="btn p" id="ia-rela" target="_blank" rel="noopener" href="https://wa.me/${esc(c.contact)}?text=${encodeURIComponent(txt)}">${ic('chat')}Enviar desde mi WhatsApp</a><button type="button" class="s" id="ia-relc">Copiar texto</button></div>
+    <small class="muted">Se abre la charla de ${esc(c.name||'+'+c.contact)} con el texto escrito: revisalo y tocá Enviar. Gaspi sigue preparando las respuestas siguientes.</small></div>`}
 async function iaChat(id){const box=$('#ia-det');if(!box)return;let d;try{d=await api('ia/'+id)}catch{return}
   const c=d.chat;
   box.innerHTML=`<div class="ia-dh"><div><b>${esc(c.name||'+'+c.contact)}</b> <a href="https://wa.me/${esc(c.contact)}" target="_blank" rel="noopener">+${esc(c.contact)}</a> ${iaFlags(c)}
@@ -1502,10 +1512,13 @@ async function iaChat(id){const box=$('#ia-det');if(!box)return;let d;try{d=awai
     <div class="ia-acts">${c.pay_check?`<button type="button" class="p" id="ia-pv">${ic('check')}Pago verificado</button>`:''}${c.handoff?`<button type="button" class="s" id="ia-at">${ic('check')}Ya la miré</button>`:''}<button type="button" class="${c.paused?'p':'d'}" id="ia-pz">${c.paused?'Reanudar IA':'Detener IA en esta charla'}</button></div></div>
     ${c.pay_check?`<div class="notice">${ic('alert')}<span>El cliente dice que pagó${c.pay_since?' ('+esc(ago(c.pay_since))+')':''}. Verificá el ingreso, marcá la reserva como pagada en <b>Reservas</b> y tocá <b>Pago verificado</b>.</span></div>`:''}
     ${iaEntrega(d.entrega||[])}
+    ${iaRelevo(c,d)}
     <div class="ia-chat tall" id="ia-m">${d.messages.map(iaBub).join('')}</div>
     <form id="ia-r" class="ia-send"><input id="ia-rt" placeholder="Responder como ${esc(BR.brand||'la agencia')}…" autocomplete="off" aria-label="Respuesta"><button class="p">Enviar</button></form>
     <p class="muted ck-note">${c.paused?'La IA está detenida en esta charla: solo responde el equipo.':'La IA sigue respondiendo en esta charla. Para atenderla solo vos, tocá “Detener IA en esta charla”.'} WhatsApp deja escribir texto libre hasta 24 h después del último mensaje del cliente.</p>`;
   const m=$('#ia-m');m.scrollTop=m.scrollHeight;
+  const rt=$('#ia-relt');if(rt){const upd=()=>{$('#ia-rela').href=`https://wa.me/${c.contact}?text=${encodeURIComponent(rt.value)}`};rt.oninput=upd;
+    $('#ia-relc').onclick=async()=>{try{await navigator.clipboard.writeText(rt.value);toast('Texto copiado')}catch{rt.select()}}}
   const put=async(body,msg)=>{try{await api('ia/'+id,'PUT',body);toast(msg);ia()}catch{}};
   if($('#ia-pv'))$('#ia-pv').onclick=()=>put({pay_check:false},'Pago verificado');
   if($('#ia-at'))$('#ia-at').onclick=()=>put({atendida:true},'Listo');

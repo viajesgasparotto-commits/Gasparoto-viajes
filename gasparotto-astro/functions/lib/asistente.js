@@ -757,6 +757,14 @@ export async function respuestaDelCelular(env, { channel, contact, text, extId =
   await ensureSchema(db);
   if (extId && (await one(db, "SELECT 1 x FROM ia_messages WHERE ext_id=?", extId))) return { skip: "repetido" };
   const chat = await chatDe(db, channel, contact, "");
+  // Relevo: el equipo mandó desde la app la respuesta que escribió Gaspi (porque por la API no llegaba). No se duplica en la charla
+  // ni se pausa la IA: Gaspi sigue preparando las respuestas.
+  const norm = (t) => String(t || "").replace(/https?:\/\/\S+/g, "").replace(/[*_~]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const ult = await one(db, "SELECT text FROM ia_messages WHERE chat_id=? AND role='assistant' ORDER BY id DESC LIMIT 1", chat.id);
+  if (ult && norm(text) && norm(ult.text).includes(norm(text).slice(0, 60))) {
+    await run(db, "UPDATE ia_chats SET handoff=0, handoff_reason='' WHERE id=?", chat.id);
+    return { relevo: true, chatId: chat.id };
+  }
   await guardarMensaje(db, chat.id, "agent", text, extId);
   const pausa = (await setting(db, KEY_PAUSA_CELULAR)) === "1";
   await run(db, `UPDATE ia_chats SET handoff=0, handoff_reason=''${pausa ? ", paused=1" : ""} WHERE id=?`, chat.id);

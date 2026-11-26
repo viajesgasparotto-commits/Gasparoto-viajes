@@ -411,7 +411,7 @@ ${phoneField}
   const modal = `<div data-bk class="gvbk"><div class="gvbk-back" data-bk-close></div><div class="gvbk-panel" role="dialog" aria-modal="true" aria-labelledby="gvbk-t"><div class="gvbk-top"><div class="min-w-0"><p class="gvbk-k">${esc(L.formTitle)}</p><p id="gvbk-t" class="gvbk-t">${esc(p.title)}</p></div><button type="button" data-bk-close class="gvbk-x" aria-label="${esc(TR.close)}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="gvbk-body">${lead}</div></div></div>`;
 
   const body = `<div class="tw tw-page bg-white">
-<link rel="stylesheet" href="/assets/ficha.css?v=5">
+<link rel="stylesheet" href="/assets/ficha.css?v=6">
 <div class="tw-wrap">
 ${crumb}
 <header class="gvh">

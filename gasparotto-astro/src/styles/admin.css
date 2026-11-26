@@ -1453,14 +1453,15 @@ button.av-d i{width:8px;height:8px;top:8px;right:8px}
 .emb-wrap{overflow-x:auto}
 
 /* Entrega de WhatsApp (Asistente IA) */
-.ia-ent{display:flex;flex-direction:column;gap:4px;margin:8px 0;padding:8px 12px;border-radius:10px;background:#f4f6fb;font-size:13px}
-.ia-ent.is-err{background:#fdecec}.ia-ent .ic{width:14px;height:14px;vertical-align:-2px;color:#b42318}
+.ia-ent{display:flex;align-items:center;gap:6px;margin:6px 0;font-size:13px}
 .ia-entres{display:flex;flex-wrap:wrap;gap:8px 20px;margin:4px 0 0;font-size:14px}.ia-entres .is-err{color:#b42318}
 .ia-fallos{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px;font-size:13px}.ia-fallos li{padding:8px 10px;border-radius:8px;background:#fdecec}
 
 /* Relevo por la app de WhatsApp (mensajes que Meta no deja salir por la API) */
-.ia-relevo{margin:8px 0;padding:12px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;display:grid;gap:8px;font-size:14px}
-.ia-relevo p{margin:0}.ia-relevo .ic{width:16px;height:16px;vertical-align:-3px;color:#d97706}
-.ia-relevo textarea{width:100%;font:inherit;font-size:14px;padding:8px;border-radius:8px}
-.ia-relb{display:flex;flex-wrap:wrap;gap:8px}.ia-relb .btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
-.ia-relb a.btn{background:#1fa855;color:#fff;border:0;padding:9px 16px;border-radius:6px;font-weight:600;font-size:14px}.ia-relb a.btn:hover{filter:brightness(1.08)}.ia-relb a.btn .ic{color:#fff}
+.ia-relevo{margin:8px 0;padding:12px 14px;border-radius:12px;background:#fffbf5;border:1px solid #f5d0a9;display:grid;gap:10px;font-size:14px;line-height:1.45}
+.ia-relh{display:flex;gap:8px;align-items:flex-start;margin:0}.ia-relh .ic{flex:none;width:18px;height:18px;margin-top:1px;color:#d97706}
+.ia-relevo textarea{width:100%;font:inherit;font-size:14px;line-height:1.45;padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;resize:vertical}
+.ia-relb{display:flex;flex-wrap:wrap;gap:8px}
+.ia-relb a.btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;background:#1fa855;color:#fff;border:0;padding:9px 16px;border-radius:6px;font-weight:600;font-size:14px}
+.ia-relb a.btn:hover{filter:brightness(1.08)}.ia-relb a.btn .ic,.ia-relb button .ic{width:16px;height:16px}.ia-relb a.btn .ic{color:#fff}
+.ia-relb button{display:inline-flex;align-items:center;gap:6px}

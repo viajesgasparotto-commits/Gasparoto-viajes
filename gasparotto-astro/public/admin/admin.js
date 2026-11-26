@@ -1491,20 +1491,23 @@ async function ia(){const v=$('#v');if(!IA_D)v.innerHTML=SK;let d;try{d=await ap
   if(IA_OPEN)iaChat(IA_OPEN)}
 // Entrega de WhatsApp: si los mensajes de verdad le llegan al cliente (Meta avisa enviado → entregado → leído, o fallido con el motivo).
 const ENT_L={enviado:['Enviado','neutral'],entregado:['Entregado','ok'],leido:['Leído','ok'],fallido:['No llegó','err']};
-function iaEntrega(list){if(!list.length)return '';const u=list[0],[l,k]=ENT_L[u.status]||[u.status,'neutral'],f=list.filter(x=>x.status==='fallido');
-  return `<div class="ia-ent ${k==='err'?'is-err':''}"><span>Último mensaje nuestro: <span class="chip ${k==='err'?'warn':k}">${esc(l)}</span> <small class="muted">${esc(ago(u.updated_at||u.created_at))}</small></span>${f.length?`<small>${ic('alert')} ${f.length} mensaje${f.length===1?'':'s'} no le llegaron. Motivo: ${esc(f[0].error||'sin detalle')}</small>`:''}</div>`}
+// Motivo legible: Meta a veces repite el título en el detalle ("X (código N): X").
+const errTxt=e=>String(e||'').replace(/^(.+?)( \(código \d+\))?: \1\.?$/,'$1$2')||'sin detalle';
+const err130497=e=>/130497/.test(e||'');
+// Estado de entrega del último mensaje nuestro (una línea). Si no llegó, el detalle va en el recuadro de relevo (iaRelevo).
+function iaEntrega(list){if(!list.length||list[0].status==='fallido')return '';const u=list[0],[l,k]=ENT_L[u.status]||[u.status,'neutral'];
+  return `<p class="ia-ent"><span>Último mensaje nuestro:</span> <span class="chip ${k}">${esc(l)}</span> <small class="muted">${esc(ago(u.updated_at||u.created_at))}</small></p>`}
 function iaEntregaRes(e){if(!e)return '';const tot=e.enviado+e.entregado+e.leido+e.fallido;if(!tot)return `<section class="card"><h3>Entrega de WhatsApp</h3><p class="muted">Desde ahora se registra si cada mensaje le llega al cliente. Todavía no hay datos.</p></section>`;
-  return `<section class="card"><div class="cardhead"><h3>Entrega de WhatsApp · 7 días</h3></div><p class="ia-entres"><span><b>${e.leido}</b> leídos</span><span><b>${e.entregado}</b> entregados</span><span><b>${e.enviado}</b> sin confirmar</span><span class="${e.fallido?'is-err':''}"><b>${e.fallido}</b> no llegaron</span></p>${e.fallos.length?`<ul class="ia-fallos">${e.fallos.map(x=>`<li><b>${esc(x.name||'+'+x.contact)}</b> <small class="muted">${esc(ago(x.updated_at))}</small><br><small>${esc(x.error||'sin detalle')}</small></li>`).join('')}</ul>`:''}</section>`}
+  return `<section class="card"><div class="cardhead"><h3>Entrega de WhatsApp · 7 días</h3></div><p class="ia-entres"><span><b>${e.leido}</b> leídos</span><span><b>${e.entregado}</b> entregados</span><span><b>${e.enviado}</b> sin confirmar</span><span class="${e.fallido?'is-err':''}"><b>${e.fallido}</b> no llegaron</span></p>${e.fallos.length?`<ul class="ia-fallos">${e.fallos.map(x=>`<li><b>${esc(x.name||'+'+x.contact)}</b> <small class="muted">${esc(ago(x.updated_at))}</small><br><small>${esc(errTxt(x.error))}</small></li>`).join('')}</ul>`:''}</section>`}
 // Relevo por la app: si Meta no deja que la respuesta de Gaspi salga por la API (p. ej. clientes de Brasil, error 130497),
 // se muestra lo que Gaspi escribió y un botón que abre la charla del cliente en WhatsApp (app o WhatsApp Web de la agencia)
 // con el texto ya escrito: se toca Enviar y listo. Lo que sale desde la app sí le llega.
-function iaRelevo(c,d){const f=(d.entrega||[]).filter(x=>x.status==='fallido');if(!f.length||(d.entrega[0]&&d.entrega[0].status!=='fallido'))return '';
-  const M=d.messages||[];let i=M.length-1;while(i>=0&&M[i].role==='assistant')i--;
-  const txt=M.slice(i+1).filter(m=>m.role==='assistant').map(m=>m.text).join('\n\n').trim();
-  return `<div class="ia-relevo"><p><b>${ic('alert')} Este mensaje no le llegó.</b> ${/130497/.test(f[0].error||'')?'Meta no deja que Gaspi le escriba a números de este país hasta verificar el negocio.':'Motivo: '+esc(f[0].error||'sin detalle')} Mandalo desde la app de WhatsApp de la agencia: ahí sí llega.</p>
-    <textarea id="ia-relt" rows="5" aria-label="Respuesta para enviar desde WhatsApp">${esc(txt)}</textarea>
-    <div class="ia-relb"><a class="btn p" id="ia-rela" target="_blank" rel="noopener" href="https://wa.me/${esc(c.contact)}?text=${encodeURIComponent(txt)}">${ic('chat')}Enviar desde mi WhatsApp</a><button type="button" class="s" id="ia-relc">Copiar texto</button></div>
-    <small class="muted">Se abre la charla de ${esc(c.name||'+'+c.contact)} con el texto escrito: revisalo y tocá Enviar. Gaspi sigue preparando las respuestas siguientes.</small></div>`}
+function iaRelevo(c,d){const E=d.entrega||[];if(!E.length||E[0].status!=='fallido')return '';
+  const ult=[...(d.messages||[])].reverse().find(m=>m.role==='assistant'),txt=ult?ult.text.trim():'';
+  const why=err130497(E[0].error)?'Meta todavía no deja que Gaspi le escriba a números de Brasil (falta verificar el negocio).':'Motivo: '+esc(errTxt(E[0].error));
+  return `<div class="ia-relevo"><p class="ia-relh">${ic('alert')}<span><b>El último mensaje de Gaspi no le llegó.</b> ${why} Mandalo desde el WhatsApp de la agencia: así sí llega.</span></p>
+    <textarea id="ia-relt" rows="4" aria-label="Mensaje para enviar desde WhatsApp">${esc(txt)}</textarea>
+    <div class="ia-relb"><a class="btn" id="ia-rela" target="_blank" rel="noopener" href="https://wa.me/${esc(c.contact)}?text=${encodeURIComponent(txt)}">${ic('chat')}Enviar desde mi WhatsApp</a><button type="button" class="s" id="ia-relc">${ic('copy')}Copiar</button></div></div>`}
 async function iaChat(id){const box=$('#ia-det');if(!box)return;let d;try{d=await api('ia/'+id)}catch{return}
   const c=d.chat;
   box.innerHTML=`<div class="ia-dh"><div><b>${esc(c.name||'+'+c.contact)}</b> <a href="https://wa.me/${esc(c.contact)}" target="_blank" rel="noopener">+${esc(c.contact)}</a> ${iaFlags(c)}

@@ -97,7 +97,8 @@ export function estadosDe(body, phoneId = "") {
     if (phoneId && v.metadata?.phone_number_id && String(v.metadata.phone_number_id) !== String(phoneId)) continue;
     for (const st of v.statuses || []) {
       const er = (st.errors || [])[0];
-      const error = er ? `${er.title || er.message || "Error"}${er.code ? ` (código ${er.code})` : ""}${er.error_data?.details ? `: ${er.error_data.details}` : ""}` : "";
+      const t = er ? String(er.title || er.message || "Error") : "", det = String(er?.error_data?.details || "");
+      const error = er ? `${t}${er.code ? ` (código ${er.code})` : ""}${det && det.replace(/\.$/, "") !== t.replace(/\.$/, "") ? `: ${det}` : ""}` : "";
       out.push({ id: String(st.id || ""), to: String(st.recipient_id || ""), status: String(st.status || ""), error });
     }
   }

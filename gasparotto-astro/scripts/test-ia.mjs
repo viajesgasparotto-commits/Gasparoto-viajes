@@ -118,7 +118,7 @@ assert.ok(/empleado/.test(sys) && /No sos guía/.test(sys) && /TU TRABAJO ES VEN
 assert.ok(/ESTE ES TU PRIMER MENSAJE/.test(sys) && /a Ana por su nombre/.test(sys) && /desde 2006/.test(sys), "primer mensaje: presentación institucional con el nombre");
 assert.ok(/portugués de Brasil, español o inglés/.test(sys), "tres idiomas");
 assert.ok(/primera vez en Argentina/.test(sys) && /NO hagas preguntas de descubrimiento/.test(sys) && /NUNCA vuelvas a preguntar/.test(sys), "descubrimiento corto: si ya sabe qué quiere, directo al cierre");
-assert.ok(/Menos descripción, más venta/.test(sys) && /1 a 3 frases/.test(sys), "vende sin describir de más");
+assert.ok(/Menos descripción, más venta/.test(sys) && /POCO TEXTO/.test(sys) && /TUS ARGUMENTOS DE VENTA/.test(sys), "vende sin describir de más, con poco texto y argumentos");
 assert.ok(/ORIGEN del contacto: Contacto directo/.test(sys), "origen del contacto");
 assert.ok(sys.includes("BLOG (notas para recomendar") && sys.includes("https://gasparottoviajes.com/blog/guia-palermo/"), "el blog va en el contexto");
 assert.ok(sys.includes("4.9 estrellas en Google (312 reseñas)") && sys.includes("https://gasparottoviajes.com/google") && sys.includes("Passeio incrível"), "reputación de Google");
@@ -385,7 +385,7 @@ assert.equal(gm.length, 3, "dos intentos y el respaldo");
 assert.ok(gm[2].url.includes("gemini-3.5-flash-lite:"), "usa el modelo de respaldo");
 assert.equal(of("graph.facebook.com").find((c) => c.body.type === "text").body.text.body, "Olá!", "el cliente recibe la respuesta, no el aviso");
 assert.ok(gm[0].body.generationConfig.maxOutputTokens > 2048 && !gm[0].body.generationConfig.thinkingConfig, "Gemini 3: piensa solo, con margen para no cortar la respuesta");
-assert.ok(/SÍ O SÍ tiene que incluir la presentación/.test(gm[0].body.system_instruction.parts[0].text) && /PROHIBIDO usar listas/.test(gm[0].body.system_instruction.parts[0].text));
+assert.ok(/ESTE ES TU PRIMER MENSAJE en esta charla: corto/.test(gm[0].body.system_instruction.parts[0].text) && /PROHIBIDO usar listas/.test(gm[0].body.system_instruction.parts[0].text));
 console.log("✓ alta demanda de Gemini: reintenta y usa el modelo de respaldo; presentación obligatoria y sin listas");
 
 // 14) Si WhatsApp rechaza el botón, el mensaje sale igual como texto con el enlace

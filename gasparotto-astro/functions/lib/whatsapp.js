@@ -62,8 +62,15 @@ export function ecosDe(body, phoneId = "") {
 
 // Registro de entrega (tabla wa_estados): cada envío queda "enviado" con su id de WhatsApp, o "fallido" con el error de Meta.
 // Después el webhook de estados lo pasa a entregado / leído / fallido (ver estadosDe y guardarEstados).
+// Si un mensaje no llega, la charla queda marcada para una persona ("Para revisar"): que alguien le conteste desde el celular.
+async function avisarFallo(env, contact, error) {
+  if (!env?.DB || !contact) return;
+  const motivo = /130497/.test(error) ? "WhatsApp no deja que Gaspi le escriba a este país (falta verificar el negocio en Meta). Contestale desde el celular." : `El mensaje no le llegó: ${error}`;
+  await env.DB.prepare("UPDATE ia_chats SET handoff=1, handoff_reason=? WHERE contact=? AND channel='whatsapp'").bind(motivo.slice(0, 300), String(contact)).run().catch(() => {});
+}
 async function registrar(env, body, wamid, status, error = "") {
   if (!env?.DB || !body?.to) return;
+  if (status === "fallido") await avisarFallo(env, body.to, error);
   await env.DB.prepare("INSERT OR REPLACE INTO wa_estados (wamid, contact, kind, status, error, created_at, updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
     .bind(wamid, String(body.to), String(body.type || ""), status, String(error).slice(0, 300)).run().catch(() => {});
 }
@@ -105,6 +112,7 @@ export async function guardarEstados(env, list) {
     const st = ES[x.status] || x.status;
     const cur = await env.DB.prepare("SELECT status FROM wa_estados WHERE wamid=?").bind(x.id).first().catch(() => null);
     if (cur && (ORDEN[cur.status] || 0) >= (ORDEN[st] || 0) && st !== "fallido") continue;
+    if (st === "fallido") await avisarFallo(env, x.to, x.error);
     if (cur) await env.DB.prepare("UPDATE wa_estados SET status=?, error=?, updated_at=CURRENT_TIMESTAMP WHERE wamid=?").bind(st, x.error, x.id).run().catch(() => {});
     else await env.DB.prepare("INSERT OR IGNORE INTO wa_estados (wamid, contact, status, error) VALUES (?,?,?,?)").bind(x.id, x.to, st, x.error).run().catch(() => {});
   }

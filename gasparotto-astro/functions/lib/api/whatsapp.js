@@ -16,6 +16,14 @@ export async function responder(env, to, text, lang = "pt") {
   const urls = [...new Set(String(text).match(/https?:\/\/[^\s)]+\/paquetes\/[a-z0-9-]+\/?/gi) || [])];
   if (urls.length === 1 && text.length <= 1000) {
     const body = text.replace(urls[0], "").replace(/[:\-–—]\s*$/m, "").replace(/\s+([.,!?])/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
+    // La foto del paseo arriba del botón (copia en JPG que genera el panel). Si WhatsApp la rechaza, sale el botón sin foto.
+    const slug = (urls[0].match(/\/paquetes\/([a-z0-9-]+)/i) || [])[1] || "";
+    const jpg = slug && env.DB ? (await env.DB.prepare("SELECT jpg FROM wa_fotos WHERE slug=?").bind(slug).first().catch(() => null))?.jpg : "";
+    const base = String(env.SITE_URL || "").replace(/\/$/, "");
+    if (jpg && base) {
+      try { return await enviarBotonLink(env, to, body || text, urls[0], RESERVAR[lang] || RESERVAR.pt, base + jpg); }
+      catch (e) { console.error("botón con foto:", e?.message); }
+    }
     try { return await enviarBotonLink(env, to, body || text, urls[0], RESERVAR[lang] || RESERVAR.pt); }
     catch (e) { console.error("botón:", e?.message); }
   }

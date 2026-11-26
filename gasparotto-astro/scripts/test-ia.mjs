@@ -587,3 +587,19 @@ console.log("\nTodo OK: asistente IA");
   assert.ok(/Quer que eu reserve\? Só preciso do nome e sobrenome do titular\./.test(t) && !/[¿¡]/.test(t), "cierre en portugués");
   console.log("✓ objeción de precio sin repreguntar y cierre siempre en portugués");
 }
+
+{
+  // Foto del paseo arriba del botón "Reservar agora" (copia JPG que genera el panel)
+  let r = await call("GET", "ia/fotos-wa", null, { cookie: admin });
+  assert.equal(r.status, 200); assert.ok(Array.isArray(r.data.pendientes));
+  r = await call("POST", "ia/fotos-wa", { slug: "city-tour-zona-sur", src: "/media/x.webp", jpg: "/media/x.jpg" }, { cookie: admin });
+  assert.equal(r.status, 200);
+  r = await call("POST", "ia/fotos-wa", { slug: "city-tour-zona-sur", src: "/media/x.webp", jpg: "https://otro.com/x.jpg" }, { cookie: admin });
+  assert.equal(r.status, 400, "solo fotos del sitio");
+  reset(); aiReply = "Olá! Aqui é o Gaspi. O *City Tour Zona Sul* sai *R$ 180*.\nhttps://gasparottoviajes.com/paquetes/city-tour-zona-sur/\nQuando vocês chegam?";
+  await inbound(waMsg("Quanto custa o city tour?", "5511555550000", "Rita"));
+  const b = of("graph.facebook.com").find((c) => c.body.type === "interactive");
+  assert.equal(b.body.interactive.header.type, "image");
+  assert.equal(b.body.interactive.header.image.link, "https://gasparottoviajes.com/media/x.jpg");
+  console.log("✓ botón de reserva con la foto del paseo");
+}

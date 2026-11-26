@@ -107,7 +107,7 @@ async function login(msg){
   const enter=async m=>{T.line('<span class="ok">✓ Sesión iniciada.</span> Abriendo panel…');
     const fo=!!(m.user&&m.user.role==='fotos'); // rol "fotos": solo ve "Nuestros clientes"
     if(!fo)await T.step('Cargando entradas y paquetes (D1)',async()=>{try{const[x,y]=await Promise.all([load('posts',true),load('packages',true)]);return `${x.length} entradas · ${y.length} paquetes`}catch{return 'sin datos todavía'}},0);
-    ME=m;applyBrand(m);if(m.brand)BR={brand:m.brand,logo:m.logo||BR.logo};if(fo)tab='clientes';else try{await refreshCats()}catch{}booting=false;await sleep(250);
+    ME=m;applyBrand(m);if(m.brand)BR={brand:m.brand,logo:m.logo||BR.logo};if(fo)tab='clientes';else{try{await refreshCats()}catch{}setTimeout(syncFotosWA,4000)}booting=false;await sleep(250);
     try{shell()}catch(e){T.line('Error al abrir el panel: '+esc(e.message),'ko')}};
   if(me)return enter(me);
   const f=$('#lf'),em=$('#em'),pw=$('#pw'),go=$('#go'),le=$('#le');
@@ -1421,6 +1421,18 @@ const iaTxt=t=>esc(t).replace(/\*([^*\n]+)\*/g,'<b>$1</b>').replace(/(https?:\/\
 const iaBub=m=>`<div class="ia-b ${m.role==='user'?'u':m.role==='agent'?'g':'a'}"><small>${iaWho[m.role]||''}${m.at?' · '+esc(ago(m.at)):''}</small><div>${iaTxt(m.text)}</div></div>`;
 const iaOrigin=o=>!o?'':`<span class="chip ${/^Anuncio|^Publicaci/.test(o)?'warn':/^Promo/.test(o)?'warn':/^Web/.test(o)?'ok':'neutral'}" title="${esc(o)}">${esc(/^Anuncio/.test(o)?'Anuncio':/^Publicaci/.test(o)?'Publicación':/^Promo/.test(o)?'Promoción':/^Web/.test(o)?'Desde la web':'Directo')}</span>`;
 const iaFlags=c=>`${c.pay_check?'<span class="chip warn">Verificar pago</span>':''}${c.handoff?'<span class="chip bad">Mirar charla</span>':''}${c.paused?'<span class="chip neutral">IA detenida</span>':''}`;
+// Fotos para WhatsApp: WhatsApp no acepta WEBP, así que el panel hace en segundo plano una copia en JPG de la foto de cada paquete
+// publicado (una vez por foto). Gaspi la manda arriba del botón "Reservar agora". Sin avisos: si falla, se intenta la próxima vez.
+let FOTOS_WA_HECHO=false;
+async function syncFotosWA(){if(FOTOS_WA_HECHO||isFotos())return;FOTOS_WA_HECHO=true;
+  try{const r=await fetch('/api/ia/fotos-wa');if(!r.ok)return;const{pendientes=[]}=await r.json();
+    for(const p of pendientes.slice(0,15)){try{
+      const bm=await createImageBitmap(await (await fetch(p.src)).blob()),k=Math.min(1,1200/bm.width),c=document.createElement('canvas');
+      c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(bm,0,0,c.width,c.height);
+      const blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg',.85));if(!blob)continue;
+      const u=await (await fetch('/api/upload',{method:'POST',headers:{'content-type':'image/jpeg'},body:blob})).json();
+      if(u.url)await fetch('/api/ia/fotos-wa',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slug:p.slug,src:p.src,jpg:u.url})});
+    }catch{}}}catch{}}
 let EMB_D=30;
 // Embudo: en qué paso se quedan los clientes (charla → precio → siguió → fecha → reserva → pago), total y por origen.
 async function iaEmbudo(){const box=$('#ia-embb');if(!box)return;let e;try{e=await api('ia/embudo?dias='+EMB_D)}catch{box.innerHTML='<p class="muted">No se pudo calcular.</p>';return}

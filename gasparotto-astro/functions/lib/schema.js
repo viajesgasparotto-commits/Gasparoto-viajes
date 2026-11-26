@@ -99,6 +99,8 @@ export const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS ia_messages_chat ON ia_messages (chat_id, id)`,
   `CREATE INDEX IF NOT EXISTS ia_messages_ext ON ia_messages (ext_id) WHERE ext_id <> ''`,
   `CREATE INDEX IF NOT EXISTS ia_chats_updated ON ia_chats (updated_at)`,
+  // Foto de cada paquete en JPG para WhatsApp (WhatsApp no acepta WEBP): la genera el panel en segundo plano. src = imagen de la que salió.
+  `CREATE TABLE IF NOT EXISTS wa_fotos (slug TEXT PRIMARY KEY, src TEXT NOT NULL, jpg TEXT NOT NULL, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`,
   // "Nuestros clientes" (página /clientes/ y franja de la portada): fotos de clientes subidas desde el panel. published = 0 → oculta.
   `CREATE TABLE IF NOT EXISTS client_photos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, image TEXT NOT NULL, caption TEXT DEFAULT '', published INTEGER NOT NULL DEFAULT 1,

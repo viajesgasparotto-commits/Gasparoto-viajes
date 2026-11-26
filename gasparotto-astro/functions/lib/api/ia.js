@@ -48,6 +48,18 @@ export async function manejarIA({ request, env, url, res, id, method, user }) {
     const messages = (await db.prepare("SELECT id, role, text, at FROM (SELECT * FROM ia_messages WHERE chat_id=? ORDER BY id DESC LIMIT 200) ORDER BY id").bind(rid).all()).results;
     return json({ chat, messages });
   }
+  // Fotos en JPG para el botón de WhatsApp: el panel pide cuáles faltan, las convierte en el navegador y avisa cuál subió.
+  if (method === "GET" && id === "fotos-wa") {
+    const rows = (await db.prepare("SELECT p.slug, p.image AS src FROM packages p LEFT JOIN wa_fotos w ON w.slug=p.slug WHERE p.published=1 AND p.image LIKE '/media/%' AND (w.slug IS NULL OR w.src <> p.image) LIMIT 40").all()).results || [];
+    return json({ pendientes: rows });
+  }
+  if (method === "POST" && id === "fotos-wa") {
+    const b = await request.json().catch(() => ({}));
+    const slug = String(b.slug || ""), src = String(b.src || ""), jpg = String(b.jpg || "");
+    if (!/^[a-z0-9-]{1,120}$/.test(slug) || !/^\/media\/[\w.-]+$/.test(src) || !/^\/media\/[\w.-]+\.jpg$/.test(jpg)) return json({ error: "Datos inválidos" }, 400);
+    await db.prepare("INSERT INTO wa_fotos (slug, src, jpg, updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(slug) DO UPDATE SET src=excluded.src, jpg=excluded.jpg, updated_at=CURRENT_TIMESTAMP").bind(slug, src, jpg).run();
+    return json({ ok: true });
+  }
   // Embudo de ventas de WhatsApp: de las charlas nuevas del período, cuántas siguieron, vieron precio, dieron fecha, reservaron y pagaron.
   if (method === "GET" && id === "embudo") return json(await embudo(db, Number(url.searchParams.get("dias")) || 30));
   if (method === "POST" && id === "probar") {

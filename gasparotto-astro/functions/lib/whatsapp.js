@@ -85,8 +85,11 @@ export async function enviarBotones(env, to, body, options) {
 }
 
 // Mensaje con botón de enlace ("Reservar ahora"): WhatsApp lo muestra como un botón que abre la página.
-export async function enviarBotonLink(env, to, body, url, label) {
-  await graphPost(env, { recipient_type: "individual", to, type: "interactive", interactive: { type: "cta_url", body: { text: String(body).slice(0, 1024) },
+// Con foto (JPG o PNG por https), la imagen va arriba del mensaje, como en una vista previa.
+export async function enviarBotonLink(env, to, body, url, label, foto = "") {
+  await graphPost(env, { recipient_type: "individual", to, type: "interactive", interactive: { type: "cta_url",
+    ...(foto ? { header: { type: "image", image: { link: foto } } } : {}),
+    body: { text: String(body).slice(0, 1024) },
     action: { name: "cta_url", parameters: { display_text: String(label).slice(0, 20), url } } } });
 }
 

@@ -144,7 +144,13 @@ html.gvbk-lock, html.gvbk-lock body { overflow: hidden; }
 .gvg-l b { font-weight: 700; }
 .gvg-l span { color: var(--color-mute, #5b6474); }
 .gvg-l:hover span { text-decoration: underline; }
-.gvg-st { color: #f5a623; letter-spacing: 1px; font-size: 1rem; line-height: 1; }
+.gvg-st, .gvg-l .gvg-st, .gvg-c .gvg-st { color: #f5a623; letter-spacing: 1px; font-size: 1rem; line-height: 1; }
 .gvg-c { display: flex; align-items: center; justify-content: center; gap: .4rem; margin-top: .75rem; font-size: .85rem; color: var(--color-ink, #0b1b33); text-decoration: none; }
 .gvg-c .gvg-st { font-size: .9rem; }
 .gvg-c:hover span { text-decoration: underline; }
+
+/* Fotos de clientes ("Nossos clientes") en la ficha */
+.gvcl { list-style: none; margin: 1.5rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+@media (min-width: 768px) { .gvcl { grid-template-columns: repeat(4, 1fr); } }
+.gvcl img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: .75rem; }
+.gvcl-more { display: inline-block; margin-top: 1rem; font-weight: 600; color: var(--color-primary, #0066a9); }

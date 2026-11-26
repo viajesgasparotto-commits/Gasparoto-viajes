@@ -393,7 +393,9 @@ ${phoneField}
   const STAR5 = `<span class="gvg-st" aria-hidden="true">★★★★★</span>`;
   const gLine = gOk ? `<a data-fx="hero" href="#avaliacoes" class="gvg-l">${STAR5}<b>${esc(gTxt.n)}</b><span>· ${esc(gTxt.c)}</span></a>` : "";
   const gCard = gOk ? `<a href="#avaliacoes" class="gvg-c">${STAR5}<span><b>${esc(gTxt.n)}</b> · ${esc(gTxt.c)}</span></a>` : "";
-  const gSec = extra.gBlock ? `<section id="avaliacoes" data-fx="up" class="tw-wrap mt-16 scroll-mt-24"><h2 class="m-0 mb-6 font-display text-h3 font-semibold text-ink">${esc(es ? "Quienes viajaron con nosotros" : "Quem viajou com a gente")}</h2>${extra.gBlock}</section>` : "";
+  // Fotos reales de clientes (panel → Nuestros clientes), desde 4 fotos.
+  const cli = (extra.fotosCli || []).length >= 4 ? `<ul class="gvcl">${extra.fotosCli.slice(0, 8).map((f, i) => `<li${i >= 4 ? ' class="hidden md:block"' : ""}><img src="${esc(f.image)}" alt="${esc(f.caption || (es ? "Cliente de Gasparotto Viajes" : "Cliente da Gasparotto Viajes"))}" loading="lazy" decoding="async"></li>`).join("")}</ul><a class="gvcl-more" href="/clientes/">${esc(es ? "Ver todas las fotos de clientes" : "Ver todas as fotos de clientes")}</a>` : "";
+  const gSec = extra.gBlock || cli ? `<section id="avaliacoes" data-fx="up" class="tw-wrap mt-16 scroll-mt-24"><h2 class="m-0 mb-6 font-display text-h3 font-semibold text-ink">${esc(es ? "Quienes viajaron con nosotros" : "Quem viajou com a gente")}</h2>${extra.gBlock || ""}${cli}</section>` : "";
   const card = `<div class="gvs" data-q>${ribbon}<div class="gvs-in"><div class="gvs-p">${priceHtml(p, L, true)}${pct ? `<span class="gvs-off">-${pct}%</span>` : ""}</div>${saveLine}${qOpts}${qPax}${qKids}${qTotal}<a href="#pedir" data-bk-open class="tw-btn tw-btn--primary gvs-cta"><span>${esc(TR.book)}</span><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><ul class="gvs-t">${ticks.map((t) => `<li>${TICK}<span>${esc(t)}</span></li>`).join("")}</ul><p class="gvs-proof">${esc(TR.proof)}</p>${gCard}<a href="${esc(waFor(p))}" data-gv-wa="${esc(p.title)}" target="_blank" rel="noopener" class="gvs-wa">${esc(TR.ask)}</a></div></div>`;
   // Franja de beneficios debajo de la galería: lo que nos diferencia, bien visible antes de leer la ficha.
   const BI = { star: '<path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/>', shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>', bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>' };
@@ -767,8 +769,9 @@ async function handlePt(ctx) {
           const items = isBundle(p) ? bundleItems(p, await loadParts(env.DB, p)) : [];
           // Reseñas de Google en la ficha: la calificación arriba (junto al título y en la tarjeta) y los comentarios al final.
           const g = await placesData(env).catch(() => null);
-          const gBlock = await googleBlock(env, "quotes").catch(() => "");
-          extra = { parts: slugs.map((x) => bySlug.get(x)).filter(Boolean), inBundles, sub, items, quote: items.length ? bundleQuote(p, items) : null, g, gBlock };
+          const gBlock = await googleBlock(env, "reviews").catch(() => "");
+          const fotosCli = await rows(env, PHOTOS_SQL + " LIMIT 8");
+          extra = { parts: slugs.map((x) => bySlug.get(x)).filter(Boolean), inBundles, sub, items, quote: items.length ? bundleQuote(p, items) : null, g, gBlock, fotosCli };
         } else if (reqLang === PT) extra = { adj: await adjacentFor(env, p) }; // anterior / siguiente (los títulos están en portugués: no se muestran en /es/ ni /en/)
         return itemResponse(env, reqLang, hit, table, html(render(env, stubShell(env), p, isPost ? (noExtras ? [] : await relatedFor(env, p)) : await relatedPkgsFor(env, p, [...extra.parts, ...extra.inBundles].map((x) => x.slug)), cat, blogPkgs, catMap, extra), 200, env));
       }

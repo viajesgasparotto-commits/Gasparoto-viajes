@@ -2,7 +2,8 @@
 // que tenía el producto ANTES (meta.snap). Durante la oferta se cobra lo que se cargó; cuando vence (o si se borra la fecha),
 // el producto vuelve solo a esos precios: precio, precio anterior, opciones, tabla por cantidad y texto del precio.
 import { parseMeta } from "./ficha.js";
-import { flashMs } from "./flash.js";
+// "2026-11-20T23:59" (hora de Buenos Aires, sin zona) → milisegundos. Argentina no tiene horario de verano: UTC−3 fijo.
+export const flashMs = (s) => (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(s || "")) ? Date.parse(s + ":00-03:00") : NaN);
 
 // Lo que se guarda y se repone.
 export const snapOf = (row) => {

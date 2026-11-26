@@ -118,7 +118,7 @@ assert.ok(/empleado/.test(sys) && /No sos guía/.test(sys) && /TU TRABAJO ES VEN
 assert.ok(/ESTE ES TU PRIMER MENSAJE/.test(sys) && /a Ana por su nombre/.test(sys) && /desde 2006/.test(sys), "primer mensaje: presentación institucional con el nombre");
 assert.ok(/portugués de Brasil, español o inglés/.test(sys), "tres idiomas");
 assert.ok(/primera vez en Argentina/.test(sys) && /NO hagas preguntas de descubrimiento/.test(sys) && /NUNCA vuelvas a preguntar/.test(sys), "descubrimiento corto: si ya sabe qué quiere, directo al cierre");
-assert.ok(/Menos descripción, más venta/.test(sys) && /POCO TEXTO/.test(sys) && /TUS ARGUMENTOS DE VENTA/.test(sys), "vende sin describir de más, con poco texto y argumentos");
+assert.ok(/Nada de descripciones/.test(sys) && /POCO TEXTO/.test(sys) && /TUS ARGUMENTOS DE VENTA/.test(sys), "vende sin describir de más, con poco texto y argumentos");
 assert.ok(/ORIGEN del contacto: Contacto directo/.test(sys), "origen del contacto");
 assert.ok(sys.includes("BLOG (notas para recomendar") && sys.includes("https://gasparottoviajes.com/blog/guia-palermo/"), "el blog va en el contexto");
 assert.ok(sys.includes("4.9 estrellas en Google (312 reseñas)") && sys.includes("https://gasparottoviajes.com/google") && sys.includes("Passeio incrível"), "reputación de Google");

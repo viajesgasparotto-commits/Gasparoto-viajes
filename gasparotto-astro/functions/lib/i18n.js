@@ -13,8 +13,6 @@ export function splitLang(pathname) {
 }
 // Ruta pública en un idioma a partir de la ruta interna: langPathOf("en", "/blog/x/") → /en/blog/x/
 export const langPathOf = (lang, path) => (lang === PT ? path : "/" + lang + path);
-// Ruta pública en español a partir de la ruta interna: /paquetes/x/ → /es/paquetes/x/
-export const esPathOf = (path) => langPathOf(ES, path);
 // Ruta de una ficha según su tipo: packages → /paquetes/<slug>/, posts → /blog/<slug>/
 export const itemPath = (table, slug) => `/${table === "posts" ? "blog" : "paquetes"}/${slug}/`;
 

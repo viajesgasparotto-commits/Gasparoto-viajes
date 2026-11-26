@@ -567,3 +567,10 @@ console.log("\nTodo OK: asistente IA");
   const r = await call("GET", "ia/embudo?dias=7", null, { cookie: admin }); assert.equal(r.status, 200); assert.equal(r.data.dias, 7);
   console.log("✓ embudo de ventas: pasos, origen y período");
 }
+
+{
+  // Largo de lectura y presentación forzada en el primer mensaje si la IA la saltea
+  const { textoLargo } = await import("../functions/lib/asistente.js");
+  assert.equal(textoLargo("Oi! https://x.com/a [[HUMANO]]  tudo bem?"), 13);
+  console.log("✓ largo de lectura sin enlaces ni marcas");
+}

@@ -529,6 +529,17 @@ export async function pensar(env, history, ctx = {}) {
   let reply2 = pmK && pmK.chave ? clavePixExacta(reply, pmK.chave) : reply;
   // Portugués: palabras en español que se cuelan de los ejemplos.
   if (ctx.idioma === "pt") reply2 = reply2.replace(/\bpor persona\b/g, "por pessoa").replace(/\bpor personas\b/g, "por pessoa");
+  // Frases de los ejemplos en español que la IA copia tal cual en un mensaje en portugués (la más común: la del cierre).
+  if (ctx.idioma === "pt" && /[¿¡]|Solo necesito el nombre/i.test(reply2)) {
+    reply2 = reply2.replace(/¿\s*Te lo reservo\?/gi, "Quer que eu reserve?").replace(/Solo necesito el nombre y apellido del titular\.?/gi, "Só preciso do nome e sobrenome do titular.").replace(/¿\s*Lo reservamos[^?]*\?/gi, "Quer que eu reserve?").replace(/[¿¡]/g, "");
+  }
+  // "Achei caro" es una objeción de precio: no se le pregunta "¿es la fecha, el valor o…?" (ya lo dijo). Se cambia por la invitación a reservar.
+  if (/\b(caro|cara|caros|expensive|costoso|salgado)\b/i.test(ctx.ultimo || "")) {
+    const cierre = { es: "¿Te lo dejo reservado?", en: "Shall I book it for you?" }[ctx.idioma] || "Quer que eu deixe reservado?";
+    const antes = reply2;
+    reply2 = reply2.replace(/[^\n]*(é a data, o valor|a data, o valor ou|es la fecha, el (precio|valor)|la fecha, el precio o|the date, the price)[^\n]*/i, cierre);
+    if (reply2 !== antes) reply2 = reply2.replace(/\n{3,}/g, "\n\n");
+  }
   // Primer mensaje: la presentación de Gaspi va sí o sí (si la IA la salteó, se agrega una línea corta al principio).
   if (ctx.primera && !ctx.seguimiento && reply2 && !/Gaspi/i.test(reply2) && !/^\W*(oi|olá|ola|hola|hi|hello|bom dia|boa tarde|boa noite|buen[oa]s?)(?=[\s!,.]|$)/i.test(reply2)) {
     const n = String(ctx.nombre || "").split(/\s+/)[0].replace(/[^\p{L}'-]/gu, "");

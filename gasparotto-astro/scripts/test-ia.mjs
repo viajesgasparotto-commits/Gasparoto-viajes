@@ -574,3 +574,16 @@ console.log("\nTodo OK: asistente IA");
   assert.equal(textoLargo("Oi! https://x.com/a [[HUMANO]]  tudo bem?"), 13);
   console.log("✓ largo de lectura sin enlaces ni marcas");
 }
+
+{
+  // Objeción de precio: no repregunta; frases en español en portugués se corrigen
+  reset(); aiReply = "Esse já é o nosso valor mais em conta, com traslado incluído.\n\nClaro! Só pra eu te ajudar melhor: é a data, o valor ou alguma dúvida sobre o passeio?";
+  await inbound(waMsg("Achei um pouco caro", "5511666660000", "Lia"));
+  let t = of("graph.facebook.com").filter((c) => c.body.type === "text").map((c) => c.body.text.body).join(" ");
+  assert.ok(/Quer que eu deixe reservado\?/.test(t) && !/é a data, o valor/.test(t), "caro → invita a reservar, sin repreguntar");
+  reset(); aiReply = "Pros 2 fica *R$ 300* no total.\n\n¿Te lo reservo? Solo necesito el nombre y apellido del titular.";
+  await inbound(waMsg("Somos 2, dia 12 de dezembro", "5511666660000", "Lia"));
+  t = of("graph.facebook.com").filter((c) => c.body.type === "text").map((c) => c.body.text.body).join(" ");
+  assert.ok(/Quer que eu reserve\? Só preciso do nome e sobrenome do titular\./.test(t) && !/[¿¡]/.test(t), "cierre en portugués");
+  console.log("✓ objeción de precio sin repreguntar y cierre siempre en portugués");
+}

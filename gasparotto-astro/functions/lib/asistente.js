@@ -319,7 +319,8 @@ ${pixM ? `- El pago es con Pix a la clave de la agencia: ${pixM.chave}${pixM.nom
 - Voucher y confirmación: cuando la reserva queda pagada, el equipo le manda el voucher POR ACÁ, por WhatsApp (un enlace con los datos de la reserva para mostrar el día del paseo). No mandamos nada por e-mail, ni hay app ni llamadas: nunca digas eso. Si pregunta por el voucher antes de pagar, decile que le llega por acá apenas se confirme el pago.
 - Detalles del día (punto de encuentro, a qué hora lo buscan, embarque): decí solo lo que figure en el catálogo. Si no figura, decile que el equipo se lo confirma por acá junto con el voucher, sin inventar.
 - Nunca inventes procesos, plazos ni canales que no estén en estas instrucciones o en el catálogo (e-mail, app, llamadas, "en 24 horas", "en la boletería del puerto"). Si no lo sabés, decí que lo confirmás con el equipo.
-- Las imágenes y archivos no los ves: el sistema los maneja con botones.
+- Las imágenes y archivos que MANDA el cliente no los ves: el sistema los maneja con botones.
+- Si el cliente PIDE fotos ("tenés fotos?", "tem foto?", "mandame una foto"): mandá el enlace del paseo del que hablan, en su propia línea; WhatsApp lo muestra con la foto del paseo arriba. Decí algo corto como "¡Claro! Acá va" / "Claro! Segue a foto" y que en el enlace están todas las fotos. Nunca digas que no podés ver ni mandar fotos.
 - Nunca digas que un pago está acreditado ni que una reserva está confirmada si no figura como *pagada*.
 - Si tuvo un problema para pagar en la web, mandale de nuevo el enlace. Si sigue sin poder, terminá con ${HANDOFF}.
 - Si quiere pagar en efectivo, con otra forma de pago o pasar por la oficina: no le digas que sí ni que no, ni inventes horarios ni condiciones (no sabés si se acepta). Decile que lo coordinás con el equipo, que le responde por acá, y terminá con ${HANDOFF}. Es un cliente que quiere comprar: que no se pierda.
@@ -552,7 +553,7 @@ export async function pensar(env, history, ctx = {}) {
   }
   // Si le prometió que alguien del equipo le escribe y se olvidó la marca, se marca igual: que el cliente no quede esperando.
   const promete = !ctx.seguimiento && PROMESA_PERSONA.test(reply2);
-  return { reply: reply2, handoff: handoff || promete, pago, datos, noSeguir, pix: reservada?.pix || "", reserva: reservada?.id || 0, pasos };
+  return { reply: reply2, handoff: handoff || promete, pago, datos, noSeguir, pix: reservada?.pix || "", reserva: reservada?.id || 0, pasos, idioma: ctx.idioma || "" };
 }
 
 // ---------- Conversaciones guardadas ----------
@@ -630,7 +631,7 @@ export async function recibir(env, { channel, contact, name = "", text, extId = 
   const extra = r.pix ? [r.pix] : [];
   // Código copia e cola (empieza con 000201) o clave Pix manual del panel.
   if (r.pix) await guardarMensaje(db, chat.id, "assistant", /^000201/.test(r.pix) ? "[Código Pix enviado]" : `[Clave Pix enviada: ${r.pix}]`);
-  return { reply: r.reply, extra, handoff: r.handoff, pago: r.pago, chatId: chat.id, lang: await idiomaDe(db, chat.id, env) };
+  return { reply: r.reply, extra, handoff: r.handoff, pago: r.pago, chatId: chat.id, lang: r.idioma || await idiomaDe(db, chat.id, env) };
 }
 
 // La IA no pudo responder: la charla queda marcada y el cliente recibe un aviso amable (una sola vez seguida, no en cada mensaje).
@@ -702,9 +703,12 @@ const TXT = {
 // Idioma del cliente según lo que viene escribiendo (sin IA). Si no hay señales claras, el del sitio.
 // Idioma de una lista de mensajes del cliente (el último pesa más). Devuelve "es" | "pt" | "en" | "" si no está claro.
 export function idiomaTextos(rows) {
+  // Manda el ÚLTIMO mensaje: si por sí solo ya dice el idioma ("Tenés foto?" después de una charla en portugués), es ese.
+  const solo = rows.length > 1 ? idiomaTextos([rows[0]]) : "";
+  if (solo) return solo;
   const t = [rows[0] || "", rows[0] || "", ...rows].join(" ").toLowerCase();
   const n = {
-    es: (t.match(/[¿¡ñ]|\b(hola|buenas|buenos|buen día|gracias|quiero|quisiera|cuánto|me llamo|mi nombre|nosotros|podés|podrías|querés|vos|cuanto|cuesta|precio|paseo|paseos|necesito|tenés|tienen|ustedes|puedo|personas|día|mañana|hoy|dónde|pagué|promociones|qué tal|cómo|también|vale)\b/g) || []).length,
+    es: (t.match(/[¿¡ñ]|\b(hol+a+|tenes|tenés|queres|podes|sabes|sabés|decime|mandame|pasame|che|dale|gracias|graci+as|acá|aca|hay|algún|alguna|fotos?\s+del|hola|buenas|buenos|buen día|gracias|quiero|quisiera|cuánto|me llamo|mi nombre|nosotros|podés|podrías|querés|vos|cuanto|cuesta|precio|paseo|paseos|necesito|tenés|tienen|ustedes|puedo|personas|día|mañana|hoy|dónde|pagué|promociones|qué tal|cómo|también|vale)\b/g) || []).length,
     pt: (t.match(/[ãõç]|\b(oi|olá|ola|obrigad[oa]|quero|queria|gostaria|vocês|voces|pessoas|amanhã|hoje|paguei|você|voce|não|nao|têm|tem|bom dia|boa tarde|boa noite|tudo bem|quanto|custa|valor|preço|preco|passeio|passeios|legal|onde|ingresso|também|tambem|sim|beleza|show de bola|pode|posso|podemos|meu|minha|meus|nós|gente|está|estou|vamos ser|obrigado|eu|reservar pra|pra|uma|duas|crianças|criança)\b/g) || []).length,
     en: (t.match(/\b(hi|hello|thanks|thank you|please|we are|how much|people|tomorrow|i paid|booking|would like|want|good morning|good afternoon)\b/g) || []).length,
   };

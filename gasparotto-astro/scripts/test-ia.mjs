@@ -603,3 +603,11 @@ console.log("\nTodo OK: asistente IA");
   assert.equal(b.body.interactive.header.image.link, "https://gasparottoviajes.com/media/x.jpg");
   console.log("✓ botón de reserva con la foto del paseo");
 }
+
+{
+  // El idioma lo manda el último mensaje (charla vieja en portugués, ahora escribe en español)
+  const { idiomaTextos } = await import("../functions/lib/asistente.js");
+  assert.equal(idiomaTextos(["Tenes foto ?", "Holaa", "Quero reservar para 4", "Oi tudo bem"]), "es");
+  assert.equal(idiomaTextos(["ok", "Quero reservar para 4"]), "pt");
+  console.log("✓ idioma: manda el último mensaje");
+}

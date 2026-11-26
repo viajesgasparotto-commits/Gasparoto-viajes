@@ -1,7 +1,7 @@
 // Webhook público de WhatsApp: GET /api/whatsapp (verificación que hace Meta al configurarlo) y POST /api/whatsapp (mensajes entrantes).
 // Responde 200 enseguida y procesa en segundo plano (Meta reintenta si tarda). La lógica del asistente vive en functions/lib/asistente.js.
 import { recibir, recibirAdjunto, recibirBoton, respuestaDelCelular, seguimientos, reintentos, BTN_SI, BTN_NO } from "../asistente.js";
-import { firmaValida, mensajesDe, ecosDe, enviarBotonLink, enviarTexto, enviarBotones, marcarLeido, waReady } from "../whatsapp.js";
+import { firmaValida, mensajesDe, ecosDe, estadosDe, guardarEstados, enviarBotonLink, enviarTexto, enviarBotones, marcarLeido, waReady } from "../whatsapp.js";
 import { json } from "./http.js";
 
 const NO_TEXT = {
@@ -32,6 +32,8 @@ export async function responder(env, to, text, lang = "pt") {
 
 export async function procesarWhatsapp(env, body) {
   const phoneId = String(env.WHATSAPP_PHONE_ID || "").trim();
+  // Entregado / leído / fallido de los mensajes que mandamos (para saber si de verdad le llegan al cliente).
+  await guardarEstados(env, estadosDe(body, phoneId)).catch((e) => console.error("estados:", e?.message));
   // Alguien del equipo contestó desde el celular: se guarda y la IA se pausa en esa charla.
   for (const m of ecosDe(body, phoneId)) {
     try { await respuestaDelCelular(env, { channel: "whatsapp", contact: m.to, text: m.text.slice(0, 2000), extId: "wa:" + m.id }); }

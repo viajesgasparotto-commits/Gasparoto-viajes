@@ -60,13 +60,54 @@ export function ecosDe(body, phoneId = "") {
   return out.filter((m) => /^\d{6,20}$/.test(m.to) && m.text);
 }
 
+// Registro de entrega (tabla wa_estados): cada envío queda "enviado" con su id de WhatsApp, o "fallido" con el error de Meta.
+// Después el webhook de estados lo pasa a entregado / leído / fallido (ver estadosDe y guardarEstados).
+async function registrar(env, body, wamid, status, error = "") {
+  if (!env?.DB || !body?.to) return;
+  await env.DB.prepare("INSERT OR REPLACE INTO wa_estados (wamid, contact, kind, status, error, created_at, updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+    .bind(wamid, String(body.to), String(body.type || ""), status, String(error).slice(0, 300)).run().catch(() => {});
+}
+
 async function graphPost(env, body) {
   const r = await fetch(graph(env), { method: "POST", headers: { authorization: `Bearer ${String(env.WHATSAPP_TOKEN).trim()}`, "content-type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", ...body }), signal: AbortSignal.timeout(15000) });
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
-    throw new Error(`WhatsApp ${r.status}: ${String(d?.error?.message || "").slice(0, 200)}`);
+    const msg = `WhatsApp ${r.status}: ${String(d?.error?.message || "").slice(0, 200)}${d?.error?.code ? ` (código ${d.error.code})` : ""}`;
+    await registrar(env, body, `err-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, "fallido", msg);
+    throw new Error(msg);
   }
-  return r.json().catch(() => ({}));
+  const j = await r.json().catch(() => ({}));
+  const wamid = j?.messages?.[0]?.id;
+  if (wamid) await registrar(env, body, String(wamid), "enviado");
+  return j;
+}
+
+// Estados que manda Meta por el webhook (sent, delivered, read, failed). Devuelve [{ id, to, status, error }].
+export function estadosDe(body, phoneId = "") {
+  const out = [];
+  for (const e of body?.entry || []) for (const ch of e?.changes || []) {
+    const v = ch?.value || {};
+    if (phoneId && v.metadata?.phone_number_id && String(v.metadata.phone_number_id) !== String(phoneId)) continue;
+    for (const st of v.statuses || []) {
+      const er = (st.errors || [])[0];
+      const error = er ? `${er.title || er.message || "Error"}${er.code ? ` (código ${er.code})` : ""}${er.error_data?.details ? `: ${er.error_data.details}` : ""}` : "";
+      out.push({ id: String(st.id || ""), to: String(st.recipient_id || ""), status: String(st.status || ""), error });
+    }
+  }
+  return out.filter((x) => x.id && x.status);
+}
+const ORDEN = { enviado: 1, entregado: 2, leido: 3, fallido: 4 };
+const ES = { sent: "enviado", delivered: "entregado", read: "leido", failed: "fallido" };
+// Guarda los estados sin retroceder (un "entregado" que llega tarde no pisa un "leído"); "fallido" siempre gana.
+export async function guardarEstados(env, list) {
+  if (!env?.DB) return;
+  for (const x of list) {
+    const st = ES[x.status] || x.status;
+    const cur = await env.DB.prepare("SELECT status FROM wa_estados WHERE wamid=?").bind(x.id).first().catch(() => null);
+    if (cur && (ORDEN[cur.status] || 0) >= (ORDEN[st] || 0) && st !== "fallido") continue;
+    if (cur) await env.DB.prepare("UPDATE wa_estados SET status=?, error=?, updated_at=CURRENT_TIMESTAMP WHERE wamid=?").bind(st, x.error, x.id).run().catch(() => {});
+    else await env.DB.prepare("INSERT OR IGNORE INTO wa_estados (wamid, contact, status, error) VALUES (?,?,?,?)").bind(x.id, x.to, st, x.error).run().catch(() => {});
+  }
 }
 
 // Envía texto (partido en trozos si supera el máximo de WhatsApp).

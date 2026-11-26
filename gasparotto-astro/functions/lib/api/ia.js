@@ -40,13 +40,16 @@ export async function manejarIA({ request, env, url, res, id, method, user }) {
       whatsapp: { missing: waMissing(env), webhook: `${url.origin}/api/whatsapp` },
       pixManual: (await pixManual(db)) || { chave: "", nombre: "" }, pixAuto: pixEnabled(env),
       instrucciones: await instrucciones(db), puedeEditar: user.role === "admin", pending, stats, chats,
+      entrega: await entregaResumen(db),
     });
   }
   if (method === "GET" && rid) {
     const chat = await db.prepare("SELECT * FROM ia_chats WHERE id=?").bind(rid).first();
     if (!chat) return json({ error: "No existe" }, 404);
     const messages = (await db.prepare("SELECT id, role, text, at FROM (SELECT * FROM ia_messages WHERE chat_id=? ORDER BY id DESC LIMIT 200) ORDER BY id").bind(rid).all()).results;
-    return json({ chat, messages });
+    // Entrega de los últimos mensajes que le mandamos a este cliente (enviado, entregado, leído o fallido con el motivo).
+    const entrega = ((await db.prepare("SELECT kind, status, error, created_at, updated_at FROM wa_estados WHERE contact=? ORDER BY created_at DESC LIMIT 12").bind(String(chat.contact)).all().catch(() => ({ results: [] }))).results) || [];
+    return json({ chat, messages, entrega });
   }
   // Fotos en JPG para el botón de WhatsApp: el panel pide cuáles faltan, las convierte en el navegador y avisa cuál subió.
   if (method === "GET" && id === "fotos-wa") {
@@ -149,4 +152,13 @@ export async function embudo(db, dias = 30) {
     if (c.handoff && !c.a) esperando++;
   }
   return { dias, pasos, total, porOrigen, esperando };
+}
+
+// ---------- Entrega de WhatsApp ----------
+// Últimos 7 días: cuántos mensajes quedaron en cada estado y los últimos que fallaron (con el motivo que da Meta).
+export async function entregaResumen(db) {
+  const st = ((await db.prepare("SELECT status, COUNT(*) n FROM wa_estados WHERE created_at > datetime('now','-7 day') GROUP BY status").all().catch(() => ({ results: [] }))).results) || [];
+  const fallos = ((await db.prepare("SELECT w.contact, w.error, w.updated_at, COALESCE(c.name,'') name, c.id chat FROM wa_estados w LEFT JOIN ia_chats c ON c.contact=w.contact AND c.channel='whatsapp' WHERE w.status='fallido' AND w.created_at > datetime('now','-7 day') ORDER BY w.updated_at DESC LIMIT 10").all().catch(() => ({ results: [] }))).results) || [];
+  const por = Object.fromEntries(st.map((r) => [r.status, r.n]));
+  return { enviado: por.enviado || 0, entregado: por.entregado || 0, leido: por.leido || 0, fallido: por.fallido || 0, fallos };
 }

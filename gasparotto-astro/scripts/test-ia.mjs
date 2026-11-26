@@ -611,3 +611,19 @@ console.log("\nTodo OK: asistente IA");
   assert.equal(idiomaTextos(["ok", "Quero reservar para 4"]), "pt");
   console.log("✓ idioma: manda el último mensaje");
 }
+
+{
+  // Entrega de WhatsApp: los estados del webhook se guardan sin retroceder; un fallo queda con el motivo
+  const { estadosDe, guardarEstados } = await import("../functions/lib/whatsapp.js");
+  const hook = (st) => ({ entry: [{ changes: [{ value: { metadata: { phone_number_id: env.WHATSAPP_PHONE_ID }, statuses: [st] } }] }] });
+  await env.DB.prepare("INSERT INTO wa_estados (wamid, contact, kind, status) VALUES ('wamid.T1','5511444440000','text','enviado')").run();
+  await guardarEstados(env, estadosDe(hook({ id: "wamid.T1", recipient_id: "5511444440000", status: "read" }), env.WHATSAPP_PHONE_ID));
+  await guardarEstados(env, estadosDe(hook({ id: "wamid.T1", recipient_id: "5511444440000", status: "delivered" }), env.WHATSAPP_PHONE_ID));
+  assert.equal((await one("SELECT status FROM wa_estados WHERE wamid='wamid.T1'")).status, "leido", "no retrocede");
+  await guardarEstados(env, estadosDe(hook({ id: "wamid.T2", recipient_id: "5511444440000", status: "failed", errors: [{ code: 131026, title: "Message undeliverable" }] }), env.WHATSAPP_PHONE_ID));
+  const f = await one("SELECT status, error FROM wa_estados WHERE wamid='wamid.T2'");
+  assert.equal(f.status, "fallido"); assert.ok(/131026/.test(f.error));
+  const r = await call("GET", "ia", null, { cookie: admin });
+  assert.ok(r.data.entrega.fallido >= 1); assert.equal(r.data.entrega.leido, 1);
+  console.log("✓ entrega de WhatsApp: leído no retrocede; fallido con el motivo; resumen en el panel");
+}

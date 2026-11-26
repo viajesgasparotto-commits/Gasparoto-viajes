@@ -138,3 +138,13 @@ html.gvbk-lock, html.gvbk-lock body { overflow: hidden; }
 /* Políticas del formulario: solo las de la opción elegida, separadas por coma */
 .gvp-form[hidden], .gvp-form [data-pol-opt][hidden] { display: none; }
 .gvp-form [data-pol-opt]:not([hidden]) ~ [data-pol-opt]:not([hidden])::before { content: ", "; }
+
+/* Calificación de Google en la ficha: junto al título y en la tarjeta de reserva */
+.gvg-l { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .75rem; font-size: .95rem; color: var(--color-ink, #0b1b33); text-decoration: none; }
+.gvg-l b { font-weight: 700; }
+.gvg-l span { color: var(--color-mute, #5b6474); }
+.gvg-l:hover span { text-decoration: underline; }
+.gvg-st { color: #f5a623; letter-spacing: 1px; font-size: 1rem; line-height: 1; }
+.gvg-c { display: flex; align-items: center; justify-content: center; gap: .4rem; margin-top: .75rem; font-size: .85rem; color: var(--color-ink, #0b1b33); text-decoration: none; }
+.gvg-c .gvg-st { font-size: .9rem; }
+.gvg-c:hover span { text-decoration: underline; }

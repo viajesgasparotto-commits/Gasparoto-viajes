@@ -1465,3 +1465,6 @@ button.av-d i{width:8px;height:8px;top:8px;right:8px}
 .ia-relb a.btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;background:#1fa855;color:#fff;border:0;padding:9px 16px;border-radius:6px;font-weight:600;font-size:14px}
 .ia-relb a.btn:hover{filter:brightness(1.08)}.ia-relb a.btn .ic,.ia-relb button .ic{width:16px;height:16px}.ia-relb a.btn .ic{color:#fff}
 .ia-relb button{display:inline-flex;align-items:center;gap:6px}
+.ia-entc .cardhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}.ia-entc .ia-entres{margin:0}
+.ia-entw{display:flex;gap:8px;align-items:flex-start;margin:10px 0 8px;font-size:14px}.ia-entw .ic{flex:none;width:16px;height:16px;margin-top:2px;color:#d97706}
+.ia-entp{display:flex;flex-wrap:wrap;gap:6px}.ia-entp .chip{cursor:pointer;border:0;font:inherit;font-size:13px}

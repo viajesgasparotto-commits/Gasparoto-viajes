@@ -1477,7 +1477,7 @@ async function ia(){const v=$('#v');if(!IA_D)v.innerHTML=SK;let d;try{d=await ap
     $('#ia-l').innerHTML=list.length?list.map(c=>`<button type="button" class="ia-row${c.handoff||c.pay_check?' is-hot':''}${IA_OPEN===c.id?' on':''}" data-chat="${c.id}"><div class="grow"><b>${esc(c.name||'+'+c.contact)}</b> ${iaOrigin(c.origin)}${iaFlags(c)}<small class="muted">${esc((c.last_text||'').replace(/\*/g,'').slice(0,110))}</small></div><small class="muted">${esc(ago(c.updated_at))}</small></button>`).join(''):emptyBox(d.chats.length?'No hay conversaciones con ese filtro.':'Todavía no hay conversaciones.',d.chats.length?'':'Aparecen acá cuando un cliente escribe al WhatsApp.');
     $$('[data-chat]').forEach(b=>b.onclick=()=>{IA_OPEN=+b.dataset.chat;$$('[data-chat]').forEach(x=>x.classList.toggle('on',x===b));iaChat(IA_OPEN)})};
   paintL();
-  iaEmbudo();$$('[data-embd]').forEach(b=>b.onclick=()=>{EMB_D=+b.dataset.embd;$$('[data-embd]').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#ia-embb').innerHTML='<p class="muted">Calculando…</p>';iaEmbudo()});
+  $$('[data-entc]').forEach(b=>b.onclick=()=>{if(b.dataset.entc){iaChat(+b.dataset.entc);setTimeout(()=>$('#ia-det')?.scrollIntoView({behavior:'smooth',block:'start'}),300)}});iaEmbudo();$$('[data-embd]').forEach(b=>b.onclick=()=>{EMB_D=+b.dataset.embd;$$('[data-embd]').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#ia-embb').innerHTML='<p class="muted">Calculando…</p>';iaEmbudo()});
   $$('[data-iaf]').forEach(b=>b.onclick=()=>{IA_F=b.dataset.iaf;$$('.ia-tools [data-iaf]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.iaf===IA_F));paintL();$('#ia-l').scrollIntoView({block:'nearest'})});
   $('#ia-s').oninput=e=>{IA_Q=e.target.value;paintL()};
   if($('#ia-tg'))$('#ia-tg').onclick=async()=>{try{await api('ia/config','PUT',{detenida:on});toast(on?'Respuestas detenidas':'La IA vuelve a responder');ia()}catch{}};
@@ -1497,8 +1497,12 @@ const err130497=e=>/130497/.test(e||'');
 // Estado de entrega del último mensaje nuestro (una línea). Si no llegó, el detalle va en el recuadro de relevo (iaRelevo).
 function iaEntrega(list){if(!list.length||list[0].status==='fallido')return '';const u=list[0],[l,k]=ENT_L[u.status]||[u.status,'neutral'];
   return `<p class="ia-ent"><span>Último mensaje nuestro:</span> <span class="chip ${k}">${esc(l)}</span> <small class="muted">${esc(ago(u.updated_at||u.created_at))}</small></p>`}
-function iaEntregaRes(e){if(!e)return '';const tot=e.enviado+e.entregado+e.leido+e.fallido;if(!tot)return `<section class="card"><h3>Entrega de WhatsApp</h3><p class="muted">Desde ahora se registra si cada mensaje le llega al cliente. Todavía no hay datos.</p></section>`;
-  return `<section class="card"><div class="cardhead"><h3>Entrega de WhatsApp · 7 días</h3></div><p class="ia-entres"><span><b>${e.leido}</b> leídos</span><span><b>${e.entregado}</b> entregados</span><span><b>${e.enviado}</b> sin confirmar</span><span class="${e.fallido?'is-err':''}"><b>${e.fallido}</b> no llegaron</span></p>${e.fallos.length?`<ul class="ia-fallos">${e.fallos.map(x=>`<li><b>${esc(x.name||'+'+x.contact)}</b> <small class="muted">${esc(ago(x.updated_at))}</small><br><small>${esc(errTxt(x.error))}</small></li>`).join('')}</ul>`:''}</section>`}
+function iaEntregaRes(e){if(!e)return '';const tot=e.enviado+e.entregado+e.leido+e.fallido;if(!tot)return '';
+  // Clientes a los que no les llegó algo (una vez cada uno) y el motivo principal, en una línea.
+  const vistos=new Set(),gente=e.fallos.filter(x=>!vistos.has(x.contact)&&vistos.add(x.contact));
+  const motivo=e.fallos.length?(e.fallos.every(x=>err130497(x.error))?'Meta todavía no deja escribirles a números de Brasil (falta verificar el negocio).':errTxt(e.fallos[0].error)):'';
+  return `<section class="card ia-entc"><div class="cardhead"><h3>Entrega de WhatsApp · 7 días</h3><p class="ia-entres"><span><b>${e.leido+e.entregado}</b> llegaron</span>${e.enviado?`<span><b>${e.enviado}</b> sin confirmar</span>`:''}<span class="${e.fallido?'is-err':''}"><b>${e.fallido}</b> no llegaron</span></p></div>
+    ${gente.length?`<p class="ia-entw">${ic('alert')}<span>${motivo} Abrí cada charla y mandá el mensaje desde el WhatsApp de la agencia:</span></p><div class="ia-entp">${gente.map(x=>`<button type="button" class="chip warn" data-entc="${x.chat||''}">${esc(x.name||'+'+x.contact)}</button>`).join('')}</div>`:''}</section>`}
 // Relevo por la app: si Meta no deja que la respuesta de Gaspi salga por la API (p. ej. clientes de Brasil, error 130497),
 // se muestra lo que Gaspi escribió y un botón que abre la charla del cliente en WhatsApp (app o WhatsApp Web de la agencia)
 // con el texto ya escrito: se toca Enviar y listo. Lo que sale desde la app sí le llega.
